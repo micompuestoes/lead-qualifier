@@ -73,16 +73,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — orígenes permitidos: siempre localhost:3000 (dev) + FRONTEND_URL si está definida (prod)
-_cors_origins = ["http://localhost:3000"]
-_frontend_url = os.getenv("FRONTEND_URL", "").strip().rstrip("/")
-if _frontend_url:
-    _cors_origins.append(_frontend_url)
-
+# CORS — permite todos los orígenes en producción para evitar problemas con dominios de Vercel/Railway
+# En una versión posterior se puede restringir a dominios específicos
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_cors_origins,
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
