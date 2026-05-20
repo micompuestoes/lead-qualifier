@@ -57,6 +57,7 @@ def init_db() -> None:
     """Crea las tablas y columnas que falten. Seguro de llamar varias veces."""
     logger.info("Inicializando base de datos...")
 
+    # Cada operación en su propia transacción para que un fallo no bloquee las demás
     with engine.begin() as conn:
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS leads (
@@ -78,15 +79,17 @@ def init_db() -> None:
             )
         """))
 
-        # Migración segura: añadir status si la tabla ya existía sin esa columna
-        try:
+    # Migración segura en transacción separada — falla silenciosamente si ya existe
+    try:
+        with engine.begin() as conn:
             conn.execute(text(
                 "ALTER TABLE leads ADD COLUMN status TEXT NOT NULL DEFAULT 'PENDIENTE'"
             ))
-            logger.info("Columna 'status' añadida (migracion)")
-        except Exception:
-            pass  # Ya existe — ignorar
+        logger.info("Columna 'status' añadida (migracion)")
+    except Exception:
+        pass  # Ya existe — ignorar
 
+    with engine.begin() as conn:
         conn.execute(text(
             "CREATE INDEX IF NOT EXISTS idx_leads_email ON leads (email)"
         ))
