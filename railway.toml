@@ -1,0 +1,9 @@
+# railway.toml raíz — define los dos servicios del monorepo
+# Railway lee este archivo para saber cómo construir cada servicio.
+# Cada servicio apunta a su subdirectorio con su propio railway.toml.
+
+[services.backend]
+source = "lead-qualifier"
+
+[services.frontend]
+source = "dashboard"
