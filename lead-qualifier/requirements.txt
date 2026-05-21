@@ -10,12 +10,12 @@ python-dotenv>=1.0.0       # Lectura del .env en local
 
 # ── Base de datos ──────────────────────────────
 sqlalchemy>=2.0.0          # ORM/Core para SQLite (dev) y PostgreSQL (prod)
-psycopg2-binary>=2.9.9     # Driver PostgreSQL — necesario en Railway
+psycopg2-binary>=2.9.9     # Driver PostgreSQL — necesario en producción
 
 # ── HTTP / SSL ────────────────────────────────
 httpx>=0.27.0              # Cliente HTTP para el SDK de Anthropic
 certifi>=2024.0.0          # Certificados SSL fallback
 truststore>=0.9.1          # Certificados del SO — fix SSL en Windows/Microsoft Store
 
-# ── Email (opcional) ──────────────────────────
-# sendgrid>=6.11.0         # Descomentar si usas SendGrid
+# ── Autenticación multi-tenant ────────────────
+python-jose[cryptography]>=3.3.0  # Verificación de JWT (tokens de Clerk)

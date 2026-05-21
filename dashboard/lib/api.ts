@@ -3,8 +3,10 @@
 // En desarrollo (sin NEXT_PUBLIC_API_URL):
 //   Las peticiones van a /api/... y Next.js las redirige a localhost:8000 via rewrites.
 //
-// En producción (NEXT_PUBLIC_API_URL definida en Railway):
-//   Las peticiones van directamente a la URL del backend de Railway.
+// En producción (NEXT_PUBLIC_API_URL definida):
+//   Las peticiones van directamente a la URL del backend.
+//
+// Auth: el token JWT de Clerk se adjunta automáticamente en cada petición.
 
 import type {
   Lead,
@@ -13,12 +15,39 @@ import type {
   ActualizarEstadoPayload,
 } from '@/types/lead';
 
-// NEXT_PUBLIC_* es visible en el navegador — necesario para llamadas client-side
 const BASE = process.env.NEXT_PUBLIC_API_URL
-  ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '') // quitar / final si lo hay
+  ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '')
   : '/api';
 
-// Helper: lanza un error con el mensaje del servidor si la respuesta no es 2xx
+// ── Obtención del token JWT de Clerk ─────────────────────────────────────────
+// window.Clerk es inyectado por el ClerkProvider y disponible en client components.
+
+async function obtenerToken(): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+  try {
+    const clerk = (window as any).Clerk;
+    if (!clerk?.session) return null;
+    return await clerk.session.getToken();
+  } catch {
+    return null;
+  }
+}
+
+// ── Helper de fetch con auth automática ──────────────────────────────────────
+
+async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
+  const token = await obtenerToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  return fetch(`${BASE}${path}`, { ...options, headers });
+}
+
+// ── Helper: lanza un error con el mensaje del servidor si la respuesta no es 2xx
+
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let mensaje = `Error ${res.status}`;
@@ -33,57 +62,58 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-// ── Cualificar un lead nuevo ────────────────────────────────────────────────
+// ── Cualificar un lead nuevo ──────────────────────────────────────────────────
+
 export async function cualificarLead(
   payload: NuevoLeadPayload
 ): Promise<LeadQualificado> {
-  const res = await fetch(`${BASE}/qualify-lead`, {
+  const res = await apiFetch('/qualify-lead', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
   return handleResponse<LeadQualificado>(res);
 }
 
-// ── Obtener todos los leads ─────────────────────────────────────────────────
+// ── Obtener todos los leads ───────────────────────────────────────────────────
+
 export async function obtenerLeads(): Promise<Lead[]> {
-  const res = await fetch(`${BASE}/leads`, {
-    cache: 'no-store',
-  });
+  const res = await apiFetch('/leads', { cache: 'no-store' } as RequestInit);
   const data = await handleResponse<{ leads: Lead[] }>(res);
   return normalizarLeads(data.leads);
 }
 
-// ── Obtener un lead por ID ──────────────────────────────────────────────────
+// ── Obtener un lead por ID ────────────────────────────────────────────────────
+
 export async function obtenerLead(id: string): Promise<Lead> {
-  const res = await fetch(`${BASE}/leads/${id}`, { cache: 'no-store' });
+  const res = await apiFetch(`/leads/${id}`, { cache: 'no-store' } as RequestInit);
   const data = await handleResponse<Lead>(res);
   return normalizarLead(data);
 }
 
-// ── Actualizar el estado de un lead ────────────────────────────────────────
+// ── Actualizar el estado de un lead ──────────────────────────────────────────
+
 export async function actualizarEstado(
   id: string,
   payload: ActualizarEstadoPayload
 ): Promise<Lead> {
-  const res = await fetch(`${BASE}/leads/${id}/status`, {
+  const res = await apiFetch(`/leads/${id}/status`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
   return handleResponse<Lead>(res);
 }
 
-// ── Eliminar un lead ────────────────────────────────────────────────────────
+// ── Eliminar un lead ──────────────────────────────────────────────────────────
+
 export async function eliminarLead(id: string): Promise<void> {
-  const res = await fetch(`${BASE}/leads/${id}`, { method: 'DELETE' });
+  const res = await apiFetch(`/leads/${id}`, { method: 'DELETE' });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.detail ?? `Error ${res.status}`);
   }
 }
 
-// ── Helpers internos ────────────────────────────────────────────────────────
+// ── Helpers internos ──────────────────────────────────────────────────────────
 
 function normalizarLead(lead: Lead): Lead {
   return {

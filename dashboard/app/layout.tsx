@@ -1,6 +1,7 @@
-// Layout global: sidebar fijo + área de contenido + sistema de toasts
+// Layout global — ClerkProvider envuelve todo para la sesión de autenticación
 
 import type { Metadata } from 'next';
+import { ClerkProvider } from '@clerk/nextjs';
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
 import { ToastProvider } from '@/components/Toast';
@@ -16,20 +17,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es">
-      <body>
-        <ToastProvider>
-          <div className="flex min-h-screen">
-            {/* Sidebar fijo a la izquierda */}
-            <Sidebar />
-
-            {/* Contenido principal con margen izquierdo igual al ancho del sidebar */}
-            <main className="flex-1 ml-60 min-h-screen">
-              {children}
-            </main>
-          </div>
-        </ToastProvider>
-      </body>
-    </html>
+    <ClerkProvider
+      signInUrl="/sign-in"
+      signUpUrl="/sign-up"
+    >
+      <html lang="es">
+        <body>
+          <ToastProvider>
+            <div className="flex min-h-screen">
+              <Sidebar />
+              <main className="flex-1 ml-60 min-h-screen">
+                {children}
+              </main>
+            </div>
+          </ToastProvider>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

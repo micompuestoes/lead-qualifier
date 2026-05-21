@@ -42,6 +42,7 @@ def qualify_lead(
     phone: Optional[str],
     message: str,
     anthropic_client: anthropic.Anthropic,
+    tenant_id: str = "legacy",
 ) -> dict:
     """
     Punto de entrada principal del agente.
@@ -134,8 +135,8 @@ El email debe empezar con "Hola {name.split()[0]}," y terminar con "Un saludo,\\
                 logger.debug("   Input: %s", json.dumps(tool_input, ensure_ascii=False, indent=2))
 
                 try:
-                    # Ejecutar la tool
-                    result = execute_tool(tool_name, tool_input)
+                    # Ejecutar la tool — pasamos tenant_id para que save_to_db lo use
+                    result = execute_tool(tool_name, tool_input, tenant_id=tenant_id)
 
                     # Guardar resultados en el estado del agente
                     _update_agent_state(agent_state, tool_name, tool_input, result)
