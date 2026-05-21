@@ -1,21 +1,21 @@
-// Barra de progreso visual para la puntuación 1-10 del lead
+// Indicador segmentado de puntuación 1–10
 
 interface Props {
   score: number | null;
   showLabel?: boolean;
 }
 
-// Color de la barra según el valor del score
-function colorPorScore(score: number): string {
-  if (score >= 8) return 'bg-green-500';
-  if (score >= 5) return 'bg-yellow-400';
+function colorSegmento(index: number, score: number): string {
+  if (index >= score) return 'bg-gray-100';
+  if (score >= 8) return 'bg-emerald-500';
+  if (score >= 5) return 'bg-amber-400';
   return 'bg-red-400';
 }
 
-function colorTexto(score: number): string {
-  if (score >= 8) return 'text-green-700';
-  if (score >= 5) return 'text-yellow-700';
-  return 'text-red-700';
+function colorLabel(score: number): string {
+  if (score >= 8) return 'text-emerald-700';
+  if (score >= 5) return 'text-amber-700';
+  return 'text-red-600';
 }
 
 export default function ScoreBar({ score, showLabel = true }: Props) {
@@ -23,24 +23,22 @@ export default function ScoreBar({ score, showLabel = true }: Props) {
     return <span className="text-xs text-gray-400">Sin puntuación</span>;
   }
 
-  const porcentaje = (score / 10) * 100;
-  const barColor = colorPorScore(score);
-  const textColor = colorTexto(score);
-
   return (
-    <div className="flex items-center gap-2 w-full">
-      {/* Barra de progreso */}
-      <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all duration-300 ${barColor}`}
-          style={{ width: `${porcentaje}%` }}
-        />
+    <div className="flex items-center gap-2.5 w-full">
+      {/* 10 segmentos — cada uno representa 1 punto */}
+      <div className="flex gap-0.5 flex-1">
+        {Array.from({ length: 10 }, (_, i) => (
+          <div
+            key={i}
+            className={`h-1.5 flex-1 rounded-full transition-colors ${colorSegmento(i, score)}`}
+          />
+        ))}
       </div>
 
-      {/* Número */}
       {showLabel && (
-        <span className={`text-sm font-bold tabular-nums ${textColor} min-w-[2.5rem] text-right`}>
-          {score}/10
+        <span className={`text-sm font-bold tabular-nums shrink-0 ${colorLabel(score)}`}>
+          {score}
+          <span className="text-xs font-normal text-gray-400">/10</span>
         </span>
       )}
     </div>
