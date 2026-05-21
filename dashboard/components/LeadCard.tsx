@@ -1,4 +1,4 @@
-// Tarjeta de lead para la lista — enlaza al detalle
+// Tarjeta de lead — animación staggered al cargar, pulse en CALIENTE
 
 import Link from 'next/link';
 import type { Lead, EstadoLead } from '@/types/lead';
@@ -7,6 +7,7 @@ import ScoreBar from './ScoreBar';
 
 interface Props {
   lead: Lead;
+  index?: number; // posición en la lista, para el delay de entrada
 }
 
 const estadoEstilos: Record<EstadoLead, string> = {
@@ -38,12 +39,18 @@ function Iniciales({ name }: { name: string }) {
   );
 }
 
-export default function LeadCard({ lead }: Props) {
+export default function LeadCard({ lead, index = 0 }: Props) {
   const status = lead.status ?? 'PENDIENTE';
+  // Delay escalonado: 0ms, 80ms, 160ms...
+  const delayMs = index * 80;
 
   return (
     <Link href={`/leads/${lead.id}`} className="block group">
-      <div className="bg-white border border-gray-200 rounded-xl p-5 hover:border-blue-200 hover:shadow-md transition-all duration-150">
+      <div
+        className="animate-fade-up bg-white border border-gray-200 rounded-xl p-5
+          hover:border-blue-200 hover:shadow-md transition-all duration-150"
+        style={{ animationDelay: `${delayMs}ms` }}
+      >
         {/* Fila superior: avatar + nombre + badge */}
         <div className="flex items-start gap-3 mb-3">
           <Iniciales name={lead.name} />
@@ -52,7 +59,10 @@ export default function LeadCard({ lead }: Props) {
               <p className="font-semibold text-gray-900 truncate text-sm group-hover:text-blue-600 transition-colors">
                 {lead.name}
               </p>
-              <LeadBadge clasificacion={lead.classification} size="sm" />
+              {/* Pulse muy sutil solo si el lead es CALIENTE */}
+              <span className={lead.classification === 'CALIENTE' ? 'animate-pulse-warm' : ''}>
+                <LeadBadge clasificacion={lead.classification} size="sm" />
+              </span>
             </div>
             <p className="text-xs text-gray-500 truncate">{lead.email}</p>
           </div>
