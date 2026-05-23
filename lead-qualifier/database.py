@@ -57,11 +57,13 @@ def init_db() -> None:
     with engine.begin() as conn:
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS tenants (
-                id         TEXT PRIMARY KEY,
-                email      TEXT NOT NULL,
-                name       TEXT,
-                plan       TEXT NOT NULL DEFAULT 'free',
-                created_at TEXT NOT NULL
+                id           TEXT PRIMARY KEY,
+                email        TEXT NOT NULL,
+                name         TEXT,
+                plan         TEXT NOT NULL DEFAULT 'free',
+                status       TEXT NOT NULL DEFAULT 'active',
+                cancelled_at TEXT,
+                created_at   TEXT NOT NULL
             )
         """))
 
@@ -92,6 +94,9 @@ def init_db() -> None:
     for migration_sql in [
         "ALTER TABLE leads ADD COLUMN status TEXT NOT NULL DEFAULT 'PENDIENTE'",
         "ALTER TABLE leads ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'legacy'",
+        # Ciclo de vida del tenant
+        "ALTER TABLE tenants ADD COLUMN status TEXT NOT NULL DEFAULT 'active'",
+        "ALTER TABLE tenants ADD COLUMN cancelled_at TEXT",
     ]:
         try:
             with engine.begin() as conn:
@@ -146,6 +151,48 @@ def get_tenant(tenant_id: str) -> Optional[dict]:
             {"id": tenant_id},
         ).fetchone()
     return dict(row._mapping) if row else None
+
+
+def set_tenant_status(tenant_id: str, status: str) -> None:
+    """
+    Cambia el estado de un tenant.
+    status: 'active' | 'cancelled'
+
+    Al cancelar se registra la fecha. Al reactivar se limpia.
+    Los leads del tenant NO se borran — permanecen en la BD.
+    """
+    now = datetime.utcnow().isoformat()
+    cancelled_at = now if status == "cancelled" else None
+
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                UPDATE tenants
+                SET status = :status, cancelled_at = :cancelled_at
+                WHERE id = :id
+            """),
+            {"status": status, "cancelled_at": cancelled_at, "id": tenant_id},
+        )
+    logger.info("Tenant %s → estado %s", tenant_id, status)
+
+
+def get_all_tenants() -> list:
+    """Devuelve todos los tenants. Solo para uso del panel de administración."""
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("SELECT * FROM tenants ORDER BY created_at DESC")
+        ).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
+def count_leads_for_tenant(tenant_id: str) -> int:
+    """Cuenta los leads totales de un tenant (para el panel de admin)."""
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("SELECT COUNT(*) FROM leads WHERE tenant_id = :tid"),
+            {"tid": tenant_id},
+        ).scalar()
+    return result or 0
 
 
 # ─────────────────────────────────────────────
