@@ -1,4 +1,4 @@
-// Página de inicio de sesión — Clerk v7
+// Página de inicio de sesión — Clerk v7 [build-check-v2]
 import { SignIn } from '@clerk/nextjs';
 
 export default function SignInPage() {
