@@ -2,6 +2,7 @@
 
 import type { Metadata } from 'next';
 import { ClerkProvider } from '@clerk/nextjs';
+import { esES } from '@clerk/localizations';
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
 import { ToastProvider } from '@/components/Toast';
@@ -18,6 +19,7 @@ export default function RootLayout({
 }) {
   return (
     <ClerkProvider
+      localization={esES}
       signInUrl="/sign-in"
       signUpUrl="/sign-up"
     >
