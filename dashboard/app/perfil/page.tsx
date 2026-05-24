@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '@clerk/nextjs';
 import { useToast } from '@/components/Toast';
 
 interface Perfil {
@@ -14,6 +15,7 @@ interface Perfil {
 
 export default function PerfilPage() {
   const { addToast } = useToast();
+  const { getToken } = useAuth();
   const [perfil, setPerfil]     = useState<Perfil | null>(null);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
@@ -25,9 +27,7 @@ export default function PerfilPage() {
   useEffect(() => {
     async function cargar() {
       try {
-        const clerk = (window as any).Clerk;
-        await clerk?.load?.();
-        const token = await clerk?.session?.getToken();
+        const token = await getToken();
         const res = await fetch(`${apiBase}/me`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
@@ -42,14 +42,13 @@ export default function PerfilPage() {
       }
     }
     cargar();
-  }, []);
+  }, [getToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
     setGuardando(true);
     try {
-      const clerk = (window as any).Clerk;
-      const token = await clerk?.session?.getToken();
+      const token = await getToken();
       const res = await fetch(`${apiBase}/me`, {
         method: 'PATCH',
         headers: {

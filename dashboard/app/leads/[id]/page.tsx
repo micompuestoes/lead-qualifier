@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@clerk/nextjs';
 import { obtenerLead, actualizarEstado, eliminarLead } from '@/lib/api';
 import type { Lead, EstadoLead } from '@/types/lead';
 import LeadBadge from '@/components/LeadBadge';
@@ -208,6 +209,7 @@ export default function LeadDetallePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { addToast } = useToast();
+  const { getToken } = useAuth();
 
   const [lead, setLead] = useState<Lead | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -219,7 +221,7 @@ export default function LeadDetallePage() {
   useEffect(() => {
     async function cargar() {
       try {
-        const data = await obtenerLead(id);
+        const data = await obtenerLead(id, getToken);
         setLead(data);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Error al cargar el lead');
@@ -234,7 +236,7 @@ export default function LeadDetallePage() {
     if (!lead || actualizando) return;
     try {
       setActualizando(true);
-      const actualizado = await actualizarEstado(id, { status: nuevoEstado });
+      const actualizado = await actualizarEstado(id, { status: nuevoEstado }, getToken);
       setLead({ ...lead, status: actualizado.status });
       addToast(`Estado actualizado a ${nuevoEstado}`, 'success');
     } catch (e) {
@@ -248,7 +250,7 @@ export default function LeadDetallePage() {
     if (eliminando) return;
     try {
       setEliminando(true);
-      await eliminarLead(id);
+      await eliminarLead(id, getToken);
       addToast('Lead eliminado', 'success');
       router.push('/leads');
     } catch (e) {

@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@clerk/nextjs';
 import { obtenerLeads } from '@/lib/api';
 import type { Lead, Clasificacion, EstadoLead } from '@/types/lead';
 import LeadCard from '@/components/LeadCard';
@@ -12,6 +13,7 @@ const CLASIFICACIONES: (Clasificacion | 'TODAS')[] = ['TODAS', 'CALIENTE', 'TIBI
 const ESTADOS: (EstadoLead | 'TODOS')[] = ['TODOS', 'PENDIENTE', 'CONTACTADO', 'CERRADO', 'DESCARTADO'];
 
 export default function LeadsPage() {
+  const { getToken } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +40,7 @@ export default function LeadsPage() {
   useEffect(() => {
     const intervalo = setInterval(async () => {
       try {
-        const data = await obtenerLeads();
+        const data = await obtenerLeads(getToken);
         const nuevos = data.filter((l) => !idsConocidos.current.has(l.id));
         if (nuevos.length > 0) {
           pendingLeads.current = data;
@@ -55,7 +57,7 @@ export default function LeadsPage() {
     try {
       setCargando(true);
       setError(null);
-      const data = await obtenerLeads();
+      const data = await obtenerLeads(getToken);
       setLeads(data);
       idsConocidos.current = new Set(data.map((l) => l.id));
     } catch (e) {

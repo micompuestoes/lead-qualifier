@@ -5,6 +5,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@clerk/nextjs';
 import { cualificarLead } from '@/lib/api';
 import type { LeadQualificado } from '@/types/lead';
 import LeadBadge from '@/components/LeadBadge';
@@ -95,6 +96,7 @@ function Confetti() {
 export default function NuevoLeadPage() {
   const router = useRouter();
   const { addToast } = useToast();
+  const { getToken } = useAuth();
 
   const [form, setForm] = useState<FormData>(FORM_VACIO);
   const [procesando, setProcesando] = useState(false);
@@ -165,7 +167,7 @@ export default function NuevoLeadPage() {
         email: form.email.trim(),
         phone: form.phone.trim() || undefined,
         message: form.message.trim(),
-      });
+      }, getToken);
       setResultado(res);
       addToast(
         `Lead cualificado — score ${res.score}/10`,
