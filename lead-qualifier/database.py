@@ -101,6 +101,9 @@ def init_db() -> None:
         "ALTER TABLE tenants ADD COLUMN cancelled_at TEXT",
         "ALTER TABLE tenants ADD COLUMN api_key TEXT",
         "ALTER TABLE tenants ADD COLUMN notify_email TEXT",
+        # Stripe billing
+        "ALTER TABLE tenants ADD COLUMN stripe_customer_id TEXT",
+        "ALTER TABLE tenants ADD COLUMN stripe_subscription_id TEXT",
         # IMAP email-to-lead
         "ALTER TABLE tenants ADD COLUMN imap_host TEXT",
         "ALTER TABLE tenants ADD COLUMN imap_port INTEGER DEFAULT 993",
@@ -218,6 +221,51 @@ def update_tenant_profile(tenant_id: str, name: str, notify_email: str) -> None:
             {"name": name, "notify_email": notify_email, "id": tenant_id},
         )
     logger.info("Perfil actualizado para tenant %s: name=%s, notify=%s", tenant_id, name, notify_email)
+
+
+def set_tenant_plan(
+    tenant_id: str,
+    plan: str,
+    subscription_id: Optional[str] = None,
+    customer_id: Optional[str] = None,
+) -> None:
+    """Actualiza el plan y los IDs de Stripe del tenant."""
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                UPDATE tenants
+                SET plan=:plan,
+                    stripe_subscription_id=:sub,
+                    stripe_customer_id=COALESCE(:cid, stripe_customer_id)
+                WHERE id=:id
+            """),
+            {"plan": plan, "sub": subscription_id, "cid": customer_id, "id": tenant_id},
+        )
+    logger.info("Plan actualizado: tenant %s → %s", tenant_id, plan)
+
+
+def get_tenant_by_stripe_customer(customer_id: str) -> Optional[dict]:
+    """Busca un tenant por su Stripe customer_id. Usado en webhooks."""
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT * FROM tenants WHERE stripe_customer_id=:cid"),
+            {"cid": customer_id},
+        ).fetchone()
+    return dict(row._mapping) if row else None
+
+
+def get_lead_count_this_month(tenant_id: str) -> int:
+    """Cuenta los leads creados este mes por el tenant (para límite del plan free)."""
+    from datetime import datetime
+    inicio_mes = datetime.utcnow().replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0
+    ).isoformat()
+    with engine.connect() as conn:
+        count = conn.execute(
+            text("SELECT COUNT(*) FROM leads WHERE tenant_id=:tid AND created_at >= :start"),
+            {"tid": tenant_id, "start": inicio_mes},
+        ).scalar()
+    return count or 0
 
 
 def save_imap_config(tenant_id: str, host: str, port: int, user: str, password_enc: str) -> None:

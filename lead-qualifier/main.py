@@ -21,6 +21,7 @@ from typing import Literal, Optional
 
 import anthropic
 import httpx
+import stripe
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
@@ -32,9 +33,10 @@ from pydantic import BaseModel
 
 from database import (
     count_leads_for_tenant, delete_lead, disable_imap, ensure_tenant,
-    get_all_tenants, get_imap_config, get_lead_by_id, get_leads_by_email,
-    get_recent_leads, get_tenant, get_tenant_by_api_key, get_tenants_with_imap,
-    init_db, save_imap_config, set_tenant_status, update_imap_last_sync,
+    get_all_tenants, get_imap_config, get_lead_by_id, get_lead_count_this_month,
+    get_leads_by_email, get_recent_leads, get_tenant, get_tenant_by_api_key,
+    get_tenant_by_stripe_customer, get_tenants_with_imap, init_db,
+    save_imap_config, set_tenant_plan, set_tenant_status, update_imap_last_sync,
     update_lead_status, update_tenant_profile,
 )
 from email_imap import detectar_servidor_imap, obtener_no_leidos, verificar_conexion
@@ -76,6 +78,26 @@ class ImapConfigInput(BaseModel):
     password: str
     host: Optional[str] = None   # None → autodetectar por dominio
     port: int = 993
+
+class CheckoutInput(BaseModel):
+    plan: Literal["pro", "agencia"]
+
+
+# ─────────────────────────────────────────────
+# Stripe
+# ─────────────────────────────────────────────
+
+FREE_LEAD_LIMIT = 10
+
+def _stripe_configured() -> bool:
+    return bool(os.getenv("STRIPE_SECRET_KEY"))
+
+def _get_price_id(plan: str) -> str:
+    key = "STRIPE_PRICE_PRO" if plan == "pro" else "STRIPE_PRICE_AGENCIA"
+    price_id = os.getenv(key, "")
+    if not price_id:
+        raise HTTPException(status_code=503, detail=f"Price ID para '{plan}' no configurado en variables de entorno")
+    return price_id
 
 
 # ─────────────────────────────────────────────
@@ -260,6 +282,14 @@ async def lifespan(app: FastAPI):
 
     logger.info("API key de Anthropic detectada")
 
+    # Stripe
+    stripe_key = os.getenv("STRIPE_SECRET_KEY")
+    if stripe_key:
+        stripe.api_key = stripe_key
+        logger.info("Stripe configurado")
+    else:
+        logger.warning("STRIPE_SECRET_KEY no definida — pagos desactivados")
+
     # Arrancar scheduler IMAP (cada 10 minutos)
     _scheduler.add_job(_sync_imap_todos, "interval", minutes=10, id="imap_sync")
     _scheduler.start()
@@ -346,6 +376,20 @@ async def qualify_lead_endpoint(
 
     # Garantizar que el tenant existe en la BD
     ensure_tenant(tenant_id)
+
+    # Límite de leads para plan free
+    tenant = get_tenant(tenant_id)
+    if tenant and tenant.get("plan", "free") == "free":
+        count = get_lead_count_this_month(tenant_id)
+        if count >= FREE_LEAD_LIMIT:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": "LEAD_LIMIT_REACHED",
+                    "message": f"Has alcanzado el límite de {FREE_LEAD_LIMIT} leads del plan gratuito este mes.",
+                    "upgrade_url": "/pricing",
+                },
+            )
 
     try:
         client = get_anthropic_client()
@@ -595,6 +639,111 @@ async def public_intake(api_key: str, lead: LeadInput):
     except Exception as e:
         logger.exception("Error en intake público: %s", str(e))
         raise HTTPException(status_code=500, detail="Error interno")
+
+
+# ─────────────────────────────────────────────
+# Billing (Stripe)
+# ─────────────────────────────────────────────
+
+@app.post("/billing/checkout")
+async def create_checkout(
+    data: CheckoutInput,
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Crea una sesión de Stripe Checkout y devuelve la URL de pago."""
+    if not _stripe_configured():
+        raise HTTPException(status_code=503, detail="Pagos no configurados")
+
+    price_id = _get_price_id(data.plan)
+    ensure_tenant(tenant_id)
+    tenant = get_tenant(tenant_id)
+    dashboard_url = os.getenv("DASHBOARD_URL", "http://localhost:3000")
+
+    # Crear o reutilizar customer de Stripe
+    customer_id = tenant.get("stripe_customer_id") if tenant else None
+    if not customer_id:
+        customer = stripe.Customer.create(
+            email=tenant.get("email", ""),
+            metadata={"tenant_id": tenant_id},
+        )
+        customer_id = customer.id
+        set_tenant_plan(tenant_id, tenant.get("plan", "free"), None, customer_id)
+
+    session = stripe.checkout.Session.create(
+        customer=customer_id,
+        payment_method_types=["card"],
+        line_items=[{"price": price_id, "quantity": 1}],
+        mode="subscription",
+        success_url=f"{dashboard_url}/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
+        cancel_url=f"{dashboard_url}/pricing",
+        metadata={"tenant_id": tenant_id, "plan": data.plan},
+    )
+    logger.info("Checkout creado: tenant %s → plan %s", tenant_id, data.plan)
+    return {"url": session.url}
+
+
+@app.post("/billing/portal")
+async def customer_portal(tenant_id: str = Depends(get_tenant_id)):
+    """Abre el portal de Stripe para gestionar la suscripción (cancelar, cambiar tarjeta…)."""
+    if not _stripe_configured():
+        raise HTTPException(status_code=503, detail="Pagos no configurados")
+
+    tenant = get_tenant(tenant_id)
+    customer_id = tenant.get("stripe_customer_id") if tenant else None
+    if not customer_id:
+        raise HTTPException(status_code=404, detail="No tienes ninguna suscripción activa")
+
+    dashboard_url = os.getenv("DASHBOARD_URL", "http://localhost:3000")
+    session = stripe.billing_portal.Session.create(
+        customer=customer_id,
+        return_url=f"{dashboard_url}/perfil",
+    )
+    return {"url": session.url}
+
+
+@app.post("/billing/webhook")
+async def stripe_webhook(request: Request):
+    """
+    Webhook de Stripe — actualiza el plan del tenant al pagar o cancelar.
+    Verifica la firma si STRIPE_WEBHOOK_SECRET está configurado.
+    """
+    payload = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+    webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+
+    try:
+        if webhook_secret:
+            event = stripe.Webhook.construct_event(payload, sig, webhook_secret)
+        else:
+            event = json.loads(payload)
+    except Exception as exc:
+        logger.warning("Webhook inválido: %s", exc)
+        raise HTTPException(status_code=400, detail="Firma inválida")
+
+    etype = event["type"]
+    obj   = event["data"]["object"]
+
+    if etype == "checkout.session.completed":
+        tenant_id   = obj.get("metadata", {}).get("tenant_id")
+        plan        = obj.get("metadata", {}).get("plan", "pro")
+        sub_id      = obj.get("subscription")
+        customer_id = obj.get("customer")
+        if tenant_id:
+            set_tenant_plan(tenant_id, plan, sub_id, customer_id)
+            logger.info("Pago completado: tenant %s → %s", tenant_id, plan)
+
+    elif etype in ("customer.subscription.updated", "customer.subscription.deleted"):
+        status      = obj.get("status", "")
+        customer_id = obj.get("customer")
+        sub_id      = obj.get("id")
+        cancelado   = etype == "customer.subscription.deleted" or status in ("canceled", "unpaid", "incomplete_expired")
+        if cancelado and customer_id:
+            tenant = get_tenant_by_stripe_customer(customer_id)
+            if tenant:
+                set_tenant_plan(tenant["id"], "free", None, customer_id)
+                logger.info("Suscripción cancelada: tenant %s → free", tenant["id"])
+
+    return {"ok": True}
 
 
 @app.get("/health")

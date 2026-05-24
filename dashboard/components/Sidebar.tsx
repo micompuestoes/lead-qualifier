@@ -4,7 +4,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { UserButton } from '@clerk/nextjs';
+import { UserButton, useAuth } from '@clerk/nextjs';
+import { useEffect, useState } from 'react';
 
 const navLinks = [
   {
@@ -49,8 +50,30 @@ const navLinks = [
   },
 ];
 
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+
 export default function Sidebar() {
   const pathname = usePathname();
+  const { getToken } = useAuth();
+  const [plan, setPlan] = useState<string | null>(null);
+
+  // Carga el plan del usuario para mostrar u ocultar el CTA de upgrade
+  useEffect(() => {
+    async function cargarPlan() {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const res = await fetch(`${BASE}/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setPlan(data.plan ?? 'free');
+        }
+      } catch { /* silencioso */ }
+    }
+    cargarPlan();
+  }, [getToken]);
 
   function esActivo(href: string) {
     if (href === '/leads') return pathname.startsWith('/leads');
@@ -104,11 +127,29 @@ export default function Sidebar() {
             </Link>
           );
         })}
+
+        {/* CTA upgrade — solo para plan free */}
+        {plan === 'free' && (
+          <Link
+            href="/pricing"
+            className={`mt-2 relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm
+              font-medium transition-colors ${
+              pathname === '/pricing'
+                ? 'bg-blue-600 text-white'
+                : 'text-blue-400 hover:text-white hover:bg-blue-600/20 border border-blue-500/30'
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round"
+                d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+            </svg>
+            Mejorar plan
+          </Link>
+        )}
       </nav>
 
       {/* Perfil de usuario — UserButton de Clerk */}
       <div className="px-4 py-4 border-t border-gray-800">
-        {/* El redirect tras logout se configura con NEXT_PUBLIC_CLERK_AFTER_SIGN_OUT_URL */}
         <UserButton
           appearance={{
             elements: {
