@@ -36,9 +36,10 @@ export default function Sidebar() {
     return pathname === href;
   }
 
-  // En páginas de auth no mostramos el sidebar
+  // En páginas de auth y formularios públicos no mostramos el sidebar
   const esAuth = pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up');
-  if (esAuth) return null;
+  const esFormPublico = pathname.startsWith('/form/');
+  if (esAuth || esFormPublico) return null;
 
   return (
     <aside className="fixed top-0 left-0 h-screen w-60 bg-gray-900 flex flex-col z-10">

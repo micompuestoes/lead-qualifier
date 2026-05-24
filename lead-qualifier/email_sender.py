@@ -4,11 +4,11 @@ Soporta dos backends: SMTP nativo (smtplib) y SendGrid SDK.
 Se selecciona automáticamente según las variables de entorno configuradas.
 """
 
-import smtplib
 import logging
 import os
-from email.mime.text import MIMEText
+import smtplib
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -137,8 +137,7 @@ def send_lead_response_email(
     generated_email_body: str,
 ) -> bool:
     """
-    Función de conveniencia para enviar el email generado al lead.
-    El asunto se genera automáticamente.
+    Envía el email generado por la IA AL LEAD (el que preguntó).
     """
     subject = "Gracias por contactarnos — Recibimos tu consulta"
     return send_email(
@@ -146,4 +145,65 @@ def send_lead_response_email(
         to_name=lead_name,
         subject=subject,
         body=generated_email_body,
+    )
+
+
+def send_tenant_notification(
+    tenant_email: str,
+    tenant_name: str,
+    lead_name: str,
+    lead_email: str,
+    lead_phone: Optional[str],
+    lead_message: str,
+    score: int,
+    classification: str,
+    dashboard_url: str = "",
+) -> bool:
+    """
+    Notifica A LA EMPRESA (inmobiliaria, etc.) cuando llega un lead cualificado.
+    Solo se envía si score >= 6 para no spamear con leads fríos.
+    """
+    if score < 6:
+        logger.info("Lead score %d < 6 — no se notifica al tenant", score)
+        return False
+
+    # Emoji según puntuación
+    if score >= 8:
+        icono = "🔥"
+        urgencia = "¡LEAD MUY CALIENTE! Contacta en menos de 1 hora."
+    elif score >= 6:
+        icono = "⚡"
+        urgencia = "Lead de calidad. Contacta hoy."
+    else:
+        icono = "📋"
+        urgencia = "Revisar cuando puedas."
+
+    phone_line = f"Teléfono:  {lead_phone}" if lead_phone else "Teléfono:  No proporcionado"
+    dashboard_line = f"\nVer en dashboard: {dashboard_url}" if dashboard_url else ""
+
+    body = f"""{icono} Nuevo lead cualificado — {classification}
+{"=" * 50}
+
+Nombre:    {lead_name}
+Email:     {lead_email}
+{phone_line}
+Puntuación: {score}/10
+
+Mensaje original:
+"{lead_message}"
+
+{urgencia}{dashboard_line}
+
+---
+Este mensaje fue generado automáticamente por Lead Qualifier.
+Para desactivar estas notificaciones, actualiza tu perfil en el dashboard.
+"""
+
+    subject = f"{icono} Nuevo lead [{score}/10] — {lead_name}"
+
+    return send_email(
+        to_email=tenant_email,
+        to_name=tenant_name,
+        subject=subject,
+        body=body,
     )

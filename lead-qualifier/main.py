@@ -28,9 +28,10 @@ from pydantic import BaseModel
 from database import (
     count_leads_for_tenant, delete_lead, ensure_tenant, get_all_tenants,
     get_lead_by_id, get_leads_by_email, get_recent_leads, get_tenant,
-    init_db, set_tenant_status, update_lead_status,
+    get_tenant_by_api_key, init_db, set_tenant_status,
+    update_lead_status, update_tenant_profile,
 )
-from email_sender import send_lead_response_email
+from email_sender import send_lead_response_email, send_tenant_notification
 from models import LeadInput, LeadOutput
 from agent import qualify_lead, _make_anthropic_client
 
@@ -58,6 +59,10 @@ class ActualizarEstadoInput(BaseModel):
 
 class ActualizarEstadoTenantInput(BaseModel):
     status: EstadoTenantLiteral
+
+class ActualizarPerfilInput(BaseModel):
+    name: str
+    notify_email: str
 
 
 # ─────────────────────────────────────────────
@@ -195,6 +200,31 @@ def get_anthropic_client() -> anthropic.Anthropic:
     return _make_anthropic_client(os.getenv("ANTHROPIC_API_KEY"))
 
 
+def _notificar_tenant(tenant_id: str, lead: LeadInput, result: dict) -> None:
+    """Envía email al tenant si el lead tiene score >= 6."""
+    try:
+        tenant = get_tenant(tenant_id)
+        if not tenant:
+            return
+        notify_email = tenant.get("notify_email") or tenant.get("email", "")
+        if not notify_email:
+            return
+        dashboard_url = os.getenv("DASHBOARD_URL", "")
+        send_tenant_notification(
+            tenant_email=notify_email,
+            tenant_name=tenant.get("name", ""),
+            lead_name=lead.name,
+            lead_email=lead.email,
+            lead_phone=lead.phone,
+            lead_message=lead.message,
+            score=result.get("score", 0),
+            classification=result.get("classification", ""),
+            dashboard_url=dashboard_url,
+        )
+    except Exception as e:
+        logger.warning("No se pudo enviar notificación al tenant %s: %s", tenant_id, str(e))
+
+
 def _serializar_lead(lead: dict) -> dict:
     """Normaliza un lead para enviarlo al dashboard."""
     lead = dict(lead)
@@ -240,7 +270,10 @@ async def qualify_lead_endpoint(
             generated_email_body=result["generated_email"],
         )
         if email_sent:
-            logger.info("Email enviado a %s", lead.email)
+            logger.info("Email de respuesta enviado a %s", lead.email)
+
+        # Notificar a la inmobiliaria/empresa si el lead es bueno
+        _notificar_tenant(tenant_id, lead, result)
 
         return LeadOutput(**result)
 
@@ -318,6 +351,94 @@ async def leads_by_email(
     """Historial de leads de un email concreto para el tenant."""
     leads = get_leads_by_email(email, tenant_id=tenant_id)
     return {"email": email, "total": len(leads), "leads": [_serializar_lead(l) for l in leads]}
+
+
+@app.get("/me")
+async def get_my_profile(tenant_id: str = Depends(get_tenant_id)):
+    """Devuelve el perfil del tenant autenticado (nombre, email, api_key, etc.)."""
+    ensure_tenant(tenant_id)
+    tenant = get_tenant(tenant_id)
+    # No exponer campos sensibles innecesarios
+    return {
+        "id":           tenant["id"],
+        "name":         tenant.get("name", ""),
+        "email":        tenant.get("email", ""),
+        "notify_email": tenant.get("notify_email", ""),
+        "api_key":      tenant.get("api_key", ""),
+        "plan":         tenant.get("plan", "free"),
+        "status":       tenant.get("status", "active"),
+        "created_at":   tenant.get("created_at", ""),
+    }
+
+
+@app.patch("/me")
+async def update_my_profile(
+    body: ActualizarPerfilInput,
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Actualiza el nombre comercial y el email de notificaciones."""
+    ensure_tenant(tenant_id)
+    update_tenant_profile(tenant_id, body.name.strip(), body.notify_email.strip())
+    return await get_my_profile(tenant_id)
+
+
+# ─────────────────────────────────────────────
+# Endpoint público de intake (sin autenticación JWT)
+# Usa la api_key del tenant como identificador
+# ─────────────────────────────────────────────
+
+@app.post("/intake/{api_key}", status_code=200)
+async def public_intake(api_key: str, lead: LeadInput):
+    """
+    Endpoint público para recibir leads desde formularios externos.
+    No requiere autenticación — usa la api_key del tenant.
+
+    La inmobiliaria pone en su web:
+      POST https://tu-api.render.com/intake/lq_xxxxxxxxxxxx
+    """
+    tenant = get_tenant_by_api_key(api_key)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="API key no válida")
+
+    if tenant.get("status") == "cancelled":
+        raise HTTPException(status_code=403, detail="Cuenta desactivada")
+
+    tenant_id = tenant["id"]
+    logger.info("Intake público — %s <%s> (tenant: %s)", lead.name, lead.email, tenant_id)
+
+    try:
+        client = get_anthropic_client()
+        result = qualify_lead(
+            name=lead.name,
+            email=lead.email,
+            phone=lead.phone,
+            message=lead.message,
+            anthropic_client=client,
+            tenant_id=tenant_id,
+        )
+
+        # Email de respuesta al lead
+        send_lead_response_email(
+            lead_email=lead.email,
+            lead_name=lead.name,
+            generated_email_body=result["generated_email"],
+        )
+
+        # Notificación a la inmobiliaria
+        _notificar_tenant(tenant_id, lead, result)
+
+        return {
+            "ok": True,
+            "score": result.get("score"),
+            "classification": result.get("classification"),
+            "message": "Tu consulta ha sido recibida. En breve nos pondremos en contacto contigo.",
+        }
+
+    except anthropic.RateLimitError:
+        raise HTTPException(status_code=429, detail="Servicio temporalmente saturado. Inténtalo en unos segundos.")
+    except Exception as e:
+        logger.exception("Error en intake público: %s", str(e))
+        raise HTTPException(status_code=500, detail="Error interno")
 
 
 @app.get("/health")

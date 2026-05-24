@@ -10,6 +10,7 @@ al userId de Clerk. Las queries siempre filtran por ese ID.
 import json
 import logging
 import os
+import secrets
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -57,13 +58,15 @@ def init_db() -> None:
     with engine.begin() as conn:
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS tenants (
-                id           TEXT PRIMARY KEY,
-                email        TEXT NOT NULL,
-                name         TEXT,
-                plan         TEXT NOT NULL DEFAULT 'free',
-                status       TEXT NOT NULL DEFAULT 'active',
-                cancelled_at TEXT,
-                created_at   TEXT NOT NULL
+                id              TEXT PRIMARY KEY,
+                email           TEXT NOT NULL,
+                name            TEXT,
+                plan            TEXT NOT NULL DEFAULT 'free',
+                status          TEXT NOT NULL DEFAULT 'active',
+                cancelled_at    TEXT,
+                api_key         TEXT UNIQUE,
+                notify_email    TEXT,
+                created_at      TEXT NOT NULL
             )
         """))
 
@@ -94,14 +97,15 @@ def init_db() -> None:
     for migration_sql in [
         "ALTER TABLE leads ADD COLUMN status TEXT NOT NULL DEFAULT 'PENDIENTE'",
         "ALTER TABLE leads ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'legacy'",
-        # Ciclo de vida del tenant
         "ALTER TABLE tenants ADD COLUMN status TEXT NOT NULL DEFAULT 'active'",
         "ALTER TABLE tenants ADD COLUMN cancelled_at TEXT",
+        "ALTER TABLE tenants ADD COLUMN api_key TEXT",
+        "ALTER TABLE tenants ADD COLUMN notify_email TEXT",
     ]:
         try:
             with engine.begin() as conn:
                 conn.execute(text(migration_sql))
-            logger.info("Migración aplicada: %s", migration_sql[:50])
+            logger.info("Migración aplicada: %s", migration_sql[:60])
         except Exception:
             pass  # Ya existe — ignorar
 
@@ -111,6 +115,7 @@ def init_db() -> None:
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_leads_created   ON leads (created_at)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_leads_tenant    ON leads (tenant_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_tenants_email   ON tenants (email)"))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_api_key ON tenants (api_key)"))
 
     logger.info("Base de datos lista")
 
@@ -118,6 +123,11 @@ def init_db() -> None:
 # ─────────────────────────────────────────────
 # Operaciones de Tenants
 # ─────────────────────────────────────────────
+
+def _generar_api_key() -> str:
+    """Genera una API key única con prefijo lq_ (lead-qualifier)."""
+    return "lq_" + secrets.token_urlsafe(32)
+
 
 def ensure_tenant(tenant_id: str, email: str = "", name: str = "") -> None:
     """Crea el tenant si no existe. Seguro de llamar en cada request."""
@@ -128,19 +138,22 @@ def ensure_tenant(tenant_id: str, email: str = "", name: str = "") -> None:
         ).fetchone()
 
         if not existing:
+            api_key = _generar_api_key()
             conn.execute(
                 text("""
-                    INSERT INTO tenants (id, email, name, plan, created_at)
-                    VALUES (:id, :email, :name, 'free', :created_at)
+                    INSERT INTO tenants (id, email, name, plan, api_key, notify_email, created_at)
+                    VALUES (:id, :email, :name, 'free', :api_key, :notify_email, :created_at)
                 """),
                 {
                     "id": tenant_id,
                     "email": email,
                     "name": name or email.split("@")[0],
+                    "api_key": api_key,
+                    "notify_email": email,   # por defecto, notificar al email de registro
                     "created_at": datetime.utcnow().isoformat(),
                 },
             )
-            logger.info("Tenant creado: %s (%s)", tenant_id, email)
+            logger.info("Tenant creado: %s (%s) api_key=%s...", tenant_id, email, api_key[:12])
 
 
 def get_tenant(tenant_id: str) -> Optional[dict]:
@@ -149,6 +162,16 @@ def get_tenant(tenant_id: str) -> Optional[dict]:
         row = conn.execute(
             text("SELECT * FROM tenants WHERE id = :id"),
             {"id": tenant_id},
+        ).fetchone()
+    return dict(row._mapping) if row else None
+
+
+def get_tenant_by_api_key(api_key: str) -> Optional[dict]:
+    """Busca un tenant por su API key pública. Usado en el endpoint de intake."""
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT * FROM tenants WHERE api_key = :key"),
+            {"key": api_key},
         ).fetchone()
     return dict(row._mapping) if row else None
 
@@ -174,6 +197,20 @@ def set_tenant_status(tenant_id: str, status: str) -> None:
             {"status": status, "cancelled_at": cancelled_at, "id": tenant_id},
         )
     logger.info("Tenant %s → estado %s", tenant_id, status)
+
+
+def update_tenant_profile(tenant_id: str, name: str, notify_email: str) -> None:
+    """Actualiza el nombre comercial y el email de notificaciones del tenant."""
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                UPDATE tenants
+                SET name = :name, notify_email = :notify_email
+                WHERE id = :id
+            """),
+            {"name": name, "notify_email": notify_email, "id": tenant_id},
+        )
+    logger.info("Perfil actualizado para tenant %s: name=%s, notify=%s", tenant_id, name, notify_email)
 
 
 def get_all_tenants() -> list:
