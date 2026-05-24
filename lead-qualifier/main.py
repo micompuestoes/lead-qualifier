@@ -1,30 +1,41 @@
 """
-FastAPI app principal.
-Expone el endpoint POST /qualify-lead y endpoints de gestión de leads para el dashboard.
+FastAPI app principal — multi-tenant con autenticación via JWT de Clerk.
+
+Variables de entorno necesarias:
+  ANTHROPIC_API_KEY   → clave de la API de Anthropic
+  CLERK_JWKS_URL      → URL del JWKS de Clerk para verificar tokens
+                        Ejemplo: https://tu-instancia.clerk.accounts.dev/.well-known/jwks.json
+  DATABASE_URL        → (opcional) PostgreSQL en producción. Sin ella usa SQLite local.
 """
 
 import json
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 
 import anthropic
+import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from jose import JWTError, jwt
 from pydantic import BaseModel
 
-from database import init_db, get_lead_by_id, get_recent_leads, get_leads_by_email
-from database import update_lead_status, delete_lead
+from database import (
+    count_leads_for_tenant, delete_lead, ensure_tenant, get_all_tenants,
+    get_lead_by_id, get_leads_by_email, get_recent_leads, get_tenant,
+    init_db, set_tenant_status, update_lead_status,
+)
 from email_sender import send_lead_response_email
 from models import LeadInput, LeadOutput
 from agent import qualify_lead, _make_anthropic_client
 
 # ─────────────────────────────────────────────
-# Configuración de logging
+# Logging
 # ─────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
@@ -33,17 +44,110 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Cargar .env usando ruta absoluta para evitar problemas en Windows
 load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=True)
 
 
 # ─────────────────────────────────────────────
-# Modelo para actualizar estado
+# Modelos Pydantic
 # ─────────────────────────────────────────────
 EstadoLiteral = Literal["PENDIENTE", "CONTACTADO", "CERRADO", "DESCARTADO"]
+EstadoTenantLiteral = Literal["active", "cancelled"]
 
 class ActualizarEstadoInput(BaseModel):
     status: EstadoLiteral
+
+class ActualizarEstadoTenantInput(BaseModel):
+    status: EstadoTenantLiteral
+
+
+# ─────────────────────────────────────────────
+# Verificación JWT de Clerk (multi-tenant)
+# ─────────────────────────────────────────────
+
+# Caché del JWKS — se refresca cada hora para no hacer fetch en cada petición
+_jwks_cache: dict = {"keys": None, "fetched_at": 0.0}
+
+
+async def _obtener_jwks() -> dict:
+    """Obtiene y cachea el JWKS de Clerk (1h de TTL)."""
+    global _jwks_cache
+    ahora = time.time()
+    if _jwks_cache["keys"] and ahora - _jwks_cache["fetched_at"] < 3600:
+        return _jwks_cache["keys"]
+
+    jwks_url = os.getenv("CLERK_JWKS_URL")
+    if not jwks_url:
+        raise RuntimeError("CLERK_JWKS_URL no está definida en las variables de entorno")
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(jwks_url, timeout=10)
+        resp.raise_for_status()
+
+    _jwks_cache = {"keys": resp.json(), "fetched_at": ahora}
+    logger.info("JWKS de Clerk actualizado")
+    return _jwks_cache["keys"]
+
+
+async def get_tenant_id(request: Request) -> str:
+    """
+    Dependency de FastAPI que extrae el tenant_id del JWT de Clerk
+    y verifica que el tenant esté activo.
+
+    Si CLERK_JWKS_URL no está configurada (entorno local sin auth),
+    devuelve 'dev-tenant' para no bloquear el desarrollo.
+    """
+    if not os.getenv("CLERK_JWKS_URL"):
+        return "dev-tenant"  # modo desarrollo sin auth
+
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Token de autenticación requerido")
+
+    token = auth_header[7:]
+    try:
+        jwks = await _obtener_jwks()
+        # options: no verificar audiencia (Clerk no siempre la incluye en tokens de sesión)
+        payload = jwt.decode(
+            token, jwks,
+            algorithms=["RS256"],
+            options={"verify_aud": False},
+        )
+        tenant_id: str = payload.get("sub", "")
+        if not tenant_id:
+            raise HTTPException(status_code=401, detail="Token sin subject (sub)")
+
+        # Verificar estado del tenant si ya existe en la BD
+        tenant = get_tenant(tenant_id)
+        if tenant and tenant.get("status") == "cancelled":
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": "TENANT_CANCELLED",
+                    "message": "Tu cuenta está desactivada. Contacta con soporte para reactivarla.",
+                    "cancelled_at": tenant.get("cancelled_at"),
+                },
+            )
+
+        return tenant_id
+
+    except HTTPException:
+        raise  # re-lanzar HTTPExceptions sin envolverlas
+    except JWTError as e:
+        raise HTTPException(status_code=401, detail=f"Token inválido: {str(e)}")
+
+
+def _require_admin(request: Request) -> None:
+    """
+    Protege los endpoints de administración con una clave secreta.
+    Configura ADMIN_SECRET_KEY en las variables de entorno.
+    """
+    admin_key = os.getenv("ADMIN_SECRET_KEY")
+    if not admin_key:
+        raise HTTPException(status_code=503, detail="Panel de admin no configurado")
+
+    provided = request.headers.get("X-Admin-Key", "")
+    if provided != admin_key:
+        raise HTTPException(status_code=403, detail="Clave de administrador inválida")
 
 
 # ─────────────────────────────────────────────
@@ -51,12 +155,17 @@ class ActualizarEstadoInput(BaseModel):
 # ─────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Arrancando Lead Qualifier API")
+    logger.info("Arrancando Lead Qualifier API (multi-tenant)")
     init_db()
 
     if not os.getenv("ANTHROPIC_API_KEY"):
         logger.error("ANTHROPIC_API_KEY no definida en .env")
         raise RuntimeError("ANTHROPIC_API_KEY es obligatoria")
+
+    if not os.getenv("CLERK_JWKS_URL"):
+        logger.warning("CLERK_JWKS_URL no definida — modo dev sin autenticación")
+    else:
+        logger.info("Auth: Clerk JWT activo")
 
     logger.info("API key de Anthropic detectada")
     yield
@@ -64,17 +173,15 @@ async def lifespan(app: FastAPI):
 
 
 # ─────────────────────────────────────────────
-# Instancia de FastAPI
+# FastAPI app
 # ─────────────────────────────────────────────
 app = FastAPI(
     title="Lead Qualifier API",
-    description="Agente de IA para cualificación automática de leads con Claude",
-    version="1.0.0",
+    description="Agente de IA multi-tenant para cualificación de leads",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
-# CORS — permite todos los orígenes en producción para evitar problemas con dominios de Vercel/Railway
-# En una versión posterior se puede restringir a dominios específicos
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -85,26 +192,19 @@ app.add_middleware(
 
 
 def get_anthropic_client() -> anthropic.Anthropic:
-    """Crea el cliente de Anthropic con SSL correcto para Windows."""
     return _make_anthropic_client(os.getenv("ANTHROPIC_API_KEY"))
 
 
 def _serializar_lead(lead: dict) -> dict:
-    """
-    Normaliza un lead de la BD para enviarlo al dashboard:
-    - Añade status por defecto si falta
-    - Parsea recommended_actions si es string JSON
-    """
+    """Normaliza un lead para enviarlo al dashboard."""
     lead = dict(lead)
     lead.setdefault("status", "PENDIENTE")
-
     acciones = lead.get("recommended_actions")
     if isinstance(acciones, str):
         try:
             lead["recommended_actions"] = json.loads(acciones)
         except Exception:
             lead["recommended_actions"] = [acciones]
-
     return lead
 
 
@@ -113,9 +213,15 @@ def _serializar_lead(lead: dict) -> dict:
 # ─────────────────────────────────────────────
 
 @app.post("/qualify-lead", response_model=LeadOutput, status_code=200)
-async def qualify_lead_endpoint(lead: LeadInput):
+async def qualify_lead_endpoint(
+    lead: LeadInput,
+    tenant_id: str = Depends(get_tenant_id),
+):
     """Procesa un lead entrante con el agente de IA."""
-    logger.info("POST /qualify-lead — %s <%s>", lead.name, lead.email)
+    logger.info("POST /qualify-lead — %s <%s> (tenant: %s)", lead.name, lead.email, tenant_id)
+
+    # Garantizar que el tenant existe en la BD
+    ensure_tenant(tenant_id)
 
     try:
         client = get_anthropic_client()
@@ -125,6 +231,7 @@ async def qualify_lead_endpoint(lead: LeadInput):
             phone=lead.phone,
             message=lead.message,
             anthropic_client=client,
+            tenant_id=tenant_id,
         )
 
         email_sent = send_lead_response_email(
@@ -147,59 +254,143 @@ async def qualify_lead_endpoint(lead: LeadInput):
 
 
 @app.get("/leads")
-async def list_leads(limit: int = 100):
-    """Lista todos los leads, ordenados por fecha descendente."""
+async def list_leads(
+    limit: int = 100,
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Lista los leads del tenant, ordenados por fecha descendente."""
+    ensure_tenant(tenant_id)
     if limit > 500:
         limit = 500
-    leads = get_recent_leads(limit)
+    leads = get_recent_leads(limit, tenant_id=tenant_id)
     return {"leads": [_serializar_lead(l) for l in leads], "total": len(leads)}
 
 
 @app.get("/leads/{lead_id}")
-async def get_lead(lead_id: str):
-    """Recupera un lead completo por su ID."""
-    lead = get_lead_by_id(lead_id)
+async def get_lead(
+    lead_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Recupera un lead completo por ID (solo si pertenece al tenant)."""
+    lead = get_lead_by_id(lead_id, tenant_id=tenant_id)
     if not lead:
         raise HTTPException(status_code=404, detail=f"Lead {lead_id} no encontrado")
     return _serializar_lead(lead)
 
 
 @app.patch("/leads/{lead_id}/status")
-async def patch_lead_status(lead_id: str, body: ActualizarEstadoInput):
-    """Actualiza el estado de un lead: PENDIENTE → CONTACTADO → CERRADO / DESCARTADO."""
-    lead = get_lead_by_id(lead_id)
+async def patch_lead_status(
+    lead_id: str,
+    body: ActualizarEstadoInput,
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Actualiza el estado de un lead del tenant."""
+    lead = get_lead_by_id(lead_id, tenant_id=tenant_id)
     if not lead:
         raise HTTPException(status_code=404, detail=f"Lead {lead_id} no encontrado")
 
-    update_lead_status(lead_id, body.status)
-    logger.info("Lead %s → estado %s", lead_id, body.status)
+    update_lead_status(lead_id, body.status, tenant_id=tenant_id)
+    logger.info("Lead %s → estado %s (tenant: %s)", lead_id, body.status, tenant_id)
 
-    actualizado = get_lead_by_id(lead_id)
+    actualizado = get_lead_by_id(lead_id, tenant_id=tenant_id)
     return _serializar_lead(actualizado)
 
 
 @app.delete("/leads/{lead_id}", status_code=204)
-async def delete_lead_endpoint(lead_id: str):
-    """Elimina un lead de la base de datos."""
-    lead = get_lead_by_id(lead_id)
+async def delete_lead_endpoint(
+    lead_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Elimina un lead del tenant."""
+    lead = get_lead_by_id(lead_id, tenant_id=tenant_id)
     if not lead:
         raise HTTPException(status_code=404, detail=f"Lead {lead_id} no encontrado")
 
-    delete_lead(lead_id)
-    logger.info("Lead %s eliminado", lead_id)
-    # 204 No Content — no devuelve body
+    delete_lead(lead_id, tenant_id=tenant_id)
+    logger.info("Lead %s eliminado (tenant: %s)", lead_id, tenant_id)
 
 
 @app.get("/leads/by-email/{email}")
-async def leads_by_email(email: str):
-    """Historial de leads de un email concreto."""
-    leads = get_leads_by_email(email)
+async def leads_by_email(
+    email: str,
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Historial de leads de un email concreto para el tenant."""
+    leads = get_leads_by_email(email, tenant_id=tenant_id)
     return {"email": email, "total": len(leads), "leads": [_serializar_lead(l) for l in leads]}
 
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "service": "lead-qualifier"}
+    return {"status": "ok", "service": "lead-qualifier", "version": "2.0.0"}
+
+
+# ─────────────────────────────────────────────
+# Endpoints de administración (protegidos por X-Admin-Key)
+# ─────────────────────────────────────────────
+
+@app.get("/admin/tenants")
+async def admin_list_tenants(request: Request):
+    """
+    Lista todos los tenants con su estado y número de leads.
+    Requiere cabecera: X-Admin-Key: <ADMIN_SECRET_KEY>
+    """
+    _require_admin(request)
+
+    tenants = get_all_tenants()
+    resultado = []
+    for t in tenants:
+        t["lead_count"] = count_leads_for_tenant(t["id"])
+        resultado.append(t)
+
+    activos    = sum(1 for t in resultado if t.get("status") == "active")
+    cancelados = sum(1 for t in resultado if t.get("status") == "cancelled")
+
+    return {
+        "total": len(resultado),
+        "activos": activos,
+        "cancelados": cancelados,
+        "tenants": resultado,
+    }
+
+
+@app.get("/admin/tenants/{tenant_id}")
+async def admin_get_tenant(tenant_id: str, request: Request):
+    """Detalle de un tenant concreto. Requiere X-Admin-Key."""
+    _require_admin(request)
+
+    tenant = get_tenant(tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail=f"Tenant {tenant_id} no encontrado")
+
+    tenant["lead_count"] = count_leads_for_tenant(tenant_id)
+    return tenant
+
+
+@app.patch("/admin/tenants/{tenant_id}/status")
+async def admin_set_tenant_status(
+    tenant_id: str,
+    body: ActualizarEstadoTenantInput,
+    request: Request,
+):
+    """
+    Activa o cancela un tenant.
+    - 'cancelled': bloquea acceso pero conserva todos sus leads.
+    - 'active':    reactiva la cuenta, sus leads siguen intactos.
+    Requiere X-Admin-Key.
+    """
+    _require_admin(request)
+
+    tenant = get_tenant(tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail=f"Tenant {tenant_id} no encontrado")
+
+    set_tenant_status(tenant_id, body.status)
+    logger.info("Admin: tenant %s → %s", tenant_id, body.status)
+
+    actualizado = get_tenant(tenant_id)
+    actualizado["lead_count"] = count_leads_for_tenant(tenant_id)
+    return actualizado
 
 
 # ─────────────────────────────────────────────

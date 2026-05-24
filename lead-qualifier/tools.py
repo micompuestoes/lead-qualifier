@@ -454,17 +454,19 @@ def save_to_db(
     recommended_actions: list,
     intent_analysis: dict,
     company_info: dict,
+    tenant_id: str = "legacy",
 ) -> dict:
     """
-    Guarda el lead completo en SQLite.
-    Importa database aquí para evitar importaciones circulares.
+    Guarda el lead completo en la base de datos.
+    tenant_id se inyecta desde execute_tool — Claude no lo ve ni lo controla.
     """
-    logger.info("💾 Guardando lead %s en base de datos", lead_id)
+    logger.info("💾 Guardando lead %s en base de datos (tenant: %s)", lead_id, tenant_id)
 
     from database import save_lead
 
     save_lead(
         lead_id=lead_id,
+        tenant_id=tenant_id,
         name=lead_data.get("name", ""),
         email=lead_data.get("email", ""),
         phone=lead_data.get("phone"),
@@ -485,10 +487,10 @@ def save_to_db(
 # Dispatcher: ejecuta la tool por nombre
 # ─────────────────────────────────────────────
 
-def execute_tool(tool_name: str, tool_input: dict) -> Any:
+def execute_tool(tool_name: str, tool_input: dict, tenant_id: str = "legacy") -> Any:
     """
     Recibe el nombre de la tool y sus argumentos y ejecuta la función correspondiente.
-    Centraliza el dispatch para que agent.py no importe cada función individualmente.
+    tenant_id se pasa internamente a save_to_db para el aislamiento multi-tenant.
     """
     logger.info("⚙️  Ejecutando tool: %s", tool_name)
 
@@ -505,7 +507,8 @@ def execute_tool(tool_name: str, tool_input: dict) -> Any:
         return generate_email(**tool_input)
 
     elif tool_name == "save_to_db":
-        return save_to_db(**tool_input)
+        # Inyectamos tenant_id aquí — Claude no lo controla, solo el backend lo decide
+        return save_to_db(**tool_input, tenant_id=tenant_id)
 
     else:
         raise ValueError(f"Tool desconocida: {tool_name}")

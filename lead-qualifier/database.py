@@ -1,9 +1,10 @@
 """
 Capa de base de datos con SQLAlchemy.
-- Si DATABASE_URL está definida → PostgreSQL (producción en Railway)
+- Si DATABASE_URL está definida → PostgreSQL (producción)
 - Si no → SQLite local (desarrollo)
 
-Cambiar de base de datos no requiere tocar nada más que la variable de entorno.
+Multi-tenant: cada lead tiene un tenant_id que corresponde
+al userId de Clerk. Las queries siempre filtran por ese ID.
 """
 
 import json
@@ -20,27 +21,22 @@ logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────
-# Configuración del engine según el entorno
+# Configuración del engine
 # ─────────────────────────────────────────────
 
 def _crear_engine():
     database_url = os.getenv("DATABASE_URL")
 
     if database_url:
-        # Railway provee la URL con el prefijo antiguo "postgres://", pero
-        # SQLAlchemy 1.4+ requiere "postgresql://"
         if database_url.startswith("postgres://"):
             database_url = database_url.replace("postgres://", "postgresql://", 1)
-
         logger.info("BD: PostgreSQL (produccion)")
         return create_engine(database_url)
 
-    # Modo local: SQLite
     db_path = Path(__file__).parent / "leads.db"
     logger.info("BD: SQLite local en %s", db_path)
     return create_engine(
         f"sqlite:///{db_path}",
-        # check_same_thread=False necesario para SQLite con múltiples workers
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
@@ -57,11 +53,26 @@ def init_db() -> None:
     """Crea las tablas y columnas que falten. Seguro de llamar varias veces."""
     logger.info("Inicializando base de datos...")
 
-    # Cada operación en su propia transacción para que un fallo no bloquee las demás
+    # Tabla de tenants (una fila por empresa/usuario registrado)
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS tenants (
+                id           TEXT PRIMARY KEY,
+                email        TEXT NOT NULL,
+                name         TEXT,
+                plan         TEXT NOT NULL DEFAULT 'free',
+                status       TEXT NOT NULL DEFAULT 'active',
+                cancelled_at TEXT,
+                created_at   TEXT NOT NULL
+            )
+        """))
+
+    # Tabla de leads con tenant_id para el aislamiento multi-tenant
     with engine.begin() as conn:
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS leads (
                 id                  TEXT PRIMARY KEY,
+                tenant_id           TEXT NOT NULL DEFAULT 'legacy',
                 name                TEXT NOT NULL,
                 email               TEXT NOT NULL,
                 phone               TEXT,
@@ -79,33 +90,118 @@ def init_db() -> None:
             )
         """))
 
-    # Migración segura en transacción separada — falla silenciosamente si ya existe
-    try:
-        with engine.begin() as conn:
-            conn.execute(text(
-                "ALTER TABLE leads ADD COLUMN status TEXT NOT NULL DEFAULT 'PENDIENTE'"
-            ))
-        logger.info("Columna 'status' añadida (migracion)")
-    except Exception:
-        pass  # Ya existe — ignorar
+    # Migraciones seguras — fallan silenciosamente si la columna ya existe
+    for migration_sql in [
+        "ALTER TABLE leads ADD COLUMN status TEXT NOT NULL DEFAULT 'PENDIENTE'",
+        "ALTER TABLE leads ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'legacy'",
+        # Ciclo de vida del tenant
+        "ALTER TABLE tenants ADD COLUMN status TEXT NOT NULL DEFAULT 'active'",
+        "ALTER TABLE tenants ADD COLUMN cancelled_at TEXT",
+    ]:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(migration_sql))
+            logger.info("Migración aplicada: %s", migration_sql[:50])
+        except Exception:
+            pass  # Ya existe — ignorar
 
+    # Índices para rendimiento
     with engine.begin() as conn:
-        conn.execute(text(
-            "CREATE INDEX IF NOT EXISTS idx_leads_email ON leads (email)"
-        ))
-        conn.execute(text(
-            "CREATE INDEX IF NOT EXISTS idx_leads_created ON leads (created_at)"
-        ))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_leads_email     ON leads (email)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_leads_created   ON leads (created_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_leads_tenant    ON leads (tenant_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_tenants_email   ON tenants (email)"))
 
     logger.info("Base de datos lista")
 
 
 # ─────────────────────────────────────────────
-# Operaciones CRUD
+# Operaciones de Tenants
+# ─────────────────────────────────────────────
+
+def ensure_tenant(tenant_id: str, email: str = "", name: str = "") -> None:
+    """Crea el tenant si no existe. Seguro de llamar en cada request."""
+    with engine.begin() as conn:
+        existing = conn.execute(
+            text("SELECT id FROM tenants WHERE id = :id"),
+            {"id": tenant_id},
+        ).fetchone()
+
+        if not existing:
+            conn.execute(
+                text("""
+                    INSERT INTO tenants (id, email, name, plan, created_at)
+                    VALUES (:id, :email, :name, 'free', :created_at)
+                """),
+                {
+                    "id": tenant_id,
+                    "email": email,
+                    "name": name or email.split("@")[0],
+                    "created_at": datetime.utcnow().isoformat(),
+                },
+            )
+            logger.info("Tenant creado: %s (%s)", tenant_id, email)
+
+
+def get_tenant(tenant_id: str) -> Optional[dict]:
+    """Devuelve los datos del tenant o None si no existe."""
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT * FROM tenants WHERE id = :id"),
+            {"id": tenant_id},
+        ).fetchone()
+    return dict(row._mapping) if row else None
+
+
+def set_tenant_status(tenant_id: str, status: str) -> None:
+    """
+    Cambia el estado de un tenant.
+    status: 'active' | 'cancelled'
+
+    Al cancelar se registra la fecha. Al reactivar se limpia.
+    Los leads del tenant NO se borran — permanecen en la BD.
+    """
+    now = datetime.utcnow().isoformat()
+    cancelled_at = now if status == "cancelled" else None
+
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                UPDATE tenants
+                SET status = :status, cancelled_at = :cancelled_at
+                WHERE id = :id
+            """),
+            {"status": status, "cancelled_at": cancelled_at, "id": tenant_id},
+        )
+    logger.info("Tenant %s → estado %s", tenant_id, status)
+
+
+def get_all_tenants() -> list:
+    """Devuelve todos los tenants. Solo para uso del panel de administración."""
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("SELECT * FROM tenants ORDER BY created_at DESC")
+        ).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
+def count_leads_for_tenant(tenant_id: str) -> int:
+    """Cuenta los leads totales de un tenant (para el panel de admin)."""
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("SELECT COUNT(*) FROM leads WHERE tenant_id = :tid"),
+            {"tid": tenant_id},
+        ).scalar()
+    return result or 0
+
+
+# ─────────────────────────────────────────────
+# Operaciones CRUD de Leads
 # ─────────────────────────────────────────────
 
 def save_lead(
     lead_id: str,
+    tenant_id: str,
     name: str,
     email: str,
     phone: Optional[str],
@@ -125,13 +221,13 @@ def save_lead(
         conn.execute(
             text("""
                 INSERT INTO leads (
-                    id, name, email, phone, message,
+                    id, tenant_id, name, email, phone, message,
                     classification, score, reasoning,
                     generated_email, recommended_actions,
                     intent_analysis, company_info,
                     status, created_at, processed_at
                 ) VALUES (
-                    :id, :name, :email, :phone, :message,
+                    :id, :tenant_id, :name, :email, :phone, :message,
                     :classification, :score, :reasoning,
                     :generated_email, :recommended_actions,
                     :intent_analysis, :company_info,
@@ -140,6 +236,7 @@ def save_lead(
             """),
             {
                 "id": lead_id,
+                "tenant_id": tenant_id,
                 "name": name,
                 "email": email,
                 "phone": phone,
@@ -149,70 +246,64 @@ def save_lead(
                 "reasoning": reasoning,
                 "generated_email": generated_email,
                 "recommended_actions": json.dumps(recommended_actions, ensure_ascii=False),
-                "intent_analysis": json.dumps(intent_analysis, ensure_ascii=False),
-                "company_info": json.dumps(company_info, ensure_ascii=False),
-                "created_at": now,
+                "intent_analysis":    json.dumps(intent_analysis,    ensure_ascii=False),
+                "company_info":       json.dumps(company_info,       ensure_ascii=False),
+                "created_at":   now,
                 "processed_at": now,
             },
         )
 
-    logger.info("Lead %s guardado (clasificacion: %s)", lead_id, classification)
+    logger.info("Lead %s guardado (tenant: %s, clasificacion: %s)", lead_id, tenant_id, classification)
 
 
-def get_lead_by_id(lead_id: str) -> Optional[dict]:
-    """Recupera un lead por su ID."""
+def get_lead_by_id(lead_id: str, tenant_id: str) -> Optional[dict]:
+    """Recupera un lead por ID, restringido al tenant."""
     with engine.connect() as conn:
         row = conn.execute(
-            text("SELECT * FROM leads WHERE id = :id"),
-            {"id": lead_id},
+            text("SELECT * FROM leads WHERE id = :id AND tenant_id = :tid"),
+            {"id": lead_id, "tid": tenant_id},
         ).fetchone()
-
-    if row is None:
-        return None
-
-    return _row_a_dict(row)
+    return _row_a_dict(row) if row else None
 
 
-def get_leads_by_email(email: str) -> list:
-    """Recupera todos los leads de un mismo email (historial)."""
+def get_leads_by_email(email: str, tenant_id: str) -> list:
+    """Recupera todos los leads de un email para este tenant."""
     with engine.connect() as conn:
         rows = conn.execute(
-            text("SELECT * FROM leads WHERE email = :email ORDER BY created_at DESC"),
-            {"email": email},
+            text("SELECT * FROM leads WHERE email = :email AND tenant_id = :tid ORDER BY created_at DESC"),
+            {"email": email, "tid": tenant_id},
         ).fetchall()
-
     return [_row_a_dict(r) for r in rows]
 
 
-def get_recent_leads(limit: int = 100) -> list:
-    """Devuelve los últimos N leads procesados con todos sus campos."""
+def get_recent_leads(limit: int = 100, tenant_id: str = "legacy") -> list:
+    """Devuelve los últimos N leads del tenant."""
     with engine.connect() as conn:
         rows = conn.execute(
-            text("SELECT * FROM leads ORDER BY created_at DESC LIMIT :limit"),
-            {"limit": limit},
+            text("SELECT * FROM leads WHERE tenant_id = :tid ORDER BY created_at DESC LIMIT :limit"),
+            {"limit": limit, "tid": tenant_id},
         ).fetchall()
-
     return [_row_a_dict(r) for r in rows]
 
 
-def update_lead_status(lead_id: str, status: str) -> None:
-    """Actualiza el estado de un lead."""
+def update_lead_status(lead_id: str, status: str, tenant_id: str) -> None:
+    """Actualiza el estado de un lead, verificando que pertenece al tenant."""
     with engine.begin() as conn:
         conn.execute(
-            text("UPDATE leads SET status = :status WHERE id = :id"),
-            {"status": status, "id": lead_id},
+            text("UPDATE leads SET status = :status WHERE id = :id AND tenant_id = :tid"),
+            {"status": status, "id": lead_id, "tid": tenant_id},
         )
-    logger.info("Lead %s → estado %s", lead_id, status)
+    logger.info("Lead %s → estado %s (tenant: %s)", lead_id, status, tenant_id)
 
 
-def delete_lead(lead_id: str) -> None:
-    """Elimina un lead de la base de datos."""
+def delete_lead(lead_id: str, tenant_id: str) -> None:
+    """Elimina un lead, verificando que pertenece al tenant."""
     with engine.begin() as conn:
         conn.execute(
-            text("DELETE FROM leads WHERE id = :id"),
-            {"id": lead_id},
+            text("DELETE FROM leads WHERE id = :id AND tenant_id = :tid"),
+            {"id": lead_id, "tid": tenant_id},
         )
-    logger.info("Lead %s eliminado", lead_id)
+    logger.info("Lead %s eliminado (tenant: %s)", lead_id, tenant_id)
 
 
 # ─────────────────────────────────────────────
@@ -220,15 +311,13 @@ def delete_lead(lead_id: str) -> None:
 # ─────────────────────────────────────────────
 
 def _row_a_dict(row) -> dict:
-    """Convierte una fila de SQLAlchemy a dict y desserializa campos JSON."""
+    """Convierte una fila de SQLAlchemy a dict y deserializa campos JSON."""
     data = dict(row._mapping)
-
     for campo in ("recommended_actions", "intent_analysis", "company_info"):
         valor = data.get(campo)
         if isinstance(valor, str):
             try:
                 data[campo] = json.loads(valor)
             except Exception:
-                pass  # dejar el valor como string si no se puede parsear
-
+                pass
     return data
