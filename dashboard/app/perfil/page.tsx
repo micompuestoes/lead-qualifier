@@ -42,7 +42,7 @@ export default function PerfilPage() {
     async function cargar() {
       try {
         const token = await getToken();
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
         const [resPerfil, resImap] = await Promise.all([
           fetch(`${apiBase}/me`,      { headers }),
           fetch(`${apiBase}/me/imap`, { headers }),
