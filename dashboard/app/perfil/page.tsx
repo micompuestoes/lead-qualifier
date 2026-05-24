@@ -13,14 +13,28 @@ interface Perfil {
   created_at: string;
 }
 
+interface ImapStatus {
+  configured: boolean;
+  host?: string;
+  user?: string;
+  last_sync?: string;
+}
+
 export default function PerfilPage() {
   const { addToast } = useToast();
   const { getToken } = useAuth();
-  const [perfil, setPerfil]     = useState<Perfil | null>(null);
-  const [cargando, setCargando] = useState(true);
+  const [perfil, setPerfil]       = useState<Perfil | null>(null);
+  const [cargando, setCargando]   = useState(true);
   const [guardando, setGuardando] = useState(false);
-  const [copiado, setCopiado]   = useState(false);
-  const [form, setForm]         = useState({ name: '', notify_email: '' });
+  const [copiado, setCopiado]     = useState(false);
+  const [form, setForm]           = useState({ name: '', notify_email: '' });
+
+  // IMAP
+  const [imap, setImap]               = useState<ImapStatus>({ configured: false });
+  const [imapForm, setImapForm]       = useState({ email: '', password: '', host: '' });
+  const [imapGuardando, setImapGuardando] = useState(false);
+  const [imapDesconectando, setImapDesconectando] = useState(false);
+  const [mostrarFormImap, setMostrarFormImap] = useState(false);
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
@@ -28,13 +42,16 @@ export default function PerfilPage() {
     async function cargar() {
       try {
         const token = await getToken();
-        const res = await fetch(`${apiBase}/me`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (!res.ok) throw new Error('Error al cargar perfil');
-        const data = await res.json();
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const [resPerfil, resImap] = await Promise.all([
+          fetch(`${apiBase}/me`,      { headers }),
+          fetch(`${apiBase}/me/imap`, { headers }),
+        ]);
+        if (!resPerfil.ok) throw new Error('Error al cargar perfil');
+        const data = await resPerfil.json();
         setPerfil(data);
         setForm({ name: data.name ?? '', notify_email: data.notify_email ?? '' });
+        if (resImap.ok) setImap(await resImap.json());
       } catch {
         addToast('No se pudo cargar el perfil', 'error');
       } finally {
@@ -65,6 +82,58 @@ export default function PerfilPage() {
       addToast('Error al guardar', 'error');
     } finally {
       setGuardando(false);
+    }
+  }
+
+  async function conectarImap(e: React.FormEvent) {
+    e.preventDefault();
+    setImapGuardando(true);
+    try {
+      const token = await getToken();
+      const body: Record<string, string | number> = {
+        email:    imapForm.email,
+        password: imapForm.password,
+      };
+      if (imapForm.host.trim()) body.host = imapForm.host.trim();
+
+      const res = await fetch(`${apiBase}/me/imap`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail ?? 'Error al conectar');
+      }
+      const data = await res.json();
+      setImap({ configured: true, host: data.host, user: data.user });
+      setMostrarFormImap(false);
+      setImapForm({ email: '', password: '', host: '' });
+      addToast('Bandeja conectada correctamente', 'success');
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Error al conectar', 'error');
+    } finally {
+      setImapGuardando(false);
+    }
+  }
+
+  async function desconectarImap() {
+    setImapDesconectando(true);
+    try {
+      const token = await getToken();
+      await fetch(`${apiBase}/me/imap`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      setImap({ configured: false });
+      addToast('Bandeja desconectada', 'success');
+    } catch {
+      addToast('Error al desconectar', 'error');
+    } finally {
+      setImapDesconectando(false);
     }
   }
 
@@ -99,7 +168,6 @@ export default function PerfilPage() {
       <div className="bg-white border border-gray-100 rounded-xl p-6">
         <h2 className="font-semibold text-gray-800 mb-4">Datos de la empresa</h2>
         <form onSubmit={guardar} className="space-y-4">
-
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Nombre de la empresa
@@ -112,7 +180,6 @@ export default function PerfilPage() {
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Email de notificaciones
@@ -126,7 +193,6 @@ export default function PerfilPage() {
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-
           <button
             type="submit"
             disabled={guardando}
@@ -135,6 +201,123 @@ export default function PerfilPage() {
             {guardando ? 'Guardando…' : 'Guardar cambios'}
           </button>
         </form>
+      </div>
+
+      {/* Bandeja de entrada (IMAP) */}
+      <div className="bg-white border border-gray-100 rounded-xl p-6 space-y-4">
+        <div>
+          <h2 className="font-semibold text-gray-800">Bandeja de entrada</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Conecta tu email actual y los mensajes de potenciales clientes se convertirán
+            automáticamente en leads en el dashboard.
+          </p>
+        </div>
+
+        {imap.configured ? (
+          <div className="space-y-3">
+            {/* Estado conectado */}
+            <div className="flex items-center justify-between bg-green-50 border border-green-100 rounded-lg px-4 py-3">
+              <div className="flex items-center gap-3">
+                <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-green-800">{imap.user}</p>
+                  <p className="text-xs text-green-600">{imap.host}</p>
+                </div>
+              </div>
+              <button
+                onClick={desconectarImap}
+                disabled={imapDesconectando}
+                className="text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-50"
+              >
+                {imapDesconectando ? 'Desconectando…' : 'Desconectar'}
+              </button>
+            </div>
+            {imap.last_sync && (
+              <p className="text-xs text-gray-400">
+                Última sincronización:{' '}
+                {new Date(imap.last_sync).toLocaleString('es-ES', {
+                  day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+                })}
+              </p>
+            )}
+            <p className="text-xs text-gray-400">
+              El sistema revisa tu bandeja cada 10 minutos. Solo se procesan emails de personas
+              reales — los automáticos y newsletters se ignoran.
+            </p>
+          </div>
+        ) : mostrarFormImap ? (
+          <form onSubmit={conectarImap} className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Email de la bandeja
+              </label>
+              <input
+                type="email"
+                required
+                value={imapForm.email}
+                onChange={e => setImapForm(p => ({ ...p, email: e.target.value }))}
+                placeholder="info@tuempresa.com"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Contraseña de aplicación
+                <span className="text-gray-400 font-normal ml-1">
+                  — no uses tu contraseña principal, genera una específica en tu proveedor
+                </span>
+              </label>
+              <input
+                type="password"
+                required
+                value={imapForm.password}
+                onChange={e => setImapForm(p => ({ ...p, password: e.target.value }))}
+                placeholder="••••••••••••••••"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Servidor IMAP
+                <span className="text-gray-400 font-normal ml-1">(déjalo vacío para autodetectar)</span>
+              </label>
+              <input
+                type="text"
+                value={imapForm.host}
+                onChange={e => setImapForm(p => ({ ...p, host: e.target.value }))}
+                placeholder="imap.tuempresa.com"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="submit"
+                disabled={imapGuardando}
+                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+              >
+                {imapGuardando ? 'Verificando…' : 'Conectar bandeja'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setMostrarFormImap(false)}
+                className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2 rounded-lg border border-gray-200 transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
+        ) : (
+          <button
+            onClick={() => setMostrarFormImap(true)}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round"
+                d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+            </svg>
+            Conectar mi bandeja de entrada
+          </button>
+        )}
       </div>
 
       {/* API Key / Formulario público */}
@@ -148,7 +331,6 @@ export default function PerfilPage() {
 
         {perfil?.api_key ? (
           <>
-            {/* URL del formulario */}
             <div>
               <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
                 Enlace del formulario
@@ -176,7 +358,6 @@ export default function PerfilPage() {
               </div>
             </div>
 
-            {/* API Key */}
             <div>
               <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
                 API Key <span className="text-gray-400 font-normal normal-case">(para integraciones propias)</span>

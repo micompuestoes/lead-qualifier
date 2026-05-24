@@ -19,3 +19,7 @@ truststore>=0.9.1          # Certificados del SO — fix SSL en Windows/Microsof
 
 # ── Autenticación multi-tenant ────────────────
 python-jose[cryptography]>=3.3.0  # Verificación de JWT (tokens de Clerk)
+
+# ── IMAP email-to-lead ────────────────────────
+apscheduler>=3.10.0        # Job scheduler para el polling IMAP cada 10 min
+cryptography>=42.0.0       # Fernet: cifrado de contraseñas IMAP en la BD

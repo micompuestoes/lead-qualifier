@@ -8,6 +8,9 @@ Variables de entorno necesarias:
   DATABASE_URL        → (opcional) PostgreSQL en producción. Sin ella usa SQLite local.
 """
 
+import asyncio
+import base64
+import hashlib
 import json
 import logging
 import os
@@ -18,6 +21,8 @@ from typing import Literal, Optional
 
 import anthropic
 import httpx
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,11 +31,13 @@ from jose import JWTError, jwt
 from pydantic import BaseModel
 
 from database import (
-    count_leads_for_tenant, delete_lead, ensure_tenant, get_all_tenants,
-    get_lead_by_id, get_leads_by_email, get_recent_leads, get_tenant,
-    get_tenant_by_api_key, init_db, set_tenant_status,
+    count_leads_for_tenant, delete_lead, disable_imap, ensure_tenant,
+    get_all_tenants, get_imap_config, get_lead_by_id, get_leads_by_email,
+    get_recent_leads, get_tenant, get_tenant_by_api_key, get_tenants_with_imap,
+    init_db, save_imap_config, set_tenant_status, update_imap_last_sync,
     update_lead_status, update_tenant_profile,
 )
+from email_imap import detectar_servidor_imap, obtener_no_leidos, verificar_conexion
 from email_sender import send_lead_response_email, send_tenant_notification
 from models import LeadInput, LeadOutput
 from agent import qualify_lead, _make_anthropic_client
@@ -63,6 +70,36 @@ class ActualizarEstadoTenantInput(BaseModel):
 class ActualizarPerfilInput(BaseModel):
     name: str
     notify_email: str
+
+class ImapConfigInput(BaseModel):
+    email: str
+    password: str
+    host: Optional[str] = None   # None → autodetectar por dominio
+    port: int = 993
+
+
+# ─────────────────────────────────────────────
+# Cifrado Fernet para contraseñas IMAP
+# ─────────────────────────────────────────────
+
+def _fernet() -> Fernet:
+    """Deriva una clave Fernet del ADMIN_SECRET_KEY (ya obligatorio en prod)."""
+    secret = os.getenv("ADMIN_SECRET_KEY", "dev-insecure-key-change-in-prod")
+    key = base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest())
+    return Fernet(key)
+
+def cifrar(texto: str) -> str:
+    return _fernet().encrypt(texto.encode()).decode()
+
+def descifrar(enc: str) -> str:
+    return _fernet().decrypt(enc.encode()).decode()
+
+
+# ─────────────────────────────────────────────
+# Scheduler IMAP
+# ─────────────────────────────────────────────
+
+_scheduler = AsyncIOScheduler(timezone="UTC")
 
 
 # ─────────────────────────────────────────────
@@ -158,6 +195,55 @@ def _require_admin(request: Request) -> None:
 # ─────────────────────────────────────────────
 # Lifecycle: inicializar BD al arrancar
 # ─────────────────────────────────────────────
+async def _sync_imap_todos() -> None:
+    """Job del scheduler: procesa la bandeja IMAP de cada tenant activo."""
+    tenants = get_tenants_with_imap()
+    if not tenants:
+        return
+    logger.info("IMAP sync — %d tenant(s)", len(tenants))
+    for t in tenants:
+        try:
+            await _sync_imap_tenant(t)
+        except Exception as exc:
+            logger.error("IMAP sync error (tenant %s): %s", t["id"], exc)
+
+
+async def _sync_imap_tenant(t: dict) -> None:
+    """Descarga emails no leídos del tenant y los cualifica como leads."""
+    password = descifrar(t["password_enc"])
+    loop = asyncio.get_event_loop()
+
+    # La I/O IMAP es bloqueante → correr en thread pool
+    emails = await loop.run_in_executor(
+        None, obtener_no_leidos, t["host"], t["port"], t["user"], password
+    )
+
+    if emails:
+        logger.info("IMAP tenant %s — %d email(s) nuevos", t["id"], len(emails))
+
+    client = get_anthropic_client()
+    for datos in emails:
+        try:
+            lead_input = LeadInput(**datos)
+            result = qualify_lead(
+                name=lead_input.name,
+                email=lead_input.email,
+                phone=None,
+                message=lead_input.message,
+                anthropic_client=client,
+                tenant_id=t["id"],
+            )
+            _notificar_tenant(t["id"], lead_input, result)
+            logger.info(
+                "Lead IMAP cualificado: %s — score %s (%s)",
+                datos["email"], result.get("score"), result.get("classification"),
+            )
+        except Exception as exc:
+            logger.error("Error cualificando email de %s: %s", datos.get("email"), exc)
+
+    update_imap_last_sync(t["id"])
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Arrancando Lead Qualifier API (multi-tenant)")
@@ -173,7 +259,15 @@ async def lifespan(app: FastAPI):
         logger.info("Auth: Clerk JWT activo")
 
     logger.info("API key de Anthropic detectada")
+
+    # Arrancar scheduler IMAP (cada 10 minutos)
+    _scheduler.add_job(_sync_imap_todos, "interval", minutes=10, id="imap_sync")
+    _scheduler.start()
+    logger.info("Scheduler IMAP arrancado (cada 10 min)")
+
     yield
+
+    _scheduler.shutdown(wait=False)
     logger.info("Cerrando Lead Qualifier API")
 
 
@@ -380,6 +474,68 @@ async def update_my_profile(
     ensure_tenant(tenant_id)
     update_tenant_profile(tenant_id, body.name.strip(), body.notify_email.strip())
     return await get_my_profile(tenant_id)
+
+
+# ─────────────────────────────────────────────
+# Endpoints IMAP (bandeja de entrada del tenant)
+# ─────────────────────────────────────────────
+
+@app.get("/me/imap")
+async def get_imap(tenant_id: str = Depends(get_tenant_id)):
+    """Devuelve la config IMAP del tenant (sin contraseña)."""
+    cfg = get_imap_config(tenant_id)
+    if not cfg:
+        return {"configured": False}
+    return {
+        "configured": True,
+        "host": cfg["host"],
+        "port": cfg["port"],
+        "user": cfg["user"],
+        "enabled": cfg["enabled"],
+        "last_sync": cfg["last_sync"],
+    }
+
+
+@app.post("/me/imap")
+async def save_imap(
+    data: ImapConfigInput,
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """
+    Guarda y verifica la configuración IMAP del tenant.
+    Si host está vacío se autodetecta por el dominio del email.
+    """
+    host = (data.host or "").strip()
+    port = data.port
+
+    if not host:
+        host, port = detectar_servidor_imap(data.email)
+        if not host:
+            raise HTTPException(
+                status_code=400,
+                detail="No se pudo detectar el servidor IMAP. Introdúcelo manualmente.",
+            )
+
+    # Verificar credenciales antes de guardar
+    try:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None, verificar_conexion, host, port, data.email, data.password
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    password_enc = cifrar(data.password)
+    save_imap_config(tenant_id, host, port, data.email, password_enc)
+    logger.info("IMAP guardado para tenant %s → %s", tenant_id, host)
+
+    return {"ok": True, "host": host, "port": port, "user": data.email}
+
+
+@app.delete("/me/imap", status_code=204)
+async def delete_imap(tenant_id: str = Depends(get_tenant_id)):
+    """Desconecta y borra la config IMAP del tenant."""
+    disable_imap(tenant_id)
 
 
 # ─────────────────────────────────────────────

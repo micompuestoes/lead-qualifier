@@ -101,6 +101,13 @@ def init_db() -> None:
         "ALTER TABLE tenants ADD COLUMN cancelled_at TEXT",
         "ALTER TABLE tenants ADD COLUMN api_key TEXT",
         "ALTER TABLE tenants ADD COLUMN notify_email TEXT",
+        # IMAP email-to-lead
+        "ALTER TABLE tenants ADD COLUMN imap_host TEXT",
+        "ALTER TABLE tenants ADD COLUMN imap_port INTEGER DEFAULT 993",
+        "ALTER TABLE tenants ADD COLUMN imap_user TEXT",
+        "ALTER TABLE tenants ADD COLUMN imap_password_enc TEXT",
+        "ALTER TABLE tenants ADD COLUMN imap_enabled INTEGER DEFAULT 0",
+        "ALTER TABLE tenants ADD COLUMN imap_last_sync TEXT",
     ]:
         try:
             with engine.begin() as conn:
@@ -211,6 +218,85 @@ def update_tenant_profile(tenant_id: str, name: str, notify_email: str) -> None:
             {"name": name, "notify_email": notify_email, "id": tenant_id},
         )
     logger.info("Perfil actualizado para tenant %s: name=%s, notify=%s", tenant_id, name, notify_email)
+
+
+def save_imap_config(tenant_id: str, host: str, port: int, user: str, password_enc: str) -> None:
+    """Guarda la configuración IMAP del tenant (contraseña ya cifrada)."""
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                UPDATE tenants
+                SET imap_host=:host, imap_port=:port, imap_user=:user,
+                    imap_password_enc=:pwd, imap_enabled=1
+                WHERE id=:id
+            """),
+            {"host": host, "port": port, "user": user, "pwd": password_enc, "id": tenant_id},
+        )
+    logger.info("IMAP configurado para tenant %s → %s:%s", tenant_id, host, port)
+
+
+def get_imap_config(tenant_id: str) -> Optional[dict]:
+    """Devuelve la config IMAP del tenant, o None si no está configurada."""
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("""
+                SELECT imap_host, imap_port, imap_user, imap_password_enc,
+                       imap_enabled, imap_last_sync
+                FROM tenants WHERE id=:id
+            """),
+            {"id": tenant_id},
+        ).fetchone()
+    if not row or not row[0]:
+        return None
+    return {
+        "host": row[0], "port": row[1], "user": row[2],
+        "password_enc": row[3], "enabled": bool(row[4]), "last_sync": row[5],
+    }
+
+
+def get_tenants_with_imap() -> list:
+    """Devuelve todos los tenants activos con IMAP habilitado (para el scheduler)."""
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT id, imap_host, imap_port, imap_user, imap_password_enc,
+                       notify_email, name
+                FROM tenants
+                WHERE imap_enabled=1 AND imap_host IS NOT NULL AND status='active'
+            """),
+        ).fetchall()
+    return [
+        {
+            "id": r[0], "host": r[1], "port": r[2],
+            "user": r[3], "password_enc": r[4],
+            "notify_email": r[5], "name": r[6],
+        }
+        for r in rows
+    ]
+
+
+def update_imap_last_sync(tenant_id: str) -> None:
+    """Actualiza la marca de tiempo de la última sincronización IMAP."""
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE tenants SET imap_last_sync=:ts WHERE id=:id"),
+            {"ts": datetime.utcnow().isoformat(), "id": tenant_id},
+        )
+
+
+def disable_imap(tenant_id: str) -> None:
+    """Desconecta el IMAP del tenant y borra sus credenciales."""
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                UPDATE tenants
+                SET imap_host=NULL, imap_port=993, imap_user=NULL,
+                    imap_password_enc=NULL, imap_enabled=0, imap_last_sync=NULL
+                WHERE id=:id
+            """),
+            {"id": tenant_id},
+        )
+    logger.info("IMAP desconectado para tenant %s", tenant_id)
 
 
 def get_all_tenants() -> list:
