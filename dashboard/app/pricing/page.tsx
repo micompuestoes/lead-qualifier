@@ -12,7 +12,6 @@ const PLANES = [
     nombre: 'Free',
     precio: 0,
     descripcion: 'Para probar la plataforma',
-    color: 'gray',
     features: [
       '10 leads / mes',
       'Cualificación con IA',
@@ -26,7 +25,6 @@ const PLANES = [
     nombre: 'Pro',
     precio: 49,
     descripcion: 'Para agencias activas',
-    color: 'blue',
     destacado: true,
     features: [
       'Leads ilimitados',
@@ -42,7 +40,6 @@ const PLANES = [
     nombre: 'Agencia',
     precio: 99,
     descripcion: 'Para agencias que quieren más',
-    color: 'purple',
     features: [
       'Todo lo de Pro',
       'Generador de anuncios IA',
@@ -85,23 +82,33 @@ export default function PricingPage() {
   return (
     <div className="p-8 max-w-5xl mx-auto">
       <div className="text-center mb-12">
-        <h1 className="text-3xl font-bold text-gray-900">Planes y precios</h1>
-        <p className="text-gray-500 mt-2">Sin permanencia. Cancela cuando quieras.</p>
+        <h1 className="text-3xl" style={{ color: '#1a1814' }}>
+          Planes y precios
+        </h1>
+        <p className="mt-2 text-sm" style={{ color: '#7a7468' }}>
+          Sin permanencia. Cancela cuando quieras.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {PLANES.map((plan) => (
           <div
             key={plan.id}
-            className={`relative bg-white rounded-2xl border-2 p-6 flex flex-col ${
-              plan.destacado
-                ? 'border-blue-500 shadow-lg shadow-blue-100'
-                : 'border-gray-100'
-            }`}
+            className="relative rounded-2xl p-6 flex flex-col"
+            style={{
+              background: plan.destacado ? '#fff' : '#fff',
+              border: plan.destacado
+                ? '2px solid #c8a96e'
+                : '1.5px solid rgba(200,169,110,0.2)',
+              boxShadow: plan.destacado
+                ? '0 4px 24px rgba(200,169,110,0.15)'
+                : '0 1px 6px rgba(26,24,20,0.04)',
+            }}
           >
             {plan.destacado && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                <span className="bg-blue-600 text-white text-xs font-semibold px-3 py-1 rounded-full">
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                <span className="text-xs font-semibold px-3 py-1 rounded-full"
+                  style={{ background: '#c8a96e', color: '#1a1814' }}>
                   Más popular
                 </span>
               </div>
@@ -109,14 +116,18 @@ export default function PricingPage() {
 
             {/* Cabecera */}
             <div className="mb-6">
-              <h2 className="text-lg font-bold text-gray-900">{plan.nombre}</h2>
-              <p className="text-sm text-gray-500 mt-0.5">{plan.descripcion}</p>
+              <h2 className="text-lg font-semibold" style={{ color: '#1a1814' }}>
+                {plan.nombre}
+              </h2>
+              <p className="text-sm mt-0.5" style={{ color: '#7a7468' }}>
+                {plan.descripcion}
+              </p>
               <div className="mt-4 flex items-baseline gap-1">
-                <span className="text-4xl font-bold text-gray-900">
+                <span className="text-4xl font-bold" style={{ color: '#1a1814' }}>
                   {plan.precio === 0 ? 'Gratis' : `${plan.precio}€`}
                 </span>
                 {plan.precio > 0 && (
-                  <span className="text-gray-400 text-sm">/mes</span>
+                  <span className="text-sm" style={{ color: '#7a7468' }}>/mes</span>
                 )}
               </div>
             </div>
@@ -124,16 +135,17 @@ export default function PricingPage() {
             {/* Features */}
             <ul className="space-y-2.5 flex-1 mb-6">
               {plan.features.map((f) => (
-                <li key={f} className="flex items-start gap-2.5 text-sm text-gray-700">
-                  <svg className="w-4 h-4 text-green-500 mt-0.5 shrink-0" fill="none"
-                    viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                <li key={f} className="flex items-start gap-2.5 text-sm"
+                  style={{ color: '#1a1814' }}>
+                  <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none"
+                    viewBox="0 0 24 24" strokeWidth={2.5} stroke="#c8a96e">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                   </svg>
                   {f}
                 </li>
               ))}
-              {plan.limitacion && (
-                <li className="flex items-start gap-2.5 text-sm text-red-400">
+              {'limitacion' in plan && plan.limitacion && (
+                <li className="flex items-start gap-2.5 text-sm" style={{ color: '#b45309' }}>
                   <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none"
                     viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -145,15 +157,19 @@ export default function PricingPage() {
 
             {/* CTA */}
             {plan.proximamente ? (
-              <div className="w-full py-2.5 rounded-xl text-sm font-semibold text-center
-                bg-gray-100 text-gray-400 cursor-not-allowed">
+              <div className="w-full py-2.5 rounded-xl text-sm font-semibold text-center cursor-not-allowed"
+                style={{ background: 'rgba(200,169,110,0.08)', color: '#7a7468' }}>
                 Próximamente
               </div>
             ) : plan.id === 'free' ? (
               <button
                 onClick={() => router.push('/leads')}
-                className="w-full py-2.5 rounded-xl text-sm font-semibold
-                  border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all"
+                style={{
+                  border: '1.5px solid rgba(200,169,110,0.3)',
+                  color: '#7a7468',
+                  background: 'transparent',
+                }}
               >
                 Ir al dashboard
               </button>
@@ -161,12 +177,11 @@ export default function PricingPage() {
               <button
                 onClick={() => contratar(plan.id)}
                 disabled={!!cargando}
-                className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-colors
-                  disabled:opacity-60 disabled:cursor-not-allowed ${
-                  plan.destacado
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                    : 'bg-gray-900 hover:bg-gray-700 text-white'
-                }`}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                style={{
+                  background: plan.destacado ? '#c8a96e' : '#1a1814',
+                  color: plan.destacado ? '#1a1814' : '#f5f0e8',
+                }}
               >
                 {cargando === plan.id ? 'Redirigiendo…' : `Empezar con ${plan.nombre}`}
               </button>
@@ -175,7 +190,7 @@ export default function PricingPage() {
         ))}
       </div>
 
-      <p className="text-center text-xs text-gray-400 mt-8">
+      <p className="text-center text-xs mt-8" style={{ color: '#7a7468' }}>
         Pagos procesados de forma segura por Stripe. IVA no incluido.
       </p>
     </div>

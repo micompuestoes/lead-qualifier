@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display:ital@0;1&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,11 +6,19 @@
 
 @layer base {
   html {
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'DM Sans', system-ui, sans-serif;
   }
 
   body {
-    @apply bg-gray-50 text-gray-900 antialiased;
+    background: linear-gradient(180deg, #f9f5ee 0%, #f5f0e8 48%, #efe6d8 100%);
+    background-attachment: fixed;
+    color: #1a1814;
+    @apply antialiased;
+  }
+
+  h1, h2, h3 {
+    font-family: 'DM Serif Display', Georgia, serif;
+    letter-spacing: -0.02em;
   }
 }
 
@@ -24,51 +32,43 @@
 
 /* ── Animaciones personalizadas ──────────────────────────────────────────── */
 
-/* Toast — entra desde abajo con un pequeño rebote */
 @keyframes toast-in {
   from { opacity: 0; transform: translateY(10px) scale(0.96); }
   to   { opacity: 1; transform: translateY(0)    scale(1); }
 }
 
-/* Cards — fade + slide up suave */
 @keyframes fade-slide-up {
   from { opacity: 0; transform: translateY(14px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Badge CALIENTE — pulso muy sutil */
 @keyframes pulse-warm {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.72; }
 }
 
-/* Score counter — pop al aparecer */
 @keyframes score-pop {
   0%   { transform: scale(1.25); opacity: 0; }
   60%  { transform: scale(0.95); }
   100% { transform: scale(1);    opacity: 1; }
 }
 
-/* Reveal de secciones en la página de resultado */
 @keyframes reveal-in {
   from { opacity: 0; transform: translateY(18px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Confeti — cae y rota */
 @keyframes confetti-fall {
   0%   { transform: translateY(-10px) rotate(0deg);    opacity: 1; }
   80%  { opacity: 1; }
   100% { transform: translateY(520px) rotate(680deg); opacity: 0; }
 }
 
-/* Dot pulsante del step activo en el procesamiento */
 @keyframes dot-pulse {
   0%, 100% { opacity: 1;    transform: scale(1); }
   50%       { opacity: 0.4; transform: scale(0.75); }
 }
 
-/* Clases utilitarias de animación */
 .animate-toast-in    { animation: toast-in       0.28s cubic-bezier(0.34, 1.4, 0.64, 1) both; }
 .animate-fade-up     { animation: fade-slide-up  0.38s ease-out both; }
 .animate-pulse-warm  { animation: pulse-warm     2.8s  ease-in-out infinite; }

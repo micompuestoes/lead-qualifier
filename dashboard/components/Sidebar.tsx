@@ -86,11 +86,14 @@ export default function Sidebar() {
   if (esAuth || esFormPublico) return null;
 
   return (
-    <aside className="fixed top-0 left-0 h-screen w-60 bg-gray-900 flex flex-col z-10">
+    <aside className="fixed top-0 left-0 h-screen w-60 flex flex-col z-10"
+      style={{ background: '#1a1814', borderRight: '1px solid rgba(200,169,110,0.15)' }}>
+
       {/* Logo / marca */}
-      <div className="px-6 py-6 border-b border-gray-800">
+      <div className="px-6 py-6" style={{ borderBottom: '1px solid rgba(200,169,110,0.12)' }}>
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+            style={{ background: '#c8a96e' }}>
             <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24"
               strokeWidth={2} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round"
@@ -98,8 +101,10 @@ export default function Sidebar() {
             </svg>
           </div>
           <div>
-            <p className="text-white font-semibold text-sm leading-tight">Lead Qualifier</p>
-            <p className="text-gray-400 text-xs">Agente de IA</p>
+            <p className="font-semibold text-sm leading-tight" style={{ color: '#f5f0e8' }}>
+              Lead Qualifier
+            </p>
+            <p className="text-xs" style={{ color: '#7a7468' }}>Agente de IA</p>
           </div>
         </div>
       </div>
@@ -112,15 +117,27 @@ export default function Sidebar() {
             <Link
               key={link.href}
               href={link.href}
-              className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm
-                font-medium transition-colors ${
-                activo
-                  ? 'bg-gray-800 text-white'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-800/60'
-              }`}
+              className="relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all"
+              style={{
+                color: activo ? '#f5f0e8' : '#7a7468',
+                background: activo ? 'rgba(200,169,110,0.12)' : 'transparent',
+              }}
+              onMouseEnter={e => {
+                if (!activo) {
+                  (e.currentTarget as HTMLElement).style.color = '#ede0c8';
+                  (e.currentTarget as HTMLElement).style.background = 'rgba(200,169,110,0.07)';
+                }
+              }}
+              onMouseLeave={e => {
+                if (!activo) {
+                  (e.currentTarget as HTMLElement).style.color = '#7a7468';
+                  (e.currentTarget as HTMLElement).style.background = 'transparent';
+                }
+              }}
             >
               {activo && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-blue-400 rounded-r-full" />
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full"
+                  style={{ background: '#c8a96e' }} />
               )}
               {link.icon}
               {link.label}
@@ -132,12 +149,12 @@ export default function Sidebar() {
         {plan === 'free' && (
           <Link
             href="/pricing"
-            className={`mt-2 relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm
-              font-medium transition-colors ${
-              pathname === '/pricing'
-                ? 'bg-blue-600 text-white'
-                : 'text-blue-400 hover:text-white hover:bg-blue-600/20 border border-blue-500/30'
-            }`}
+            className="mt-2 relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all"
+            style={{
+              color: pathname === '/pricing' ? '#1a1814' : '#c8a96e',
+              background: pathname === '/pricing' ? '#c8a96e' : 'transparent',
+              border: pathname === '/pricing' ? 'none' : '1px solid rgba(200,169,110,0.3)',
+            }}
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round"
@@ -149,7 +166,7 @@ export default function Sidebar() {
       </nav>
 
       {/* Perfil de usuario — UserButton de Clerk */}
-      <div className="px-4 py-4 border-t border-gray-800">
+      <div className="px-4 py-4" style={{ borderTop: '1px solid rgba(200,169,110,0.12)' }}>
         <UserButton
           appearance={{
             elements: {
