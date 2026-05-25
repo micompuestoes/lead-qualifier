@@ -38,28 +38,34 @@ const navLinks = [
       </svg>
     ),
   },
-  {
-    href: '/admin',
-    label: 'Empresas',
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round"
-          d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
-      </svg>
-    ),
-  },
 ];
 
+const adminLink = {
+  href: '/admin',
+  label: 'Empresas',
+  icon: (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round"
+        d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+    </svg>
+  ),
+};
+
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+
+interface Perfil {
+  plan: string;
+  name: string;
+  is_admin: boolean;
+}
 
 export default function Sidebar() {
   const pathname = usePathname();
   const { getToken } = useAuth();
-  const [plan, setPlan] = useState<string | null>(null);
+  const [perfil, setPerfil] = useState<Perfil>({ plan: 'free', name: '', is_admin: false });
 
-  // Carga el plan del usuario para mostrar u ocultar el CTA de upgrade
   useEffect(() => {
-    async function cargarPlan() {
+    async function cargarPerfil() {
       try {
         const token = await getToken();
         if (!token) return;
@@ -68,11 +74,15 @@ export default function Sidebar() {
         });
         if (res.ok) {
           const data = await res.json();
-          setPlan(data.plan ?? 'free');
+          setPerfil({
+            plan:     data.plan     ?? 'free',
+            name:     data.name     ?? '',
+            is_admin: data.is_admin ?? false,
+          });
         }
       } catch { /* silencioso */ }
     }
-    cargarPlan();
+    cargarPerfil();
   }, [getToken]);
 
   function esActivo(href: string) {
@@ -80,38 +90,41 @@ export default function Sidebar() {
     return pathname === href;
   }
 
-  // En páginas de auth y formularios públicos no mostramos el sidebar
   const esAuth = pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up');
   const esFormPublico = pathname.startsWith('/form/');
   if (esAuth || esFormPublico) return null;
+
+  // Links visibles: los comunes + admin solo si es administrador
+  const links = perfil.is_admin ? [...navLinks, adminLink] : navLinks;
 
   return (
     <aside className="fixed top-0 left-0 h-screen w-60 flex flex-col z-10"
       style={{ background: '#1a1814', borderRight: '1px solid rgba(200,169,110,0.15)' }}>
 
-      {/* Logo / marca */}
-      <div className="px-6 py-6" style={{ borderBottom: '1px solid rgba(200,169,110,0.12)' }}>
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: '#c8a96e' }}>
-            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24"
-              strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round"
-                d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-            </svg>
-          </div>
-          <div>
-            <p className="font-semibold text-sm leading-tight" style={{ color: '#f5f0e8' }}>
-              Lead Qualifier
-            </p>
-            <p className="text-xs" style={{ color: '#7a7468' }}>Agente de IA</p>
-          </div>
+      {/* Logo / marca — lleva a /leads al hacer clic */}
+      <Link href="/leads"
+        className="px-6 py-6 flex items-center gap-3 transition-opacity hover:opacity-80"
+        style={{ borderBottom: '1px solid rgba(200,169,110,0.12)' }}>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+          style={{ background: '#c8a96e' }}>
+          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24"
+            strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round"
+              d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+          </svg>
         </div>
-      </div>
+        <div className="min-w-0">
+          <p className="font-semibold text-sm leading-tight truncate"
+            style={{ color: '#f5f0e8' }}>
+            {perfil.name || 'Lead Qualifier'}
+          </p>
+          <p className="text-xs" style={{ color: '#7a7468' }}>Agente de IA</p>
+        </div>
+      </Link>
 
       {/* Navegación */}
       <nav className="flex-1 px-3 py-4 space-y-0.5">
-        {navLinks.map((link) => {
+        {links.map((link) => {
           const activo = esActivo(link.href);
           return (
             <Link
@@ -119,7 +132,7 @@ export default function Sidebar() {
               href={link.href}
               className="relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all"
               style={{
-                color: activo ? '#f5f0e8' : '#7a7468',
+                color:      activo ? '#f5f0e8' : '#7a7468',
                 background: activo ? 'rgba(200,169,110,0.12)' : 'transparent',
               }}
               onMouseEnter={e => {
@@ -146,14 +159,14 @@ export default function Sidebar() {
         })}
 
         {/* CTA upgrade — solo para plan free */}
-        {plan === 'free' && (
+        {perfil.plan === 'free' && (
           <Link
             href="/pricing"
             className="mt-2 relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all"
             style={{
-              color: pathname === '/pricing' ? '#1a1814' : '#c8a96e',
+              color:      pathname === '/pricing' ? '#1a1814' : '#c8a96e',
               background: pathname === '/pricing' ? '#c8a96e' : 'transparent',
-              border: pathname === '/pricing' ? 'none' : '1px solid rgba(200,169,110,0.3)',
+              border:     pathname === '/pricing' ? 'none' : '1px solid rgba(200,169,110,0.3)',
             }}
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">

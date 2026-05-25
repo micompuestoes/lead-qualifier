@@ -497,6 +497,7 @@ async def get_my_profile(tenant_id: str = Depends(get_tenant_id)):
     ensure_tenant(tenant_id)
     tenant = get_tenant(tenant_id)
     # No exponer campos sensibles innecesarios
+    admin_id = os.getenv("SUPER_ADMIN_USER_ID", "")
     return {
         "id":           tenant["id"],
         "name":         tenant.get("name", ""),
@@ -506,6 +507,7 @@ async def get_my_profile(tenant_id: str = Depends(get_tenant_id)):
         "plan":         tenant.get("plan", "free"),
         "status":       tenant.get("status", "active"),
         "created_at":   tenant.get("created_at", ""),
+        "is_admin":     bool(admin_id and tenant_id == admin_id),
     }
 
 
