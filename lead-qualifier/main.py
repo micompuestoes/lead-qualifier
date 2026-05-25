@@ -713,15 +713,19 @@ async def stripe_webhook(request: Request):
 
     try:
         if webhook_secret:
-            event = stripe.Webhook.construct_event(payload, sig, webhook_secret)
-        else:
-            event = json.loads(payload)
-    except Exception as exc:
-        logger.warning("Webhook inválido: %s", exc)
+            # Verificar firma con la librería de Stripe (lanza excepción si no coincide)
+            stripe.Webhook.construct_event(payload, sig, webhook_secret)
+        # Siempre parsear como dict plano para acceso seguro con .get()
+        event = json.loads(payload)
+    except ValueError as exc:
+        logger.warning("Webhook payload inválido: %s", exc)
+        raise HTTPException(status_code=400, detail="Payload inválido")
+    except stripe.SignatureVerificationError as exc:
+        logger.warning("Firma de webhook inválida: %s", exc)
         raise HTTPException(status_code=400, detail="Firma inválida")
 
-    etype = event["type"]
-    obj   = event["data"]["object"]
+    etype = event.get("type", "")
+    obj   = event.get("data", {}).get("object", {})
 
     if etype == "checkout.session.completed":
         tenant_id   = obj.get("metadata", {}).get("tenant_id")
