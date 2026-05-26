@@ -10,10 +10,16 @@
   }
 
   body {
-    background: linear-gradient(180deg, #f9f5ee 0%, #f5f0e8 48%, #efe6d8 100%);
-    background-attachment: fixed;
+    background: #f5f0e8;
     color: #1a1814;
     @apply antialiased;
+  }
+
+  /* Zona principal — crema fija para que contraste con sidebar blanco */
+  main {
+    background: linear-gradient(160deg, #f9f5ee 0%, #f3ede3 60%, #ede5d8 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
   }
 
   h1, h2, h3 {
