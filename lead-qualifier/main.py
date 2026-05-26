@@ -724,6 +724,48 @@ async def customer_portal(tenant_id: str = Depends(get_tenant_id)):
     return {"url": session.url}
 
 
+@app.delete("/me/subscription")
+async def cancel_subscription(tenant_id: str = Depends(get_tenant_id)):
+    """
+    Cancela la suscripción del tenant al final del período actual.
+    El plan baja a 'free' automáticamente vía webhook cuando Stripe confirme.
+    """
+    if not _stripe_configured():
+        raise HTTPException(status_code=503, detail="Pagos no configurados")
+
+    tenant = get_tenant(tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant no encontrado")
+
+    if tenant.get("plan", "free") == "free":
+        raise HTTPException(status_code=400, detail="No tienes ninguna suscripción de pago activa")
+
+    sub_id = tenant.get("stripe_subscription_id")
+    if not sub_id:
+        raise HTTPException(
+            status_code=404,
+            detail="No se encontró el ID de suscripción. Usa el portal para cancelar.",
+        )
+
+    try:
+        # cancel_at_period_end=True → el usuario conserva acceso hasta el fin del período
+        sub = stripe.Subscription.modify(sub_id, cancel_at_period_end=True)
+        cancel_date = sub.get("current_period_end")
+        logger.info(
+            "Suscripción %s marcada para cancelar al final del período (tenant %s, fecha: %s)",
+            sub_id, tenant_id, cancel_date,
+        )
+        return {
+            "ok": True,
+            "cancel_at_period_end": True,
+            "current_period_end": cancel_date,
+            "message": "Tu suscripción se cancelará al final del período. Seguirás con acceso hasta entonces.",
+        }
+    except stripe.StripeError as e:
+        logger.error("Error cancelando suscripción %s: %s", sub_id, e)
+        raise HTTPException(status_code=400, detail=f"Error al cancelar suscripción: {str(e)}")
+
+
 @app.post("/billing/webhook")
 async def stripe_webhook(request: Request):
     """
