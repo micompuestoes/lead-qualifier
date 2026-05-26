@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth, useUser } from '@clerk/nextjs';
 import { useToast } from '@/components/Toast';
+import { useTheme } from '@/components/ThemeProvider';
 
 interface Perfil {
   name: string;
@@ -25,65 +26,10 @@ interface ImapStatus {
   last_sync?: string;
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const card: React.CSSProperties = {
-  background: '#fff',
-  border: '1.5px solid rgba(200,169,110,0.18)',
-  borderRadius: '16px',
-  padding: '24px',
-};
-
-const inputBase: React.CSSProperties = {
-  width: '100%',
-  padding: '10px 14px',
-  borderRadius: '10px',
-  border: '1.5px solid rgba(200,169,110,0.25)',
-  background: 'rgba(255,255,255,0.8)',
-  color: '#1a1814',
-  fontSize: '14px',
-  outline: 'none',
-  transition: 'border-color 0.15s, box-shadow 0.15s',
-};
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: '12px',
-  fontWeight: 600,
-  color: '#7a7468',
-  marginBottom: '6px',
-  textTransform: 'uppercase',
-  letterSpacing: '0.05em',
-};
-
-const btnPrimary: React.CSSProperties = {
-  background: '#c8a96e',
-  color: '#1a1814',
-  border: 'none',
-  borderRadius: '10px',
-  padding: '10px 20px',
-  fontSize: '14px',
-  fontWeight: 600,
-  cursor: 'pointer',
-  transition: 'opacity 0.15s',
-};
-
-const btnSecondary: React.CSSProperties = {
-  background: 'transparent',
-  color: '#7a7468',
-  border: '1.5px solid rgba(200,169,110,0.25)',
-  borderRadius: '10px',
-  padding: '10px 16px',
-  fontSize: '14px',
-  fontWeight: 500,
-  cursor: 'pointer',
-  transition: 'background 0.15s, color 0.15s',
-};
-
 const planConfig: Record<string, { label: string; bg: string; color: string }> = {
   free:    { label: 'Gratuito', bg: 'rgba(122,116,104,0.12)', color: '#9a9490' },
   pro:     { label: 'Pro',      bg: 'rgba(200,169,110,0.15)', color: '#9a7a3a' },
-  agencia: { label: 'Agencia',  bg: 'rgba(200,169,110,0.2)',  color: '#9a7a3a' },
+  agencia: { label: 'Agencia',  bg: 'rgba(200,169,110,0.22)', color: '#9a7a3a' },
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -92,11 +38,12 @@ export default function PerfilPage() {
   const { addToast } = useToast();
   const { getToken } = useAuth();
   const { user } = useUser();
+  const { c } = useTheme();
 
-  const [perfil, setPerfil]     = useState<Perfil | null>(null);
-  const [cargando, setCargando] = useState(true);
+  const [perfil, setPerfil]       = useState<Perfil | null>(null);
+  const [cargando, setCargando]   = useState(true);
   const [guardando, setGuardando] = useState(false);
-  const [form, setForm]         = useState({ name: '', notify_email: '' });
+  const [form, setForm]           = useState({ name: '', notify_email: '' });
 
   const [equipo, setEquipo]               = useState<TeamMember[]>([]);
   const [nuevoMiembro, setNuevoMiembro]   = useState('');
@@ -114,7 +61,74 @@ export default function PerfilPage() {
 
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
+  // Subscription state
+  const [abriendo, setAbriendo]             = useState(false);
+  const [cancelando, setCancelando]         = useState(false);
+  const [confirmCancel, setConfirmCancel]   = useState(false);
+  const [cancelSuccess, setCancelSuccess]   = useState<number | null>(null); // Unix timestamp
+
   const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+
+  // ── Derived styles (depend on theme) ──────────────────────────────────────
+
+  const card: React.CSSProperties = {
+    background:   c.card,
+    border:       c.cardBorder,
+    borderRadius: '16px',
+    padding:      '24px',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display:       'block',
+    fontSize:      '12px',
+    fontWeight:    600,
+    color:         c.text2,
+    marginBottom:  '6px',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+  };
+
+  const btnPrimary: React.CSSProperties = {
+    background:   '#c8a96e',
+    color:        '#1a1814',
+    border:       'none',
+    borderRadius: '10px',
+    padding:      '10px 20px',
+    fontSize:     '14px',
+    fontWeight:   600,
+    cursor:       'pointer',
+    transition:   'opacity 0.15s',
+  };
+
+  const btnSecondary: React.CSSProperties = {
+    background:   'transparent',
+    color:        c.text2,
+    border:       `1.5px solid ${c.inputBorder}`,
+    borderRadius: '10px',
+    padding:      '10px 16px',
+    fontSize:     '14px',
+    fontWeight:   500,
+    cursor:       'pointer',
+    transition:   'background 0.15s, color 0.15s',
+  };
+
+  function inputStyleFor(name: string): React.CSSProperties {
+    const focused = focusedInput === name;
+    return {
+      width:      '100%',
+      padding:    '10px 14px',
+      borderRadius: '10px',
+      border:     focused ? '1.5px solid #c8a96e' : `1.5px solid ${c.inputBorder}`,
+      background: c.input,
+      color:      c.text1,
+      fontSize:   '14px',
+      outline:    'none',
+      boxShadow:  focused ? '0 0 0 3px rgba(200,169,110,0.1)' : 'none',
+      transition: 'border-color 0.15s, box-shadow 0.15s',
+    };
+  }
+
+  // ── Data loading ───────────────────────────────────────────────────────────
 
   useEffect(() => {
     async function cargar() {
@@ -141,15 +155,17 @@ export default function PerfilPage() {
     cargar();
   }, [getToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Handlers ───────────────────────────────────────────────────────────────
+
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
     setGuardando(true);
     try {
       const token = await getToken();
       const res = await fetch(`${apiBase}/me`, {
-        method: 'PATCH',
+        method:  'PATCH',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify(form),
+        body:    JSON.stringify(form),
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
@@ -170,9 +186,9 @@ export default function PerfilPage() {
       const body: Record<string, string> = { email: imapForm.email, password: imapForm.password };
       if (imapForm.host.trim()) body.host = imapForm.host.trim();
       const res = await fetch(`${apiBase}/me/imap`, {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify(body),
+        body:    JSON.stringify(body),
       });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail ?? 'Error al conectar'); }
       const data = await res.json();
@@ -191,11 +207,17 @@ export default function PerfilPage() {
     setImapDesconectando(true);
     try {
       const token = await getToken();
-      await fetch(`${apiBase}/me/imap`, { method: 'DELETE', headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      await fetch(`${apiBase}/me/imap`, {
+        method:  'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       setImap({ configured: false });
       addToast('Bandeja desconectada', 'success');
-    } catch { addToast('Error al desconectar', 'error'); }
-    finally { setImapDesconectando(false); }
+    } catch {
+      addToast('Error al desconectar', 'error');
+    } finally {
+      setImapDesconectando(false);
+    }
   }
 
   async function agregarMiembro(e: React.FormEvent) {
@@ -205,9 +227,9 @@ export default function PerfilPage() {
     try {
       const token = await getToken();
       const res = await fetch(`${apiBase}/me/team`, {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ member_id: nuevoMiembro.trim() }),
+        body:    JSON.stringify({ member_id: nuevoMiembro.trim() }),
       });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail ?? 'Error'); }
       setEquipo(prev => [...prev, { member_id: nuevoMiembro.trim(), added_at: new Date().toISOString() }]);
@@ -215,31 +237,67 @@ export default function PerfilPage() {
       addToast('Miembro añadido correctamente', 'success');
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Error al añadir miembro', 'error');
-    } finally { setAgregandoMiembro(false); }
+    } finally {
+      setAgregandoMiembro(false);
+    }
   }
 
   async function eliminarMiembro(memberId: string) {
     try {
       const token = await getToken();
-      await fetch(`${apiBase}/me/team/${memberId}`, { method: 'DELETE', headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      await fetch(`${apiBase}/me/team/${memberId}`, {
+        method:  'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       setEquipo(prev => prev.filter(m => m.member_id !== memberId));
       addToast('Miembro eliminado', 'success');
-    } catch { addToast('Error al eliminar miembro', 'error'); }
+    } catch {
+      addToast('Error al eliminar miembro', 'error');
+    }
   }
 
-  function inputStyle(name: string): React.CSSProperties {
-    return {
-      ...inputBase,
-      ...(focusedInput === name
-        ? { border: '1.5px solid #c8a96e', boxShadow: '0 0 0 3px rgba(200,169,110,0.1)' }
-        : {}),
-    };
+  async function abrirPortal() {
+    setAbriendo(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${apiBase}/billing/portal`, {
+        method:  'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error('Error al abrir portal');
+      const { url } = await res.json();
+      window.location.href = url;
+    } catch {
+      addToast('No se pudo abrir el portal de facturación', 'error');
+      setAbriendo(false);
+    }
+  }
+
+  async function cancelarSuscripcion() {
+    setCancelando(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${apiBase}/me/subscription`, {
+        method:  'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail ?? 'Error'); }
+      const data = await res.json();
+      setCancelSuccess(data.current_period_end ?? null);
+      setConfirmCancel(false);
+      addToast('Suscripción cancelada. Sigues con acceso hasta el fin del período.', 'success');
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Error al cancelar', 'error');
+    } finally {
+      setCancelando(false);
+    }
   }
 
   const formUrl = (typeof window !== 'undefined' && perfil?.api_key)
     ? `${window.location.origin}/form/${perfil.api_key}` : '';
 
-  // ── Loading ──
+  // ── Loading ────────────────────────────────────────────────────────────────
+
   if (cargando) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -250,14 +308,17 @@ export default function PerfilPage() {
   }
 
   const planInfo = planConfig[perfil?.plan ?? 'free'] ?? planConfig.free;
+  const isPaid   = perfil?.plan && perfil.plan !== 'free';
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="p-8 max-w-2xl mx-auto">
 
       {/* ── Header ── */}
       <div className="mb-8">
-        <h1 style={{ color: '#1a1814' }}>Mi perfil</h1>
-        <p className="text-sm mt-1" style={{ color: '#7a7468' }}>
+        <h1 style={{ color: c.text1 }}>Mi perfil</h1>
+        <p className="text-sm mt-1" style={{ color: c.text2 }}>
           Configura tu empresa, notificaciones e integraciones
         </p>
       </div>
@@ -266,7 +327,7 @@ export default function PerfilPage() {
 
         {/* ── Datos de la empresa ── */}
         <div style={card}>
-          <h2 className="text-base font-semibold mb-5" style={{ color: '#1a1814' }}>
+          <h2 className="text-base font-semibold mb-5" style={{ color: c.text1 }}>
             Datos de la empresa
           </h2>
           <form onSubmit={guardar} className="space-y-4">
@@ -279,13 +340,13 @@ export default function PerfilPage() {
                 onFocus={() => setFocusedInput('name')}
                 onBlur={() => setFocusedInput(null)}
                 placeholder="Casas García Inmobiliaria"
-                style={inputStyle('name')}
+                style={inputStyleFor('name')}
               />
             </div>
             <div>
               <label style={labelStyle}>
                 Email de notificaciones
-                <span style={{ color: '#b8a898', textTransform: 'none', fontWeight: 400, marginLeft: 6 }}>
+                <span style={{ color: c.text3, textTransform: 'none', fontWeight: 400, marginLeft: 6 }}>
                   · aquí llegan los avisos de nuevos leads
                 </span>
               </label>
@@ -296,7 +357,7 @@ export default function PerfilPage() {
                 onFocus={() => setFocusedInput('notify')}
                 onBlur={() => setFocusedInput(null)}
                 placeholder="hola@tuempresa.com"
-                style={inputStyle('notify')}
+                style={inputStyleFor('notify')}
               />
             </div>
             <button
@@ -311,10 +372,10 @@ export default function PerfilPage() {
 
         {/* ── Bandeja de entrada (IMAP) ── */}
         <div style={card}>
-          <h2 className="text-base font-semibold mb-1" style={{ color: '#1a1814' }}>
+          <h2 className="text-base font-semibold mb-1" style={{ color: c.text1 }}>
             Bandeja de entrada
           </h2>
-          <p className="text-sm mb-5" style={{ color: '#7a7468' }}>
+          <p className="text-sm mb-5" style={{ color: c.text2 }}>
             Conecta tu email y los mensajes de potenciales clientes se convertirán
             automáticamente en leads cualificados por la IA.
           </p>
@@ -339,12 +400,12 @@ export default function PerfilPage() {
                 </button>
               </div>
               {imap.last_sync && (
-                <p className="text-xs" style={{ color: '#b8a898' }}>
+                <p className="text-xs" style={{ color: c.text3 }}>
                   Última sincronización:{' '}
                   {new Date(imap.last_sync).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                 </p>
               )}
-              <p className="text-xs" style={{ color: '#b8a898' }}>
+              <p className="text-xs" style={{ color: c.text3 }}>
                 Se revisa tu bandeja cada 10 minutos. Los emails automáticos y newsletters se ignoran.
               </p>
             </div>
@@ -355,31 +416,31 @@ export default function PerfilPage() {
                 <input type="email" required value={imapForm.email}
                   onChange={e => setImapForm(p => ({ ...p, email: e.target.value }))}
                   onFocus={() => setFocusedInput('imap-email')} onBlur={() => setFocusedInput(null)}
-                  placeholder="info@tuempresa.com" style={inputStyle('imap-email')} />
+                  placeholder="info@tuempresa.com" style={inputStyleFor('imap-email')} />
               </div>
               <div>
                 <label style={labelStyle}>
                   Contraseña de aplicación
-                  <span style={{ color: '#b8a898', textTransform: 'none', fontWeight: 400, marginLeft: 6 }}>
+                  <span style={{ color: c.text3, textTransform: 'none', fontWeight: 400, marginLeft: 6 }}>
                     · genera una específica en tu proveedor
                   </span>
                 </label>
                 <input type="password" required value={imapForm.password}
                   onChange={e => setImapForm(p => ({ ...p, password: e.target.value }))}
                   onFocus={() => setFocusedInput('imap-pass')} onBlur={() => setFocusedInput(null)}
-                  placeholder="••••••••••••••••" style={inputStyle('imap-pass')} />
+                  placeholder="••••••••••••••••" style={inputStyleFor('imap-pass')} />
               </div>
               <div>
                 <label style={labelStyle}>
                   Servidor IMAP
-                  <span style={{ color: '#b8a898', textTransform: 'none', fontWeight: 400, marginLeft: 6 }}>
+                  <span style={{ color: c.text3, textTransform: 'none', fontWeight: 400, marginLeft: 6 }}>
                     · déjalo vacío para autodetectar
                   </span>
                 </label>
                 <input type="text" value={imapForm.host}
                   onChange={e => setImapForm(p => ({ ...p, host: e.target.value }))}
                   onFocus={() => setFocusedInput('imap-host')} onBlur={() => setFocusedInput(null)}
-                  placeholder="imap.tuempresa.com" style={inputStyle('imap-host')} />
+                  placeholder="imap.tuempresa.com" style={inputStyleFor('imap-host')} />
               </div>
               <div className="flex gap-2 pt-1">
                 <button type="submit" disabled={imapGuardando}
@@ -394,13 +455,12 @@ export default function PerfilPage() {
           ) : (
             <button
               onClick={() => setMostrarFormImap(true)}
-              className="flex items-center gap-2.5 text-sm font-medium transition-all"
               style={{
                 ...btnSecondary,
-                padding: '10px 16px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 10,
+                padding:        '10px 16px',
+                display:        'inline-flex',
+                alignItems:     'center',
+                gap:            10,
               }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="currentColor">
@@ -414,10 +474,10 @@ export default function PerfilPage() {
 
         {/* ── Formulario público / API Key ── */}
         <div style={card}>
-          <h2 className="text-base font-semibold mb-1" style={{ color: '#1a1814' }}>
+          <h2 className="text-base font-semibold mb-1" style={{ color: c.text1 }}>
             Formulario público de captación
           </h2>
-          <p className="text-sm mb-5" style={{ color: '#7a7468' }}>
+          <p className="text-sm mb-5" style={{ color: c.text2 }}>
             Comparte este enlace en tu web para recibir leads directamente en el dashboard.
           </p>
 
@@ -427,9 +487,15 @@ export default function PerfilPage() {
               <div>
                 <label style={labelStyle}>Enlace del formulario</label>
                 <div className="flex gap-2">
-                  <input readOnly value={formUrl} style={{ ...inputBase, fontFamily: 'monospace', fontSize: 12, flex: 1 }} />
+                  <input readOnly value={formUrl}
+                    style={{ ...inputStyleFor('formurl'), fontFamily: 'monospace', fontSize: 12, flex: 1 }} />
                   <button
-                    onClick={() => { navigator.clipboard.writeText(formUrl); setCopiadoFormUrl(true); setTimeout(() => setCopiadoFormUrl(false), 2000); addToast('Enlace copiado', 'success'); }}
+                    onClick={() => {
+                      navigator.clipboard.writeText(formUrl);
+                      setCopiadoFormUrl(true);
+                      setTimeout(() => setCopiadoFormUrl(false), 2000);
+                      addToast('Enlace copiado', 'success');
+                    }}
                     style={{ ...btnSecondary, padding: '10px 14px', minWidth: 76, whiteSpace: 'nowrap' }}
                   >
                     {copiadoFormUrl ? '✓ Copiado' : 'Copiar'}
@@ -444,14 +510,20 @@ export default function PerfilPage() {
               <div>
                 <label style={labelStyle}>
                   API Key
-                  <span style={{ color: '#b8a898', textTransform: 'none', fontWeight: 400, marginLeft: 6 }}>
+                  <span style={{ color: c.text3, textTransform: 'none', fontWeight: 400, marginLeft: 6 }}>
                     · para integraciones propias
                   </span>
                 </label>
                 <div className="flex gap-2">
-                  <input readOnly value={perfil.api_key} style={{ ...inputBase, fontFamily: 'monospace', fontSize: 12, flex: 1 }} />
+                  <input readOnly value={perfil.api_key}
+                    style={{ ...inputStyleFor('apikey'), fontFamily: 'monospace', fontSize: 12, flex: 1 }} />
                   <button
-                    onClick={() => { navigator.clipboard.writeText(perfil!.api_key); setCopiadoApiKey(true); setTimeout(() => setCopiadoApiKey(false), 2000); addToast('API Key copiada', 'success'); }}
+                    onClick={() => {
+                      navigator.clipboard.writeText(perfil!.api_key);
+                      setCopiadoApiKey(true);
+                      setTimeout(() => setCopiadoApiKey(false), 2000);
+                      addToast('API Key copiada', 'success');
+                    }}
                     style={{ ...btnSecondary, padding: '10px 14px', minWidth: 76, whiteSpace: 'nowrap' }}
                   >
                     {copiadoApiKey ? '✓ Copiado' : 'Copiar'}
@@ -460,7 +532,7 @@ export default function PerfilPage() {
               </div>
             </div>
           ) : (
-            <p className="text-sm" style={{ color: '#b8a898' }}>
+            <p className="text-sm" style={{ color: c.text3 }}>
               El formulario se activa tras la primera conexión con el servidor.
             </p>
           )}
@@ -469,10 +541,10 @@ export default function PerfilPage() {
         {/* ── Equipo — solo plan agencia ── */}
         {perfil?.plan === 'agencia' && (
           <div style={card}>
-            <h2 className="text-base font-semibold mb-1" style={{ color: '#1a1814' }}>
+            <h2 className="text-base font-semibold mb-1" style={{ color: c.text1 }}>
               Miembros del equipo
             </h2>
-            <p className="text-sm mb-5" style={{ color: '#7a7468' }}>
+            <p className="text-sm mb-5" style={{ color: c.text2 }}>
               Añade el ID de Clerk de tus agentes para que accedan al mismo dashboard.
               Pueden copiarlo desde su propia página de perfil → Cuenta → ID de usuario.
             </p>
@@ -482,8 +554,8 @@ export default function PerfilPage() {
                 {equipo.map(m => (
                   <li key={m.member_id}
                     className="flex items-center justify-between px-4 py-2.5 rounded-xl"
-                    style={{ background: 'rgba(249,245,238,0.7)', border: '1px solid rgba(200,169,110,0.15)' }}>
-                    <span className="text-sm truncate" style={{ fontFamily: 'monospace', color: '#4a4540' }}>
+                    style={{ background: c.muted, border: `1px solid ${c.divider}` }}>
+                    <span className="text-sm truncate" style={{ fontFamily: 'monospace', color: c.text4 }}>
                       {m.member_id}
                     </span>
                     <button
@@ -505,7 +577,7 @@ export default function PerfilPage() {
                 onChange={e => setNuevoMiembro(e.target.value)}
                 onFocus={() => setFocusedInput('member')} onBlur={() => setFocusedInput(null)}
                 placeholder="user_xxxxxxxxxxxxxxxxxxxxxxxx"
-                style={{ ...inputStyle('member'), flex: 1, fontFamily: 'monospace', fontSize: 12 }}
+                style={{ ...inputStyleFor('member'), flex: 1, fontFamily: 'monospace', fontSize: 12 }}
               />
               <button type="submit" disabled={agregandoMiembro || !nuevoMiembro.trim()}
                 style={{ ...btnPrimary, opacity: (agregandoMiembro || !nuevoMiembro.trim()) ? 0.6 : 1, whiteSpace: 'nowrap' }}>
@@ -515,24 +587,24 @@ export default function PerfilPage() {
           </div>
         )}
 
-        {/* ── Info de cuenta ── */}
+        {/* ── Información de la cuenta ── */}
         <div style={card}>
-          <h2 className="text-base font-semibold mb-5" style={{ color: '#1a1814' }}>
+          <h2 className="text-base font-semibold mb-5" style={{ color: c.text1 }}>
             Información de la cuenta
           </h2>
 
           <div className="space-y-3">
             {/* Email */}
             <div className="flex items-center justify-between py-2.5"
-              style={{ borderBottom: '1px solid rgba(200,169,110,0.1)' }}>
-              <span className="text-sm" style={{ color: '#7a7468' }}>Email de acceso</span>
-              <span className="text-sm font-medium" style={{ color: '#1a1814' }}>{perfil?.email}</span>
+              style={{ borderBottom: `1px solid ${c.divider}` }}>
+              <span className="text-sm" style={{ color: c.text2 }}>Email de acceso</span>
+              <span className="text-sm font-medium" style={{ color: c.text1 }}>{perfil?.email}</span>
             </div>
 
             {/* Plan */}
             <div className="flex items-center justify-between py-2.5"
-              style={{ borderBottom: '1px solid rgba(200,169,110,0.1)' }}>
-              <span className="text-sm" style={{ color: '#7a7468' }}>Plan activo</span>
+              style={{ borderBottom: `1px solid ${c.divider}` }}>
+              <span className="text-sm" style={{ color: c.text2 }}>Plan activo</span>
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold"
                 style={{ background: planInfo.bg, color: planInfo.color }}>
                 <span className="w-1.5 h-1.5 rounded-full" style={{ background: planInfo.color }} />
@@ -543,12 +615,26 @@ export default function PerfilPage() {
             {/* ID de usuario */}
             {user?.id && (
               <div className="flex items-center justify-between py-2.5"
-                style={{ borderBottom: '1px solid rgba(200,169,110,0.1)' }}>
-                <span className="text-sm" style={{ color: '#7a7468' }}>ID de usuario</span>
+                style={{ borderBottom: `1px solid ${c.divider}` }}>
+                <span className="text-sm" style={{ color: c.text2 }}>ID de usuario</span>
                 <button
-                  onClick={() => { navigator.clipboard.writeText(user.id); setCopiadoId(true); setTimeout(() => setCopiadoId(false), 2000); addToast('ID copiado', 'success'); }}
+                  onClick={() => {
+                    navigator.clipboard.writeText(user.id);
+                    setCopiadoId(true);
+                    setTimeout(() => setCopiadoId(false), 2000);
+                    addToast('ID copiado', 'success');
+                  }}
                   className="text-xs font-mono transition-colors"
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: copiadoId ? '#2d7a3a' : '#9a9490', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  style={{
+                    background:    'none',
+                    border:        'none',
+                    cursor:        'pointer',
+                    color:         copiadoId ? '#2d7a3a' : c.text3,
+                    maxWidth:      200,
+                    overflow:      'hidden',
+                    textOverflow:  'ellipsis',
+                    whiteSpace:    'nowrap',
+                  }}
                   title="Haz clic para copiar"
                 >
                   {copiadoId ? '✓ Copiado' : user.id}
@@ -558,8 +644,8 @@ export default function PerfilPage() {
 
             {/* Miembro desde */}
             <div className="flex items-center justify-between py-2.5">
-              <span className="text-sm" style={{ color: '#7a7468' }}>Miembro desde</span>
-              <span className="text-sm" style={{ color: '#1a1814' }}>
+              <span className="text-sm" style={{ color: c.text2 }}>Miembro desde</span>
+              <span className="text-sm" style={{ color: c.text1 }}>
                 {perfil?.created_at
                   ? new Date(perfil.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
                   : '—'}
@@ -567,6 +653,130 @@ export default function PerfilPage() {
             </div>
           </div>
         </div>
+
+        {/* ── Suscripción — solo planes de pago ── */}
+        {isPaid && (
+          <div style={card}>
+            <h2 className="text-base font-semibold mb-1" style={{ color: c.text1 }}>
+              Suscripción
+            </h2>
+            <p className="text-sm mb-5" style={{ color: c.text2 }}>
+              Gestiona tu plan, método de pago y facturas desde el portal de Stripe.
+            </p>
+
+            {cancelSuccess !== null ? (
+              /* ── Estado: cancelación confirmada ── */
+              <div className="rounded-xl px-4 py-4 space-y-1"
+                style={{ background: 'rgba(200,169,110,0.1)', border: '1.5px solid rgba(200,169,110,0.3)' }}>
+                <p className="text-sm font-semibold" style={{ color: '#9a7a3a' }}>
+                  Suscripción cancelada
+                </p>
+                <p className="text-sm" style={{ color: c.text2 }}>
+                  Seguirás con acceso completo hasta el{' '}
+                  <strong style={{ color: c.text1 }}>
+                    {new Date(cancelSuccess * 1000).toLocaleDateString('es-ES', {
+                      day: '2-digit', month: 'long', year: 'numeric',
+                    })}
+                  </strong>.
+                  Tu plan pasará a Gratuito al finalizar ese período.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Gestionar facturación */}
+                <button
+                  onClick={abrirPortal}
+                  disabled={abriendo}
+                  style={{ ...btnPrimary, opacity: abriendo ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: 8 }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round"
+                      d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+                  </svg>
+                  {abriendo ? 'Abriendo portal…' : 'Gestionar facturación'}
+                </button>
+
+                {/* Cancelar suscripción */}
+                <div>
+                  {!confirmCancel ? (
+                    <button
+                      onClick={() => setConfirmCancel(true)}
+                      style={{
+                        background: 'none',
+                        border:     'none',
+                        cursor:     'pointer',
+                        color:      c.text2,
+                        fontSize:   13,
+                        padding:    0,
+                        textDecoration: 'underline',
+                        textDecorationColor: c.divider,
+                      }}
+                    >
+                      Cancelar suscripción
+                    </button>
+                  ) : (
+                    /* ── Confirmación inline ── */
+                    <div className="rounded-xl p-4 space-y-3"
+                      style={{ background: 'rgba(180,83,9,0.07)', border: '1.5px solid rgba(180,83,9,0.2)' }}>
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
+                          style={{ background: 'rgba(180,83,9,0.12)' }}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="#b45309">
+                            <path strokeLinecap="round" strokeLinejoin="round"
+                              d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold" style={{ color: '#b45309' }}>
+                            ¿Confirmas la cancelación?
+                          </p>
+                          <p className="text-xs mt-1" style={{ color: c.text2 }}>
+                            Tu plan pasará a Gratuito al final del período actual.
+                            Seguirás con acceso completo hasta entonces.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={cancelarSuscripcion}
+                          disabled={cancelando}
+                          style={{
+                            background:   '#b45309',
+                            color:        '#fff',
+                            border:       'none',
+                            borderRadius: '8px',
+                            padding:      '8px 16px',
+                            fontSize:     13,
+                            fontWeight:   600,
+                            cursor:       'pointer',
+                            opacity:      cancelando ? 0.6 : 1,
+                          }}
+                        >
+                          {cancelando ? 'Cancelando…' : 'Sí, cancelar'}
+                        </button>
+                        <button
+                          onClick={() => setConfirmCancel(false)}
+                          style={{
+                            background:   'transparent',
+                            color:        c.text2,
+                            border:       `1.5px solid ${c.inputBorder}`,
+                            borderRadius: '8px',
+                            padding:      '8px 16px',
+                            fontSize:     13,
+                            fontWeight:   500,
+                            cursor:       'pointer',
+                          }}
+                        >
+                          Mantener plan
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
       </div>
     </div>
