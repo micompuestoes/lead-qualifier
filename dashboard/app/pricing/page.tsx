@@ -155,12 +155,7 @@ export default function PricingPage() {
             </ul>
 
             {/* CTA */}
-            {plan.proximamente ? (
-              <div className="w-full py-2.5 rounded-xl text-sm font-semibold text-center cursor-not-allowed"
-                style={{ background: 'rgba(200,169,110,0.08)', color: '#7a7468' }}>
-                Próximamente
-              </div>
-            ) : plan.id === 'free' ? (
+            {plan.id === 'free' ? (
               <button
                 onClick={() => router.push('/leads')}
                 className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all"
