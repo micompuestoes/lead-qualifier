@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { UserButton, useAuth } from '@clerk/nextjs';
 import { useEffect, useState } from 'react';
+import { useTheme } from './ThemeProvider';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -60,7 +61,25 @@ function IconAdmin() {
   );
 }
 
-// ── Types & config ─────────────────────────────────────────────────────────────
+function IconSun() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round"
+        d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+    </svg>
+  );
+}
+
+function IconMoon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round"
+        d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+    </svg>
+  );
+}
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface NavLink { href: string; label: string; icon: React.ReactNode }
 interface Perfil  { plan: string; name: string; is_admin: boolean }
@@ -85,60 +104,53 @@ const cuentaLinks: NavLink[] = [
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
-// ── Sub-components ─────────────────────────────────────────────────────────────
+// ── Sub-components ────────────────────────────────────────────────────────────
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+function SectionLabel({ children, c }: { children: React.ReactNode; c: ReturnType<typeof useTheme>['c'] }) {
   return (
     <p style={{
-      padding: '0 12px',
-      marginBottom: 4,
-      fontSize: 10,
-      fontWeight: 700,
-      color: 'rgba(200,169,110,0.55)',
-      letterSpacing: '0.12em',
-      textTransform: 'uppercase',
-      userSelect: 'none',
+      padding: '0 12px', marginBottom: 4, marginTop: 0,
+      fontSize: 10, fontWeight: 700,
+      color: 'rgba(200,169,110,0.5)',
+      letterSpacing: '0.12em', textTransform: 'uppercase', userSelect: 'none',
     }}>
       {children}
     </p>
   );
 }
 
-function NavItem({ link, active }: { link: NavLink; active: boolean }) {
+function NavItem({ link, active, c }: { link: NavLink; active: boolean; c: ReturnType<typeof useTheme>['c'] }) {
   return (
     <Link
       href={link.href}
-      className="relative flex items-center gap-3 rounded-xl text-sm font-medium transition-all duration-150"
+      className="relative flex items-center gap-3 rounded-xl text-sm transition-all duration-150"
       style={{
         padding: '9px 12px',
-        color:      active ? '#1a1814' : '#9a9490',
+        color:      active ? c.text1 : c.text2,
         background: active ? 'rgba(200,169,110,0.11)' : 'transparent',
         fontWeight: active ? 600 : 500,
+        textDecoration: 'none',
       }}
       onMouseEnter={e => {
         if (!active) {
-          (e.currentTarget as HTMLElement).style.color = '#1a1814';
+          (e.currentTarget as HTMLElement).style.color = c.text1;
           (e.currentTarget as HTMLElement).style.background = 'rgba(200,169,110,0.07)';
         }
       }}
       onMouseLeave={e => {
         if (!active) {
-          (e.currentTarget as HTMLElement).style.color = '#9a9490';
+          (e.currentTarget as HTMLElement).style.color = c.text2;
           (e.currentTarget as HTMLElement).style.background = 'transparent';
         }
       }}
     >
-      {/* Active left bar */}
       {active && (
         <span style={{
-          position: 'absolute', left: 0,
-          top: '50%', transform: 'translateY(-50%)',
-          width: 3, height: 20,
-          borderRadius: '0 3px 3px 0',
+          position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
+          width: 3, height: 20, borderRadius: '0 3px 3px 0',
           background: 'linear-gradient(180deg, #d4b87a, #c8a96e)',
         }} />
       )}
-      {/* Icon */}
       <span style={{ color: active ? '#c8a96e' : 'inherit', flexShrink: 0, display: 'flex' }}>
         {link.icon}
       </span>
@@ -152,6 +164,7 @@ function NavItem({ link, active }: { link: NavLink; active: boolean }) {
 export default function Sidebar() {
   const pathname     = usePathname();
   const { getToken } = useAuth();
+  const { c, isDark, toggle } = useTheme();
   const [perfil, setPerfil] = useState<Perfil>({ plan: 'free', name: '', is_admin: false });
 
   useEffect(() => {
@@ -169,9 +182,8 @@ export default function Sidebar() {
     cargarPerfil();
   }, [getToken]);
 
-  const esActivo = (href: string) =>
+  const esActivo      = (href: string) =>
     href === '/leads' ? pathname.startsWith('/leads') : pathname === href;
-
   const esAuth        = pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up');
   const esFormPublico = pathname.startsWith('/form/');
   if (esAuth || esFormPublico) return null;
@@ -182,24 +194,24 @@ export default function Sidebar() {
     <aside
       className="fixed top-0 left-0 h-screen w-60 flex flex-col z-10"
       style={{
-        background: '#ffffff',
-        borderRight: '1px solid rgba(200,169,110,0.2)',
-        boxShadow: '2px 0 20px rgba(26,24,20,0.04)',
+        background:   c.sidebar,
+        borderRight:  `1px solid ${c.sidebarBorder}`,
+        boxShadow:    c.sidebarShadow,
+        transition:   'background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease',
       }}
     >
       {/* ── Brand ── */}
       <Link
         href="/leads"
         className="px-5 py-5 flex flex-col gap-3 shrink-0 transition-opacity hover:opacity-80"
-        style={{ borderBottom: '1px solid rgba(200,169,110,0.12)' }}
+        style={{ borderBottom: `1px solid ${c.divider}` }}
       >
         <div className="flex items-center gap-3">
-          {/* Logo mark */}
           <div style={{
-            width: 36, height: 36, borderRadius: 10,
+            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
             background: 'linear-gradient(135deg, #c8a96e 0%, #a8895a 100%)',
-            boxShadow: '0 4px 12px rgba(200,169,110,0.35)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            boxShadow: '0 4px 12px rgba(200,169,110,0.3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" strokeWidth={2.2} stroke="white">
               <path strokeLinecap="round" strokeLinejoin="round"
@@ -207,20 +219,18 @@ export default function Sidebar() {
             </svg>
           </div>
           <div className="min-w-0 flex-1">
-            <p style={{ fontSize: 14, fontWeight: 600, color: '#1a1814', lineHeight: 1.3 }} className="truncate">
+            <p style={{ fontSize: 14, fontWeight: 600, color: c.text1, lineHeight: 1.3, transition: 'color 0.2s' }}
+              className="truncate">
               {perfil.name || 'Lead Qualifier'}
             </p>
-            <p style={{ fontSize: 11, color: '#b8a898', marginTop: 1 }}>Agente de IA</p>
+            <p style={{ fontSize: 11, color: c.text3, marginTop: 1, transition: 'color 0.2s' }}>Agente de IA</p>
           </div>
         </div>
-
-        {/* Plan badge */}
         <span style={{
           display: 'inline-flex', alignItems: 'center', gap: 5,
-          padding: '4px 10px', borderRadius: 99,
+          padding: '4px 10px', borderRadius: 99, alignSelf: 'flex-start',
           fontSize: 11, fontWeight: 600,
           background: plan.bg, color: plan.color,
-          alignSelf: 'flex-start',
         }}>
           <span style={{ width: 5, height: 5, borderRadius: '50%', background: plan.color, flexShrink: 0 }} />
           Plan {plan.label}
@@ -229,27 +239,27 @@ export default function Sidebar() {
 
       {/* ── Navigation ── */}
       <nav className="flex-1 overflow-y-auto" style={{ padding: '20px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-
-        <SectionLabel>Principal</SectionLabel>
-        {principalLinks.map(l => <NavItem key={l.href} link={l} active={esActivo(l.href)} />)}
+        <SectionLabel c={c}>Principal</SectionLabel>
+        {principalLinks.map(l => <NavItem key={l.href} link={l} active={esActivo(l.href)} c={c} />)}
 
         {perfil.plan === 'agencia' && (
           <>
             <div style={{ marginTop: 18 }}>
-              <SectionLabel>Herramientas</SectionLabel>
+              <SectionLabel c={c}>Herramientas</SectionLabel>
             </div>
-            {herramientasLinks.map(l => <NavItem key={l.href} link={l} active={esActivo(l.href)} />)}
+            {herramientasLinks.map(l => <NavItem key={l.href} link={l} active={esActivo(l.href)} c={c} />)}
           </>
         )}
 
         <div style={{ marginTop: 18 }}>
-          <SectionLabel>Cuenta</SectionLabel>
+          <SectionLabel c={c}>Cuenta</SectionLabel>
         </div>
-        {cuentaLinks.map(l => <NavItem key={l.href} link={l} active={esActivo(l.href)} />)}
+        {cuentaLinks.map(l => <NavItem key={l.href} link={l} active={esActivo(l.href)} c={c} />)}
         {perfil.is_admin && (
           <NavItem
             link={{ href: '/admin', label: 'Empresas', icon: <IconAdmin /> }}
             active={pathname.startsWith('/admin')}
+            c={c}
           />
         )}
       </nav>
@@ -299,23 +309,46 @@ export default function Sidebar() {
         </div>
       )}
 
-      {/* ── User ── */}
-      <div
-        style={{
-          padding: '14px 20px',
-          borderTop: '1px solid rgba(200,169,110,0.12)',
-          display: 'flex', alignItems: 'center', gap: 12,
-        }}
-      >
+      {/* ── User + Toggle ── */}
+      <div style={{
+        padding: '12px 16px',
+        borderTop: `1px solid ${c.divider}`,
+        display: 'flex', alignItems: 'center', gap: 10,
+        transition: 'border-color 0.25s',
+      }}>
         <UserButton
           appearance={{
-            elements: {
-              avatarBox: 'w-8 h-8',
-              userButtonPopoverCard: 'shadow-2xl',
-            },
+            elements: { avatarBox: 'w-8 h-8', userButtonPopoverCard: 'shadow-2xl' },
           }}
         />
-        <p style={{ fontSize: 12, color: '#b8a898', fontWeight: 500 }}>Mi cuenta</p>
+        <p style={{ fontSize: 12, color: c.text3, fontWeight: 500, flex: 1, transition: 'color 0.2s' }}>
+          Mi cuenta
+        </p>
+        {/* Theme toggle */}
+        <button
+          onClick={toggle}
+          title={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+          className="flex items-center justify-center rounded-lg transition-all duration-150"
+          style={{
+            width: 30, height: 30,
+            background: isDark ? 'rgba(200,169,110,0.12)' : 'rgba(122,116,104,0.08)',
+            border: isDark ? '1px solid rgba(200,169,110,0.2)' : '1px solid rgba(122,116,104,0.15)',
+            color: isDark ? '#c8a96e' : '#9a9490',
+            cursor: 'pointer',
+            flexShrink: 0,
+          }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLElement).style.background = 'rgba(200,169,110,0.15)';
+            (e.currentTarget as HTMLElement).style.color = '#c8a96e';
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLElement).style.background = isDark
+              ? 'rgba(200,169,110,0.12)' : 'rgba(122,116,104,0.08)';
+            (e.currentTarget as HTMLElement).style.color = isDark ? '#c8a96e' : '#9a9490';
+          }}
+        >
+          {isDark ? <IconSun /> : <IconMoon />}
+        </button>
       </div>
     </aside>
   );

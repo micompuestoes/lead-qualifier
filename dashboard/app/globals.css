@@ -4,31 +4,62 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Tokens de color por tema ────────────────────────────────────────────── */
+
+:root {
+  --bg-body:       #f5f0e8;
+  --bg-main:       linear-gradient(160deg, #f9f5ee 0%, #f3ede3 60%, #ede5d8 100%);
+  --bg-sidebar:    #ffffff;
+  --bg-card:       #ffffff;
+  --c-text-1:      #1a1814;
+  --c-text-2:      #7a7468;
+  --c-text-3:      #b8a898;
+  --c-sidebar-brd: rgba(200,169,110,0.2);
+  --c-divider:     rgba(200,169,110,0.12);
+}
+
+[data-theme="dark"] {
+  --bg-body:       #0f0e0b;
+  --bg-main:       linear-gradient(160deg, #161310 0%, #130f0c 60%, #0f0d0a 100%);
+  --bg-sidebar:    #141210;
+  --bg-card:       #1c1916;
+  --c-text-1:      #ede5d5;
+  --c-text-2:      #7a7468;
+  --c-text-3:      #4a4540;
+  --c-sidebar-brd: rgba(200,169,110,0.15);
+  --c-divider:     rgba(200,169,110,0.08);
+}
+
+/* ── Base ────────────────────────────────────────────────────────────────── */
+
 @layer base {
   html {
     font-family: 'DM Sans', system-ui, sans-serif;
   }
 
   body {
-    background: #f5f0e8;
-    color: #1a1814;
+    background: var(--bg-body);
+    color: var(--c-text-1);
+    transition: background 0.25s ease, color 0.2s ease;
     @apply antialiased;
   }
 
-  /* Zona principal — crema fija para que contraste con sidebar blanco */
   main {
-    background: linear-gradient(160deg, #f9f5ee 0%, #f3ede3 60%, #ede5d8 100%);
+    background: var(--bg-main);
     background-attachment: fixed;
     min-height: 100vh;
+    transition: background 0.25s ease;
   }
 
   h1, h2, h3 {
     font-family: 'DM Serif Display', Georgia, serif;
     letter-spacing: -0.02em;
+    color: var(--c-text-1);
   }
 }
 
-/* Limitar texto a 2 líneas */
+/* ── Utilidades ──────────────────────────────────────────────────────────── */
+
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -36,7 +67,7 @@
   overflow: hidden;
 }
 
-/* ── Animaciones personalizadas ──────────────────────────────────────────── */
+/* ── Animaciones ─────────────────────────────────────────────────────────── */
 
 @keyframes toast-in {
   from { opacity: 0; transform: translateY(10px) scale(0.96); }
