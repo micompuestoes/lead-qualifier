@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@clerk/nextjs';
+import { useAuth, useUser } from '@clerk/nextjs';
 import { useToast } from '@/components/Toast';
 
 interface Perfil {
@@ -11,6 +11,11 @@ interface Perfil {
   api_key: string;
   plan: string;
   created_at: string;
+}
+
+interface TeamMember {
+  member_id: string;
+  added_at: string;
 }
 
 interface ImapStatus {
@@ -23,11 +28,17 @@ interface ImapStatus {
 export default function PerfilPage() {
   const { addToast } = useToast();
   const { getToken } = useAuth();
+  const { user } = useUser();
   const [perfil, setPerfil]       = useState<Perfil | null>(null);
   const [cargando, setCargando]   = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [copiado, setCopiado]     = useState(false);
   const [form, setForm]           = useState({ name: '', notify_email: '' });
+
+  // Equipo
+  const [equipo, setEquipo]           = useState<TeamMember[]>([]);
+  const [nuevoMiembro, setNuevoMiembro] = useState('');
+  const [agregandoMiembro, setAgregandoMiembro] = useState(false);
 
   // IMAP
   const [imap, setImap]               = useState<ImapStatus>({ configured: false });
@@ -43,15 +54,17 @@ export default function PerfilPage() {
       try {
         const token = await getToken();
         const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-        const [resPerfil, resImap] = await Promise.all([
-          fetch(`${apiBase}/me`,      { headers }),
-          fetch(`${apiBase}/me/imap`, { headers }),
+        const [resPerfil, resImap, resTeam] = await Promise.all([
+          fetch(`${apiBase}/me`,       { headers }),
+          fetch(`${apiBase}/me/imap`,  { headers }),
+          fetch(`${apiBase}/me/team`,  { headers }),
         ]);
         if (!resPerfil.ok) throw new Error('Error al cargar perfil');
         const data = await resPerfil.json();
         setPerfil(data);
         setForm({ name: data.name ?? '', notify_email: data.notify_email ?? '' });
         if (resImap.ok) setImap(await resImap.json());
+        if (resTeam.ok) { const t = await resTeam.json(); setEquipo(t.members ?? []); }
       } catch {
         addToast('No se pudo cargar el perfil', 'error');
       } finally {
@@ -134,6 +147,42 @@ export default function PerfilPage() {
       addToast('Error al desconectar', 'error');
     } finally {
       setImapDesconectando(false);
+    }
+  }
+
+  async function agregarMiembro(e: React.FormEvent) {
+    e.preventDefault();
+    if (!nuevoMiembro.trim()) return;
+    setAgregandoMiembro(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${apiBase}/me/team`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ member_id: nuevoMiembro.trim() }),
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail ?? 'Error'); }
+      setEquipo(prev => [...prev, { member_id: nuevoMiembro.trim(), added_at: new Date().toISOString() }]);
+      setNuevoMiembro('');
+      addToast('Miembro añadido correctamente', 'success');
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Error al añadir miembro', 'error');
+    } finally {
+      setAgregandoMiembro(false);
+    }
+  }
+
+  async function eliminarMiembro(memberId: string) {
+    try {
+      const token = await getToken();
+      await fetch(`${apiBase}/me/team/${memberId}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      setEquipo(prev => prev.filter(m => m.member_id !== memberId));
+      addToast('Miembro eliminado', 'success');
+    } catch {
+      addToast('Error al eliminar miembro', 'error');
     }
   }
 
@@ -384,6 +433,56 @@ export default function PerfilPage() {
         )}
       </div>
 
+      {/* Equipo — solo plan agencia */}
+      {perfil?.plan === 'agencia' && (
+        <div className="bg-white border border-gray-100 rounded-xl p-6 space-y-4">
+          <div>
+            <h2 className="font-semibold text-gray-800">Miembros del equipo</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Añade el ID de Clerk de tus agentes para que accedan al mismo dashboard.
+              Pueden copiarlo desde su propia página de perfil.
+            </p>
+          </div>
+
+          {/* Lista de miembros */}
+          {equipo.length > 0 && (
+            <ul className="space-y-2">
+              {equipo.map(m => (
+                <li key={m.member_id}
+                  className="flex items-center justify-between px-3 py-2 rounded-lg bg-gray-50 border border-gray-100">
+                  <span className="text-sm font-mono text-gray-700 truncate">{m.member_id}</span>
+                  <button onClick={() => eliminarMiembro(m.member_id)}
+                    className="text-xs text-red-400 hover:text-red-600 font-medium ml-3 shrink-0 transition-colors">
+                    Eliminar
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {/* Añadir miembro */}
+          <form onSubmit={agregarMiembro} className="flex gap-2">
+            <input
+              type="text"
+              value={nuevoMiembro}
+              onChange={e => setNuevoMiembro(e.target.value)}
+              placeholder="user_xxxxxxxxxxxxxxxxxxxxxxxx"
+              className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
+            />
+            <button type="submit" disabled={agregandoMiembro || !nuevoMiembro.trim()}
+              className="px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
+              style={{ background: '#c8a96e', color: '#1a1814' }}>
+              {agregandoMiembro ? 'Añadiendo…' : 'Añadir'}
+            </button>
+          </form>
+
+          {/* Cómo obtener el ID */}
+          <p className="text-xs text-gray-400">
+            💡 El agente puede ver su ID en <strong>Mi perfil → Cuenta → ID de usuario</strong>
+          </p>
+        </div>
+      )}
+
       {/* Info cuenta */}
       <div className="bg-white border border-gray-100 rounded-xl p-6">
         <h2 className="font-semibold text-gray-800 mb-3">Cuenta</h2>
@@ -394,10 +493,22 @@ export default function PerfilPage() {
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Plan</span>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 capitalize">
               {perfil?.plan ?? 'free'}
             </span>
           </div>
+          {user?.id && (
+            <div className="flex justify-between items-center">
+              <span className="text-gray-500">ID de usuario</span>
+              <button
+                onClick={() => { navigator.clipboard.writeText(user.id); addToast('ID copiado', 'success'); }}
+                className="text-xs font-mono text-gray-400 hover:text-gray-700 transition-colors truncate max-w-[180px]"
+                title="Haz clic para copiar"
+              >
+                {user.id}
+              </button>
+            </div>
+          )}
           <div className="flex justify-between">
             <span className="text-gray-500">Miembro desde</span>
             <span className="text-gray-800">

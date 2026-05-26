@@ -119,6 +119,17 @@ def init_db() -> None:
         except Exception:
             pass  # Ya existe — ignorar
 
+    # Tabla de miembros del equipo (plan agencia — múltiples usuarios)
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS team_members (
+                owner_id   TEXT NOT NULL,
+                member_id  TEXT NOT NULL,
+                added_at   TEXT NOT NULL,
+                PRIMARY KEY (owner_id, member_id)
+            )
+        """))
+
     # Índices para rendimiento
     with engine.begin() as conn:
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_leads_email     ON leads (email)"))
@@ -126,6 +137,8 @@ def init_db() -> None:
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_leads_tenant    ON leads (tenant_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_tenants_email   ON tenants (email)"))
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_api_key ON tenants (api_key)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_team_owner  ON team_members (owner_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_team_member ON team_members (member_id)"))
 
     logger.info("Base de datos lista")
 
@@ -345,6 +358,128 @@ def disable_imap(tenant_id: str) -> None:
             {"id": tenant_id},
         )
     logger.info("IMAP desconectado para tenant %s", tenant_id)
+
+
+def add_team_member(owner_id: str, member_id: str) -> None:
+    """Añade un usuario de Clerk como miembro del equipo del tenant owner."""
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                INSERT INTO team_members (owner_id, member_id, added_at)
+                VALUES (:owner, :member, :ts)
+                ON CONFLICT DO NOTHING
+            """),
+            {"owner": owner_id, "member": member_id, "ts": datetime.utcnow().isoformat()},
+        )
+
+
+def remove_team_member(owner_id: str, member_id: str) -> None:
+    """Elimina un miembro del equipo."""
+    with engine.begin() as conn:
+        conn.execute(
+            text("DELETE FROM team_members WHERE owner_id=:owner AND member_id=:member"),
+            {"owner": owner_id, "member": member_id},
+        )
+
+
+def get_team_members(owner_id: str) -> list:
+    """Devuelve los IDs de Clerk de los miembros del equipo del tenant."""
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("SELECT member_id, added_at FROM team_members WHERE owner_id=:owner ORDER BY added_at"),
+            {"owner": owner_id},
+        ).fetchall()
+    return [{"member_id": r[0], "added_at": r[1]} for r in rows]
+
+
+def get_owner_for_member(member_id: str) -> Optional[str]:
+    """Si el user_id es miembro de un equipo, devuelve el owner_id (tenant real)."""
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT owner_id FROM team_members WHERE member_id=:member LIMIT 1"),
+            {"member": member_id},
+        ).fetchone()
+    return row[0] if row else None
+
+
+def get_stats(tenant_id: str) -> dict:
+    """Estadísticas avanzadas de leads para el tenant."""
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    inicio_mes = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+    # Mes anterior
+    if now.month == 1:
+        mes_ant = now.replace(year=now.year - 1, month=12, day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+    else:
+        mes_ant = now.replace(month=now.month - 1, day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+    with engine.connect() as conn:
+        total = conn.execute(
+            text("SELECT COUNT(*) FROM leads WHERE tenant_id=:tid"),
+            {"tid": tenant_id},
+        ).scalar() or 0
+
+        este_mes = conn.execute(
+            text("SELECT COUNT(*) FROM leads WHERE tenant_id=:tid AND created_at >= :start"),
+            {"tid": tenant_id, "start": inicio_mes},
+        ).scalar() or 0
+
+        mes_anterior = conn.execute(
+            text("SELECT COUNT(*) FROM leads WHERE tenant_id=:tid AND created_at >= :start AND created_at < :end"),
+            {"tid": tenant_id, "start": mes_ant, "end": inicio_mes},
+        ).scalar() or 0
+
+        # Por estado
+        por_estado_rows = conn.execute(
+            text("SELECT status, COUNT(*) FROM leads WHERE tenant_id=:tid GROUP BY status"),
+            {"tid": tenant_id},
+        ).fetchall()
+        por_estado = {r[0]: r[1] for r in por_estado_rows}
+
+        # Score promedio
+        score_avg = conn.execute(
+            text("SELECT AVG(score) FROM leads WHERE tenant_id=:tid AND score IS NOT NULL"),
+            {"tid": tenant_id},
+        ).scalar()
+
+        # Distribución por rango de score
+        calientes = conn.execute(
+            text("SELECT COUNT(*) FROM leads WHERE tenant_id=:tid AND score >= 7"),
+            {"tid": tenant_id},
+        ).scalar() or 0
+        tibios = conn.execute(
+            text("SELECT COUNT(*) FROM leads WHERE tenant_id=:tid AND score >= 4 AND score < 7"),
+            {"tid": tenant_id},
+        ).scalar() or 0
+        frios = conn.execute(
+            text("SELECT COUNT(*) FROM leads WHERE tenant_id=:tid AND score < 4 AND score IS NOT NULL"),
+            {"tid": tenant_id},
+        ).scalar() or 0
+
+        # Últimos 6 meses (año-mes, count)
+        ultimos_6 = conn.execute(
+            text("""
+                SELECT substr(created_at, 1, 7) AS mes, COUNT(*) AS total
+                FROM leads WHERE tenant_id=:tid
+                GROUP BY mes
+                ORDER BY mes DESC
+                LIMIT 6
+            """),
+            {"tid": tenant_id},
+        ).fetchall()
+
+    return {
+        "total":        total,
+        "este_mes":     este_mes,
+        "mes_anterior": mes_anterior,
+        "por_estado":   por_estado,
+        "score_avg":    round(float(score_avg), 1) if score_avg else 0,
+        "calientes":    calientes,
+        "tibios":       tibios,
+        "frios":        frios,
+        "por_mes":      [{"mes": r[0], "total": r[1]} for r in ultimos_6],
+    }
 
 
 def get_all_tenants() -> list:

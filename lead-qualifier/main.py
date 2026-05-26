@@ -32,12 +32,14 @@ from jose import JWTError, jwt
 from pydantic import BaseModel
 
 from database import (
-    count_leads_for_tenant, delete_lead, disable_imap, ensure_tenant,
-    get_all_tenants, get_imap_config, get_lead_by_id, get_lead_count_this_month,
-    get_leads_by_email, get_recent_leads, get_tenant, get_tenant_by_api_key,
-    get_tenant_by_stripe_customer, get_tenants_with_imap, init_db,
-    save_imap_config, set_tenant_plan, set_tenant_status, update_imap_last_sync,
-    update_lead_status, update_tenant_profile,
+    add_team_member, count_leads_for_tenant, delete_lead, disable_imap,
+    ensure_tenant, get_all_tenants, get_imap_config, get_lead_by_id,
+    get_lead_count_this_month, get_leads_by_email, get_owner_for_member,
+    get_recent_leads, get_stats, get_team_members, get_tenant,
+    get_tenant_by_api_key, get_tenant_by_stripe_customer, get_tenants_with_imap,
+    init_db, remove_team_member, save_imap_config, set_tenant_plan,
+    set_tenant_status, update_imap_last_sync, update_lead_status,
+    update_tenant_profile,
 )
 from email_imap import detectar_servidor_imap, obtener_no_leidos, verificar_conexion
 from email_sender import send_lead_response_email, send_tenant_notification
@@ -81,6 +83,21 @@ class ImapConfigInput(BaseModel):
 
 class CheckoutInput(BaseModel):
     plan: Literal["pro", "agencia"]
+
+class AdInput(BaseModel):
+    tipo:   str
+    op:     str
+    ubi:    str
+    m2:     Optional[str] = None
+    hab:    Optional[str] = None
+    ban:    Optional[str] = None
+    precio: Optional[str] = None
+    extras: list[str] = []
+    notas:  Optional[str] = None
+    canales: list[str] = ["idealista", "rrss", "email"]
+
+class TeamMemberInput(BaseModel):
+    member_id: str
 
 
 # ─────────────────────────────────────────────
@@ -176,11 +193,15 @@ async def get_tenant_id(request: Request) -> str:
             algorithms=["RS256"],
             options={"verify_aud": False},
         )
-        tenant_id: str = payload.get("sub", "")
-        if not tenant_id:
+        user_id: str = payload.get("sub", "")
+        if not user_id:
             raise HTTPException(status_code=401, detail="Token sin subject (sub)")
 
-        # Verificar estado del tenant si ya existe en la BD
+        # Si es miembro del equipo de otra empresa, usar el tenant del propietario
+        owner_id = get_owner_for_member(user_id)
+        tenant_id = owner_id if owner_id else user_id
+
+        # Verificar estado del tenant
         tenant = get_tenant(tenant_id)
         if tenant and tenant.get("status") == "cancelled":
             raise HTTPException(
@@ -755,6 +776,158 @@ async def stripe_webhook(request: Request):
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "service": "lead-qualifier", "version": "2.0.0"}
+
+
+# ─────────────────────────────────────────────
+# Estadísticas avanzadas (plan agencia)
+# ─────────────────────────────────────────────
+
+def _require_plan(tenant_id: str, plan_requerido: str) -> None:
+    """Lanza 403 si el tenant no tiene el plan mínimo requerido."""
+    orden = {"free": 0, "pro": 1, "agencia": 2}
+    tenant = get_tenant(tenant_id)
+    plan_actual = tenant.get("plan", "free") if tenant else "free"
+    if orden.get(plan_actual, 0) < orden.get(plan_requerido, 0):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "PLAN_REQUIRED",
+                "plan_required": plan_requerido,
+                "message": f"Esta función requiere el plan {plan_requerido}.",
+                "upgrade_url": "/pricing",
+            },
+        )
+
+
+@app.get("/stats")
+async def get_estadisticas(tenant_id: str = Depends(get_tenant_id)):
+    """Estadísticas avanzadas de leads — solo plan agencia."""
+    _require_plan(tenant_id, "agencia")
+    return get_stats(tenant_id)
+
+
+# ─────────────────────────────────────────────
+# Generador de anuncios IA (plan agencia)
+# ─────────────────────────────────────────────
+
+@app.post("/generate-ad")
+async def generate_ad(
+    data: AdInput,
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Genera anuncios inmobiliarios para Idealista, RRSS y Email — solo plan agencia."""
+    _require_plan(tenant_id, "agencia")
+
+    canales_validos = [c for c in data.canales if c in ("idealista", "rrss", "email")]
+    if not canales_validos:
+        raise HTTPException(status_code=400, detail="Selecciona al menos un canal")
+
+    reglas = {
+        "idealista": "tono profesional y descriptivo. Body máximo 1700 caracteres.",
+        "rrss":      "tono dinámico y cercano, puede usar emojis con moderación. Body máximo 450 caracteres.",
+        "email":     "tono consultivo/comercial, claro y directo. Body máximo 450 caracteres.",
+    }
+    reglas_texto = "\n".join(
+        f"- {c}: {reglas[c]}" for c in canales_validos
+    )
+
+    extras_str = ", ".join(data.extras) if data.extras else "ninguno"
+    prompt = f"""Eres un redactor inmobiliario senior especializado en el mercado español.
+Genera borradores para cada canal solicitado, con estilo específico y límites de longitud.
+
+Devuelve EXCLUSIVAMENTE un JSON válido, sin markdown, sin comentarios, sin texto extra.
+Estructura esperada:
+{{
+  "drafts": {{
+    "idealista": {{"titulo": "string", "body": "string"}},
+    "rrss":      {{"titulo": "string", "body": "string"}},
+    "email":     {{"titulo": "string", "body": "string"}}
+  }}
+}}
+Incluye solo las claves de canales solicitados.
+
+Reglas por canal:
+{reglas_texto}
+
+Datos del inmueble:
+Tipo: {data.tipo or "no definido"}
+Operación: {data.op or "no definido"}
+Ubicación: {data.ubi or "no definida"}
+m2: {data.m2 or "no definido"}
+Habitaciones: {data.hab or "no definido"}
+Baños: {data.ban or "no definido"}
+Precio: {data.precio or "no definido"}
+Extras: {extras_str}
+Notas del agente: {data.notas or "sin notas adicionales"}
+Canales solicitados: {", ".join(canales_validos)}
+"""
+
+    try:
+        client = get_anthropic_client()
+        message = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=1500,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = message.content[0].text.strip()
+
+        # Extraer JSON aunque venga envuelto en markdown
+        if "```" in raw:
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+
+        result = json.loads(raw)
+        return result
+
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=500, detail=f"Error al parsear respuesta de IA: {str(e)}")
+    except anthropic.AuthenticationError:
+        raise HTTPException(status_code=500, detail="API key de Anthropic inválida")
+    except Exception as e:
+        logger.exception("Error en generador de anuncios: %s", str(e))
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
+
+# ─────────────────────────────────────────────
+# Gestión del equipo (plan agencia)
+# ─────────────────────────────────────────────
+
+@app.get("/me/team")
+async def listar_equipo(tenant_id: str = Depends(get_tenant_id)):
+    """Lista los miembros del equipo del tenant — solo plan agencia."""
+    _require_plan(tenant_id, "agencia")
+    members = get_team_members(tenant_id)
+    return {"members": members, "total": len(members)}
+
+
+@app.post("/me/team", status_code=201)
+async def agregar_miembro(
+    body: TeamMemberInput,
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Añade un miembro al equipo por su Clerk user_id — solo plan agencia."""
+    _require_plan(tenant_id, "agencia")
+    if body.member_id == tenant_id:
+        raise HTTPException(status_code=400, detail="No puedes añadirte a ti mismo")
+    # Verificar que el member_id no sea ya propietario de otra cuenta
+    existing_owner = get_owner_for_member(body.member_id)
+    if existing_owner and existing_owner != tenant_id:
+        raise HTTPException(status_code=409, detail="Este usuario ya pertenece a otro equipo")
+    add_team_member(tenant_id, body.member_id)
+    logger.info("Miembro %s añadido al equipo de %s", body.member_id, tenant_id)
+    return {"ok": True, "member_id": body.member_id}
+
+
+@app.delete("/me/team/{member_id}", status_code=204)
+async def eliminar_miembro(
+    member_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Elimina un miembro del equipo — solo plan agencia."""
+    _require_plan(tenant_id, "agencia")
+    remove_team_member(tenant_id, member_id)
+    logger.info("Miembro %s eliminado del equipo de %s", member_id, tenant_id)
 
 
 # ─────────────────────────────────────────────
