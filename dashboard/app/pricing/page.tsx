@@ -47,7 +47,6 @@ const PLANES = [
       'Estadísticas avanzadas',
       'Soporte prioritario',
     ],
-    proximamente: true,
   },
 ];
 

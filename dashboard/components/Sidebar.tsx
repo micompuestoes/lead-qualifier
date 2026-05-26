@@ -188,8 +188,8 @@ export default function Sidebar() {
           );
         })}
 
-        {/* CTA upgrade — solo para plan free */}
-        {perfil.plan === 'free' && (
+        {/* CTA upgrade — para free y pro (no para agencia) */}
+        {perfil.plan !== 'agencia' && (
           <Link
             href="/pricing"
             className="mt-2 relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all"
