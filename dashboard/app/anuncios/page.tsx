@@ -3,56 +3,52 @@
 import { useState } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { useToast } from '@/components/Toast';
+import { useTheme } from '@/components/ThemeProvider';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
-const TIPOS    = ['Piso', 'Casa', 'Ático', 'Estudio', 'Chalet', 'Local', 'Oficina', 'Terreno'];
-const OPS      = ['Venta', 'Alquiler', 'Alquiler vacacional'];
-const EXTRAS   = ['Terraza', 'Parking', 'Piscina', 'Ascensor', 'A/C', 'Reformado', 'Luminoso', 'Exterior', 'Vistas al mar', 'Jardín', 'Trastero', 'Amueblado'];
-const CANALES  = [
-  { id: 'idealista', label: 'Idealista', desc: 'Profesional · hasta 1700 car.' },
-  { id: 'rrss',      label: 'Redes sociales', desc: 'Dinámico · hasta 450 car.' },
-  { id: 'email',     label: 'Email al lead', desc: 'Consultivo · hasta 450 car.' },
+const TIPOS   = ['Piso', 'Casa', 'Ático', 'Estudio', 'Chalet', 'Local', 'Oficina', 'Terreno'];
+const OPS     = ['Venta', 'Alquiler', 'Alquiler vacacional'];
+const EXTRAS  = ['Terraza', 'Parking', 'Piscina', 'Ascensor', 'A/C', 'Reformado', 'Luminoso', 'Exterior', 'Vistas al mar', 'Jardín', 'Trastero', 'Amueblado'];
+const CANALES = [
+  { id: 'idealista', label: 'Idealista',      desc: 'Profesional · hasta 1700 car.' },
+  { id: 'rrss',      label: 'Redes sociales', desc: 'Dinámico · hasta 450 car.'    },
+  { id: 'email',     label: 'Email al lead',  desc: 'Consultivo · hasta 450 car.'  },
 ];
 
-interface Draft { titulo: string; body: string; }
-interface Drafts { idealista?: Draft; rrss?: Draft; email?: Draft; }
+interface Draft  { titulo: string; body: string }
+interface Drafts { idealista?: Draft; rrss?: Draft; email?: Draft }
 
 export default function AnunciosPage() {
   const { getToken } = useAuth();
   const { addToast } = useToast();
+  const { c } = useTheme();
 
-  const [form, setForm] = useState({
-    tipo: '', op: '', ubi: '', m2: '', hab: '', ban: '', precio: '', notas: '',
-  });
+  const [form, setForm] = useState({ tipo: '', op: '', ubi: '', m2: '', hab: '', ban: '', precio: '', notas: '' });
   const [extras, setExtras]     = useState<string[]>([]);
   const [canales, setCanales]   = useState<string[]>(['idealista', 'rrss']);
   const [generando, setGenerando] = useState(false);
   const [drafts, setDrafts]     = useState<Drafts | null>(null);
   const [copiado, setCopiado]   = useState<string | null>(null);
   const [editado, setEditado]   = useState<Drafts>({});
+  const [focused, setFocused]   = useState<string | null>(null);
 
   function toggleExtra(e: string) {
     setExtras(prev => prev.includes(e) ? prev.filter(x => x !== e) : [...prev, e]);
   }
-  function toggleCanal(c: string) {
-    setCanales(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
+  function toggleCanal(id: string) {
+    setCanales(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   }
 
   async function generar(e: React.FormEvent) {
     e.preventDefault();
     if (!canales.length) { addToast('Selecciona al menos un canal', 'error'); return; }
-    setGenerando(true);
-    setDrafts(null);
-    setEditado({});
+    setGenerando(true); setDrafts(null); setEditado({});
     try {
       const token = await getToken();
       const res = await fetch(`${BASE}/generate-ad`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ ...form, extras, canales }),
       });
       if (res.status === 403) {
@@ -79,119 +75,152 @@ export default function AnunciosPage() {
     setTimeout(() => setCopiado(null), 2000);
   }
 
-  const input = "w-full px-3 py-2 rounded-lg text-sm border focus:outline-none focus:ring-1 transition-all";
-  const inputStyle = { borderColor: 'rgba(200,169,110,0.3)', background: 'rgba(249,245,238,0.6)', color: '#1a1814' };
-  const focusStyle = { '--tw-ring-color': '#c8a96e' } as React.CSSProperties;
+  // Estilos de inputs respetuosos del tema
+  function getInputStyle(name: string): React.CSSProperties {
+    const isFocused = focused === name;
+    return {
+      width: '100%', padding: '9px 12px', borderRadius: 10, fontSize: 14,
+      outline: 'none', transition: 'border-color 0.15s, box-shadow 0.15s',
+      background: c.input,
+      color: c.text1,
+      border: isFocused
+        ? `1.5px solid ${c.inputFocus}`
+        : `1.5px solid ${c.inputBorder}`,
+      boxShadow: isFocused ? '0 0 0 3px rgba(200,169,110,0.1)' : 'none',
+    };
+  }
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block', fontSize: 12, fontWeight: 600,
+    color: c.text2, marginBottom: 6,
+    textTransform: 'uppercase', letterSpacing: '0.06em',
+  };
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-8">
       <div>
-        <h1 style={{ color: '#1a1814' }}>Generador de anuncios</h1>
-        <p className="text-sm mt-1" style={{ color: '#7a7468' }}>
+        <h1 style={{ color: c.text1 }}>Generador de anuncios</h1>
+        <p className="text-sm mt-1" style={{ color: c.text2 }}>
           Describe el inmueble y la IA redactará anuncios listos para publicar en cada canal.
         </p>
       </div>
 
       <form onSubmit={generar} className="space-y-6">
+
         {/* Tipo y operación */}
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-medium mb-1.5" style={{ color: '#7a7468' }}>Tipo de inmueble</label>
-            <select value={form.tipo} onChange={e => setForm(p => ({ ...p, tipo: e.target.value }))}
-              required className={input} style={{ ...inputStyle, ...focusStyle }}>
-              <option value="">Seleccionar…</option>
-              {TIPOS.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium mb-1.5" style={{ color: '#7a7468' }}>Operación</label>
-            <select value={form.op} onChange={e => setForm(p => ({ ...p, op: e.target.value }))}
-              required className={input} style={{ ...inputStyle, ...focusStyle }}>
-              <option value="">Seleccionar…</option>
-              {OPS.map(o => <option key={o} value={o}>{o}</option>)}
-            </select>
-          </div>
+          {[
+            { key: 'tipo', label: 'Tipo de inmueble', opts: TIPOS },
+            { key: 'op',   label: 'Operación',        opts: OPS  },
+          ].map(({ key, label, opts }) => (
+            <div key={key}>
+              <label style={labelStyle}>{label}</label>
+              <select
+                value={(form as Record<string, string>)[key]}
+                onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+                required
+                onFocus={() => setFocused(key)} onBlur={() => setFocused(null)}
+                style={{ ...getInputStyle(key), appearance: 'auto' as 'auto' }}
+              >
+                <option value="">Seleccionar…</option>
+                {opts.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+          ))}
         </div>
 
         {/* Ubicación */}
         <div>
-          <label className="block text-xs font-medium mb-1.5" style={{ color: '#7a7468' }}>Ubicación</label>
+          <label style={labelStyle}>Ubicación</label>
           <input type="text" value={form.ubi} required
             onChange={e => setForm(p => ({ ...p, ubi: e.target.value }))}
-            placeholder="Ej. Calle Mayor 12, Madrid" className={input} style={{ ...inputStyle, ...focusStyle }} />
+            onFocus={() => setFocused('ubi')} onBlur={() => setFocused(null)}
+            placeholder="Ej. Calle Mayor 12, Madrid"
+            style={getInputStyle('ubi')} />
         </div>
 
-        {/* Detalles */}
+        {/* Detalles numéricos */}
         <div className="grid grid-cols-4 gap-4">
           {[
-            { key: 'm2', label: 'm²' },
-            { key: 'hab', label: 'Habitaciones' },
-            { key: 'ban', label: 'Baños' },
-            { key: 'precio', label: 'Precio' },
-          ].map(({ key, label }) => (
+            { key: 'm2',     label: 'm²',           ph: '80' },
+            { key: 'hab',    label: 'Habitaciones',  ph: '3'  },
+            { key: 'ban',    label: 'Baños',         ph: '2'  },
+            { key: 'precio', label: 'Precio',        ph: '250.000 €' },
+          ].map(({ key, label, ph }) => (
             <div key={key}>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: '#7a7468' }}>{label}</label>
+              <label style={labelStyle}>{label}</label>
               <input type="text" value={(form as Record<string, string>)[key]}
                 onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
-                placeholder={key === 'precio' ? '250.000 €' : '—'}
-                className={input} style={{ ...inputStyle, ...focusStyle }} />
+                onFocus={() => setFocused(key)} onBlur={() => setFocused(null)}
+                placeholder={ph} style={getInputStyle(key)} />
             </div>
           ))}
         </div>
 
         {/* Extras */}
         <div>
-          <label className="block text-xs font-medium mb-2" style={{ color: '#7a7468' }}>Características</label>
+          <label style={labelStyle}>Características</label>
           <div className="flex flex-wrap gap-2">
-            {EXTRAS.map(e => (
-              <button key={e} type="button" onClick={() => toggleExtra(e)}
-                className="px-3 py-1 rounded-full text-xs font-medium transition-all"
-                style={{
-                  background: extras.includes(e) ? '#c8a96e' : 'rgba(200,169,110,0.1)',
-                  color: extras.includes(e) ? '#1a1814' : '#7a7468',
-                  border: extras.includes(e) ? 'none' : '1px solid rgba(200,169,110,0.25)',
-                }}>
-                {e}
-              </button>
-            ))}
+            {EXTRAS.map(e => {
+              const sel = extras.includes(e);
+              return (
+                <button key={e} type="button" onClick={() => toggleExtra(e)}
+                  className="px-3 py-1 rounded-full text-xs font-medium transition-all"
+                  style={{
+                    background: sel ? '#c8a96e' : 'rgba(200,169,110,0.1)',
+                    color:      sel ? '#1a1814' : c.text2,
+                    border:     sel ? 'none'    : `1px solid ${c.inputBorder}`,
+                  }}>
+                  {e}
+                </button>
+              );
+            })}
           </div>
         </div>
 
         {/* Notas */}
         <div>
-          <label className="block text-xs font-medium mb-1.5" style={{ color: '#7a7468' }}>
-            Notas del agente <span style={{ color: '#c8a96e', fontWeight: 400 }}>(opcional)</span>
+          <label style={labelStyle}>
+            Notas del agente{' '}
+            <span style={{ color: '#c8a96e', textTransform: 'none', fontWeight: 400 }}>(opcional)</span>
           </label>
           <textarea value={form.notas} rows={3}
             onChange={e => setForm(p => ({ ...p, notas: e.target.value }))}
+            onFocus={() => setFocused('notas')} onBlur={() => setFocused(null)}
             placeholder="Detalles extra: recién reformado, gran luminosidad, muy tranquilo…"
-            className={`${input} resize-none`} style={{ ...inputStyle, ...focusStyle }} />
+            style={{ ...getInputStyle('notas'), resize: 'none' }} />
         </div>
 
         {/* Canales */}
         <div>
-          <label className="block text-xs font-medium mb-2" style={{ color: '#7a7468' }}>Canales a generar</label>
+          <label style={labelStyle}>Canales a generar</label>
           <div className="flex gap-3">
-            {CANALES.map(c => (
-              <button key={c.id} type="button" onClick={() => toggleCanal(c.id)}
-                className="flex-1 py-3 px-4 rounded-xl text-left transition-all"
-                style={{
-                  background: canales.includes(c.id) ? 'rgba(200,169,110,0.15)' : 'rgba(249,245,238,0.5)',
-                  border: canales.includes(c.id) ? '1.5px solid #c8a96e' : '1.5px solid rgba(200,169,110,0.2)',
-                }}>
-                <p className="text-sm font-medium" style={{ color: '#1a1814' }}>{c.label}</p>
-                <p className="text-xs mt-0.5" style={{ color: '#7a7468' }}>{c.desc}</p>
-              </button>
-            ))}
+            {CANALES.map(canal => {
+              const sel = canales.includes(canal.id);
+              return (
+                <button key={canal.id} type="button" onClick={() => toggleCanal(canal.id)}
+                  className="flex-1 py-3 px-4 rounded-xl text-left transition-all duration-150"
+                  style={{
+                    background: sel ? 'rgba(200,169,110,0.13)' : c.muted,
+                    border:     sel ? `1.5px solid #c8a96e`     : `1.5px solid ${c.inputBorder}`,
+                  }}>
+                  <p className="text-sm font-semibold" style={{ color: sel ? '#9a7a3a' : c.text1 }}>
+                    {canal.label}
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: c.text2 }}>{canal.desc}</p>
+                </button>
+              );
+            })}
           </div>
         </div>
 
         <button type="submit" disabled={generando}
           className="w-full py-3 rounded-xl text-sm font-semibold transition-all disabled:opacity-60"
-          style={{ background: '#c8a96e', color: '#1a1814' }}>
+          style={{ background: '#c8a96e', color: '#1a1814', border: 'none', cursor: 'pointer' }}>
           {generando ? (
             <span className="flex items-center justify-center gap-2">
-              <span className="w-4 h-4 border-2 border-[#1a1814]/30 border-t-[#1a1814] rounded-full animate-spin" />
+              <span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin"
+                style={{ borderColor: 'rgba(26,24,20,0.25)', borderTopColor: '#1a1814' }} />
               Generando anuncios…
             </span>
           ) : 'Generar anuncios'}
@@ -201,30 +230,40 @@ export default function AnunciosPage() {
       {/* Resultados */}
       {drafts && (
         <div className="space-y-4 animate-fade-up">
-          <h2 className="text-lg" style={{ color: '#1a1814' }}>Anuncios generados</h2>
-          {CANALES.filter(c => (drafts as Record<string, Draft | undefined>)[c.id]).map(c => {
-            const draft = (editado as Record<string, Draft>)[c.id];
+          <h2 className="text-lg" style={{ color: c.text1 }}>Anuncios generados</h2>
+          {CANALES.filter(canal => (drafts as Record<string, Draft | undefined>)[canal.id]).map(canal => {
+            const draft = (editado as Record<string, Draft>)[canal.id];
             if (!draft) return null;
             return (
-              <div key={c.id} className="rounded-xl p-5 space-y-3"
-                style={{ background: '#fff', border: '1.5px solid rgba(200,169,110,0.2)' }}>
+              <div key={canal.id} className="rounded-xl p-5 space-y-3 transition-all duration-200"
+                style={{ background: c.card, border: c.cardBorder }}>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold" style={{ color: '#1a1814' }}>{c.label}</span>
-                  <button onClick={() => copiar(c.id, `${draft.titulo}\n\n${draft.body}`)}
+                  <span className="text-sm font-semibold" style={{ color: c.text1 }}>{canal.label}</span>
+                  <button onClick={() => copiar(canal.id, `${draft.titulo}\n\n${draft.body}`)}
                     className="text-xs px-3 py-1 rounded-lg transition-all"
-                    style={{ background: copiado === c.id ? '#c8a96e' : 'rgba(200,169,110,0.1)', color: '#1a1814' }}>
-                    {copiado === c.id ? '✓ Copiado' : 'Copiar'}
+                    style={{
+                      background: copiado === canal.id ? '#c8a96e' : 'rgba(200,169,110,0.1)',
+                      color:      copiado === canal.id ? '#1a1814' : c.text1,
+                      border: 'none', cursor: 'pointer',
+                    }}>
+                    {copiado === canal.id ? '✓ Copiado' : 'Copiar'}
                   </button>
                 </div>
                 <input value={draft.titulo}
-                  onChange={e => setEditado(prev => ({ ...prev, [c.id]: { ...prev[c.id as keyof Drafts]!, titulo: e.target.value } }))}
-                  className="w-full px-3 py-2 rounded-lg text-sm font-medium focus:outline-none"
-                  style={{ background: 'rgba(249,245,238,0.6)', border: '1px solid rgba(200,169,110,0.2)', color: '#1a1814' }} />
+                  onChange={e => setEditado(prev => ({ ...prev, [canal.id]: { ...prev[canal.id as keyof Drafts]!, titulo: e.target.value } }))}
+                  style={{
+                    width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 14,
+                    fontWeight: 500, outline: 'none', background: c.input,
+                    border: `1px solid ${c.inputBorder}`, color: c.text1,
+                  }} />
                 <textarea value={draft.body} rows={5}
-                  onChange={e => setEditado(prev => ({ ...prev, [c.id]: { ...prev[c.id as keyof Drafts]!, body: e.target.value } }))}
-                  className="w-full px-3 py-2 rounded-lg text-sm resize-none focus:outline-none"
-                  style={{ background: 'rgba(249,245,238,0.6)', border: '1px solid rgba(200,169,110,0.2)', color: '#1a1814' }} />
-                <p className="text-xs text-right" style={{ color: '#7a7468' }}>
+                  onChange={e => setEditado(prev => ({ ...prev, [canal.id]: { ...prev[canal.id as keyof Drafts]!, body: e.target.value } }))}
+                  style={{
+                    width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 14,
+                    resize: 'none', outline: 'none', background: c.input,
+                    border: `1px solid ${c.inputBorder}`, color: c.text1,
+                  }} />
+                <p className="text-xs text-right" style={{ color: c.text2 }}>
                   {draft.body.length} caracteres
                 </p>
               </div>
