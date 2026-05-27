@@ -6,6 +6,7 @@ import { useAuth } from '@clerk/nextjs';
 import { obtenerLeads } from '@/lib/api';
 import type { Lead, Clasificacion, EstadoLead } from '@/types/lead';
 import LeadCard from '@/components/LeadCard';
+import { LeadCardSkeleton } from '@/components/Skeleton';
 import { useTheme } from '@/components/ThemeProvider';
 import PageHeader from '@/components/PageHeader';
 
@@ -14,11 +15,11 @@ import PageHeader from '@/components/PageHeader';
 const ESTADOS: (EstadoLead | 'TODOS')[] = ['TODOS', 'PENDIENTE', 'CONTACTADO', 'CERRADO', 'DESCARTADO'];
 
 const ESTADO_CONFIG: Record<string, { label: string; dot: string | null }> = {
-  TODOS:      { label: 'Todos',       dot: null         },
-  PENDIENTE:  { label: 'Pendiente',   dot: '#c8a96e'    },
-  CONTACTADO: { label: 'Contactado',  dot: '#6ea8c8'    },
-  CERRADO:    { label: 'Cerrado',     dot: '#6ec87a'    },
-  DESCARTADO: { label: 'Descartado',  dot: '#9a9490'    },
+  TODOS:      { label: 'Todos',       dot: null      },
+  PENDIENTE:  { label: 'Pendiente',   dot: '#c8a96e' },
+  CONTACTADO: { label: 'Contactado',  dot: '#6ea8c8' },
+  CERRADO:    { label: 'Cerrado',     dot: '#6ec87a' },
+  DESCARTADO: { label: 'Descartado',  dot: '#9a9490' },
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -33,14 +34,16 @@ export default function LeadsPage() {
   const { getToken } = useAuth();
   const { c } = useTheme();
 
-  const [leads, setLeads]         = useState<Lead[]>([]);
-  const [cargando, setCargando]   = useState(true);
-  const [error, setError]         = useState<string | null>(null);
+  const [leads, setLeads]               = useState<Lead[]>([]);
+  const [cargando, setCargando]         = useState(true);
+  const [error, setError]               = useState<string | null>(null);
   const [filtroClasif, setFiltroClasif] = useState<Clasificacion | 'TODAS'>('TODAS');
   const [filtroEstado, setFiltroEstado] = useState<EstadoLead | 'TODOS'>('TODOS');
+  const [busqueda, setBusqueda]         = useState('');
+  const [busquedaFocus, setBusquedaFocus] = useState(false);
 
-  const idsConocidos  = useRef<Set<string>>(new Set());
-  const pendingLeads  = useRef<Lead[]>([]);
+  const idsConocidos = useRef<Set<string>>(new Set());
+  const pendingLeads = useRef<Lead[]>([]);
   const [leadsNuevos, setLeadsNuevos] = useState(0);
 
   useEffect(() => { cargarLeads(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -81,36 +84,50 @@ export default function LeadsPage() {
     setLeadsNuevos(0);
   }
 
-  // Clic en una tarjeta métrica: activa/desactiva el filtro de clasificación
+  // Clic en tarjeta métrica: toggle de clasificación
   function toggleClasif(clasif: Clasificacion) {
     setFiltroClasif(prev => prev === clasif ? 'TODAS' : clasif);
   }
 
+  // Cambio inline de estado desde la tarjeta
+  function handleStatusChange(id: string, status: EstadoLead) {
+    setLeads(prev => prev.map(l => l.id === id ? { ...l, status } : l));
+  }
+
   // ── Datos derivados ──────────────────────────────────────────────────────────
 
-  const calientes  = leads.filter(l => l.classification === 'CALIENTE').length;
-  const tibios     = leads.filter(l => l.classification === 'TIBIO').length;
-  const frios      = leads.filter(l => l.classification === 'FRÍO').length;
-  const total      = leads.length;
-  const hayFiltros = filtroClasif !== 'TODAS' || filtroEstado !== 'TODOS';
+  const calientes = leads.filter(l => l.classification === 'CALIENTE').length;
+  const tibios    = leads.filter(l => l.classification === 'TIBIO').length;
+  const frios     = leads.filter(l => l.classification === 'FRÍO').length;
+  const total     = leads.length;
+  const hayFiltros = filtroClasif !== 'TODAS' || filtroEstado !== 'TODOS' || busqueda !== '';
 
   const leadsFiltrados = leads.filter(l => {
-    const pasaClasif = filtroClasif === 'TODAS' || l.classification === filtroClasif;
-    const pasaEstado = filtroEstado === 'TODOS'  || (l.status ?? 'PENDIENTE') === filtroEstado;
-    return pasaClasif && pasaEstado;
+    const pasaClasif  = filtroClasif === 'TODAS' || l.classification === filtroClasif;
+    const pasaEstado  = filtroEstado === 'TODOS'  || (l.status ?? 'PENDIENTE') === filtroEstado;
+    const q = busqueda.toLowerCase();
+    const pasaBusqueda = q === '' || [l.name, l.email, l.message].some(
+      f => f?.toLowerCase().includes(q)
+    );
+    return pasaClasif && pasaEstado && pasaBusqueda;
   });
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-8">
+    <div style={{ padding: 32 }}>
 
       {/* Banner nuevos leads */}
       {leadsNuevos > 0 && (
         <button onClick={aplicarLeadsNuevos}
-          className="w-full mb-6 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold animate-fade-up"
-          style={{ background: '#c8a96e', color: '#1a1814', border: 'none', cursor: 'pointer' }}>
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+          className="animate-fade-up"
+          style={{
+            width: '100%', marginBottom: 24,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            padding: '12px 16px', borderRadius: 12, fontSize: 13, fontWeight: 600,
+            background: '#c8a96e', color: '#1a1814', border: 'none', cursor: 'pointer',
+          }}>
+          <svg width="15" height="15" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round"
               d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
           </svg>
@@ -118,7 +135,7 @@ export default function LeadsPage() {
         </button>
       )}
 
-      {/* ── Cabecera ── */}
+      {/* Cabecera */}
       <PageHeader
         title="Leads"
         description={
@@ -127,34 +144,28 @@ export default function LeadsPage() {
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 14, color: c.text2 }}>{plural(total, 'lead', 'leads')}</span>
-              {calientes > 0 && <>
-                <span style={{ color: c.divider }}>·</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: '#b45309' }}>
+              {calientes > 0 && <><span style={{ color: c.divider }}>·</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 14, color: '#b45309' }}>
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#b45309', flexShrink: 0 }} />
                   {plural(calientes, 'caliente', 'calientes')}
-                </span>
-              </>}
-              {tibios > 0 && <>
-                <span style={{ color: c.divider }}>·</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: '#9a7a3a' }}>
+                </span></>}
+              {tibios > 0 && <><span style={{ color: c.divider }}>·</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 14, color: '#9a7a3a' }}>
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#c8a96e', flexShrink: 0 }} />
                   {plural(tibios, 'tibio', 'tibios')}
-                </span>
-              </>}
-              {frios > 0 && <>
-                <span style={{ color: c.divider }}>·</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: '#3a7a9a' }}>
+                </span></>}
+              {frios > 0 && <><span style={{ color: c.divider }}>·</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 14, color: '#3a7a9a' }}>
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#6ea8c8', flexShrink: 0 }} />
                   {plural(frios, 'frío', 'fríos')}
-                </span>
-              </>}
+                </span></>}
             </div>
           )
         }
         action={
           <Link href="/nuevo-lead"
             style={{
-              display: 'inline-flex', alignItems: 'center', gap: 8,
+              display: 'inline-flex', alignItems: 'center', gap: 7,
               fontSize: 14, fontWeight: 600, padding: '10px 18px',
               borderRadius: 12, textDecoration: 'none',
               background: '#c8a96e', color: '#1a1814',
@@ -163,14 +174,14 @@ export default function LeadsPage() {
             }}
             onMouseEnter={e => {
               (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 20px rgba(200,169,110,0.5)';
-              (e.currentTarget as HTMLElement).style.opacity = '0.92';
+              (e.currentTarget as HTMLElement).style.opacity   = '0.92';
             }}
             onMouseLeave={e => {
               (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 12px rgba(200,169,110,0.35)';
-              (e.currentTarget as HTMLElement).style.opacity = '1';
+              (e.currentTarget as HTMLElement).style.opacity   = '1';
             }}
           >
-            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
             Nuevo lead
@@ -178,8 +189,8 @@ export default function LeadsPage() {
         }
       />
 
-      {/* ── Métricas — también son el filtro de clasificación ── */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      {/* ── Métricas (filtro de clasificación) ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
         <MetricaCard
           label="Calientes" valor={calientes} total={total}
           color="#b45309" barColor="rgba(180,83,9,0.7)" c={c}
@@ -203,44 +214,74 @@ export default function LeadsPage() {
         />
       </div>
 
-      {/* ── Filtro de estado — selector segmentado ── */}
-      <div style={{ marginBottom: 28 }}>
+      {/* ── Buscador + Estado ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28, flexWrap: 'wrap' }}>
+
+        {/* Buscador */}
+        <div style={{ position: 'relative', flex: '0 0 220px' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke={busquedaFocus ? '#c8a96e' : c.text2} strokeWidth="2" strokeLinecap="round"
+            style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', transition: 'stroke 0.15s' }}>
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input
+            type="text"
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+            onFocus={() => setBusquedaFocus(true)}
+            onBlur={() => setBusquedaFocus(false)}
+            placeholder="Buscar leads…"
+            style={{
+              width: '100%', padding: '8px 12px 8px 34px',
+              borderRadius: 11, fontSize: 13, outline: 'none',
+              background: c.input, color: c.text1,
+              border: busquedaFocus ? `1.5px solid ${c.inputFocus}` : `1.5px solid ${c.inputBorder}`,
+              boxShadow: busquedaFocus ? '0 0 0 3px rgba(200,169,110,0.1)' : 'none',
+              transition: 'border-color 0.15s, box-shadow 0.15s',
+            }}
+          />
+          {busqueda && (
+            <button onClick={() => setBusqueda('')}
+              style={{
+                position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: c.text2, padding: 2, display: 'flex',
+              }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          )}
+        </div>
+
+        {/* Segmented control de Estado */}
         <div style={{
-          display:      'inline-flex',
-          background:   c.muted,
-          border:       `1px solid ${c.inputBorder}`,
-          borderRadius: 14,
-          padding:      4,
-          gap:          2,
+          display: 'inline-flex', background: c.muted,
+          border: `1px solid ${c.inputBorder}`, borderRadius: 13, padding: 4, gap: 2,
         }}>
           {ESTADOS.map(estado => {
-            const activo  = filtroEstado === estado;
-            const cfg     = ESTADO_CONFIG[estado];
+            const activo = filtroEstado === estado;
+            const cfg    = ESTADO_CONFIG[estado];
             return (
               <button key={estado}
                 onClick={() => setFiltroEstado(estado)}
                 style={{
-                  display:      'inline-flex',
-                  alignItems:   'center',
-                  gap:          6,
-                  padding:      '7px 14px',
-                  borderRadius: 10,
-                  fontSize:     13,
-                  fontWeight:   activo ? 600 : 400,
-                  background:   activo ? c.card : 'transparent',
-                  color:        activo ? c.text1 : c.text2,
-                  border:       'none',
-                  cursor:       'pointer',
-                  boxShadow:    activo ? '0 1px 6px rgba(26,24,20,0.09)' : 'none',
-                  transition:   'background 0.15s, color 0.15s, box-shadow 0.15s',
-                  whiteSpace:   'nowrap',
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '7px 13px', borderRadius: 10,
+                  fontSize: 12, fontWeight: activo ? 600 : 400,
+                  background: activo ? c.card : 'transparent',
+                  color: activo ? c.text1 : c.text2,
+                  border: 'none', cursor: 'pointer',
+                  boxShadow: activo ? '0 1px 6px rgba(26,24,20,0.09)' : 'none',
+                  transition: 'background 0.15s, color 0.15s, box-shadow 0.15s',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {cfg.dot && (
                   <span style={{
                     width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-                    background: cfg.dot,
-                    opacity: activo ? 1 : 0.45,
+                    background: cfg.dot, opacity: activo ? 1 : 0.4,
                     transition: 'opacity 0.15s',
                   }} />
                 )}
@@ -253,41 +294,43 @@ export default function LeadsPage() {
 
       {/* ── Contenido ── */}
       {cargando ? (
-        <div className="flex items-center justify-center py-24 flex-col gap-3">
-          <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin"
-            style={{ borderColor: 'rgba(200,169,110,0.3)', borderTopColor: '#c8a96e' }} />
-          <p className="text-sm" style={{ color: c.text2 }}>Cargando leads…</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+          {Array.from({ length: 6 }).map((_, i) => <LeadCardSkeleton key={i} />)}
         </div>
       ) : error ? (
-        <div className="rounded-xl p-6 text-center"
-          style={{ background: 'rgba(180,83,9,0.05)', border: '1px solid rgba(180,83,9,0.15)' }}>
-          <p className="font-medium mb-2" style={{ color: '#b45309' }}>No se pudieron cargar los leads</p>
-          <p className="text-sm mb-4" style={{ color: c.text2 }}>{error}</p>
-          <button onClick={cargarLeads} className="px-4 py-2 rounded-lg text-sm font-medium"
-            style={{ background: '#c8a96e', color: '#1a1814', border: 'none', cursor: 'pointer' }}>
+        <div style={{
+          borderRadius: 12, padding: 24, textAlign: 'center',
+          background: 'rgba(180,83,9,0.05)', border: '1px solid rgba(180,83,9,0.15)',
+        }}>
+          <p style={{ fontWeight: 600, color: '#b45309', marginBottom: 8 }}>No se pudieron cargar los leads</p>
+          <p style={{ fontSize: 13, color: c.text2, marginBottom: 16 }}>{error}</p>
+          <button onClick={cargarLeads}
+            style={{ padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+              background: '#c8a96e', color: '#1a1814', border: 'none', cursor: 'pointer' }}>
             Reintentar
           </button>
         </div>
       ) : leadsFiltrados.length === 0 ? (
         <EmptyState sinLeads={total === 0} c={c}
-          onLimpiarFiltros={hayFiltros ? () => { setFiltroClasif('TODAS'); setFiltroEstado('TODOS'); } : undefined} />
+          onLimpiarFiltros={hayFiltros ? () => { setFiltroClasif('TODAS'); setFiltroEstado('TODOS'); setBusqueda(''); } : undefined} />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-          {leadsFiltrados.map((lead, i) => <LeadCard key={lead.id} lead={lead} index={i} />)}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+          {leadsFiltrados.map((lead, i) => (
+            <LeadCard key={lead.id} lead={lead} index={i} onStatusChange={handleStatusChange} />
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-// ── Métrica card (filtro de clasificación) ────────────────────────────────────
+// ── Métrica card ──────────────────────────────────────────────────────────────
 
 function MetricaCard({ label, valor, total, color, barColor, c, isActive, isDimmed, onClick }: {
   label: string; valor: number; total: number;
   color: string; barColor: string;
   c: ReturnType<typeof useTheme>['c'];
-  isActive: boolean;
-  isDimmed: boolean;
+  isActive: boolean; isDimmed: boolean;
   onClick: () => void;
 }) {
   const porcentaje = total > 0 ? Math.round((valor / total) * 100) : 0;
@@ -295,40 +338,31 @@ function MetricaCard({ label, valor, total, color, barColor, c, isActive, isDimm
   return (
     <div
       onClick={onClick}
-      className="rounded-xl overflow-hidden"
       style={{
         background:  isActive ? `${color}0d` : c.card,
         border:      isActive ? `1.5px solid ${color}` : c.cardBorder,
         boxShadow:   isActive ? `0 6px 24px ${color}28` : '0 1px 4px rgba(26,24,20,0.04)',
         opacity:     isDimmed ? 0.38 : 1,
         transform:   isActive ? 'translateY(-1px)' : 'none',
-        cursor:      'pointer',
-        transition:  'all 0.2s ease',
-        userSelect:  'none',
+        cursor:      'pointer', transition: 'all 0.2s ease',
+        userSelect:  'none', borderRadius: 12, overflow: 'hidden',
       }}
     >
-      {/* Barra de acento superior */}
       <div style={{
-        height:     isActive ? 4 : 3,
+        height: isActive ? 4 : 3,
         background: `linear-gradient(90deg, ${color}, ${color}50)`,
-        opacity:    total === 0 ? 0.25 : (isActive ? 1 : 0.65),
+        opacity: total === 0 ? 0.25 : (isActive ? 1 : 0.65),
         transition: 'height 0.2s, opacity 0.2s',
       }} />
-
       <div style={{ padding: '16px 20px' }}>
-        {/* Label + check activo */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <p style={{
-            fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
-            color: isActive ? color : c.text2,
-            transition: 'color 0.2s',
-          }}>
-            {label}
-          </p>
+            fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+            color: isActive ? color : c.text2, transition: 'color 0.2s',
+          }}>{label}</p>
           {isActive && (
             <span style={{
-              width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
-              background: color,
+              width: 18, height: 18, borderRadius: '50%', background: color,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               <svg width="9" height="9" fill="none" viewBox="0 0 24 24" strokeWidth={3.5} stroke="white">
@@ -337,26 +371,15 @@ function MetricaCard({ label, valor, total, color, barColor, c, isActive, isDimm
             </span>
           )}
         </div>
-
-        {/* Número + porcentaje */}
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, marginBottom: 14 }}>
-          <p style={{
-            fontSize: 40, fontWeight: 700, lineHeight: 1,
-            fontVariantNumeric: 'tabular-nums',
-            color: total === 0 ? c.text3 : color,
-          }}>
+          <p style={{ fontSize: 40, fontWeight: 700, lineHeight: 1, fontVariantNumeric: 'tabular-nums', color: total === 0 ? c.text3 : color }}>
             {total === 0 ? '—' : valor}
           </p>
-          {total > 0 && (
-            <p style={{ fontSize: 14, color: c.text2, paddingBottom: 4 }}>{porcentaje}%</p>
-          )}
+          {total > 0 && <p style={{ fontSize: 14, color: c.text2, paddingBottom: 4 }}>{porcentaje}%</p>}
         </div>
-
-        {/* Barra de progreso */}
         <div style={{ height: 3, borderRadius: 2, overflow: 'hidden', background: 'rgba(200,169,110,0.1)' }}>
           <div style={{
-            height: '100%', borderRadius: 2,
-            width: `${porcentaje}%`, background: barColor,
+            height: '100%', borderRadius: 2, width: `${porcentaje}%`, background: barColor,
             transition: 'width 0.7s ease',
           }} />
         </div>
@@ -373,11 +396,16 @@ function EmptyState({ sinLeads, onLimpiarFiltros, c }: {
   c: ReturnType<typeof useTheme>['c'];
 }) {
   return (
-    <div className="flex flex-col items-center justify-center py-24 px-8 text-center animate-fade-up">
-      <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6"
-        style={{ background: 'rgba(200,169,110,0.08)', border: '1.5px solid rgba(200,169,110,0.15)' }}>
-        <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" strokeWidth={1.2}
-          stroke="rgba(200,169,110,0.55)">
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', padding: '80px 32px', textAlign: 'center',
+    }} className="animate-fade-up">
+      <div style={{
+        width: 72, height: 72, borderRadius: 20, marginBottom: 20,
+        background: 'rgba(200,169,110,0.08)', border: '1.5px solid rgba(200,169,110,0.15)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <svg width="36" height="36" fill="none" viewBox="0 0 24 24" strokeWidth={1.2} stroke="rgba(200,169,110,0.55)">
           {sinLeads ? (
             <path strokeLinecap="round" strokeLinejoin="round"
               d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
@@ -387,31 +415,32 @@ function EmptyState({ sinLeads, onLimpiarFiltros, c }: {
           )}
         </svg>
       </div>
-      <h2 className="text-lg font-semibold mb-2" style={{ color: c.text1 }}>
+      <h2 style={{ fontSize: 17, color: c.text1, marginBottom: 8 }}>
         {sinLeads ? 'Aún no hay leads aquí' : 'Ningún lead coincide con los filtros'}
       </h2>
-      <p className="text-sm mb-8 max-w-sm leading-relaxed" style={{ color: c.text2 }}>
+      <p style={{ fontSize: 13, color: c.text2, marginBottom: 28, maxWidth: 340, lineHeight: 1.65 }}>
         {sinLeads
           ? 'Cualifica tu primer lead y aparecerá aquí con su clasificación y email generado por la IA.'
           : 'Prueba a cambiar o limpiar los filtros activos para ver más resultados.'}
       </p>
       {sinLeads ? (
-        <Link href="/nuevo-lead"
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold"
-          style={{
-            background: '#c8a96e', color: '#1a1814',
-            textDecoration: 'none',
-            boxShadow: '0 2px 12px rgba(200,169,110,0.35)',
-          }}>
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+        <Link href="/nuevo-lead" style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          padding: '10px 22px', borderRadius: 12, fontSize: 13, fontWeight: 600,
+          background: '#c8a96e', color: '#1a1814', textDecoration: 'none',
+          boxShadow: '0 2px 12px rgba(200,169,110,0.35)',
+        }}>
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
           Cualificar primer lead
         </Link>
       ) : (
         <button onClick={onLimpiarFiltros}
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold"
-          style={{ background: c.btnActive, color: c.btnActiveTxt, border: 'none', cursor: 'pointer' }}>
+          style={{
+            padding: '10px 22px', borderRadius: 12, fontSize: 13, fontWeight: 600,
+            background: c.btnActive, color: c.btnActiveTxt, border: 'none', cursor: 'pointer',
+          }}>
           Limpiar filtros
         </button>
       )}

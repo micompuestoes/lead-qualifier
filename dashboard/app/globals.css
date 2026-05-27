@@ -124,6 +124,35 @@
   to   { transform: rotate(360deg); }
 }
 
+/* ── Skeleton shimmer ────────────────────────────────────────────────────── */
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(200,169,110,0.07) 25%,
+    rgba(200,169,110,0.14) 50%,
+    rgba(200,169,110,0.07) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+[data-theme="dark"] .skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(200,169,110,0.04) 25%,
+    rgba(200,169,110,0.09) 50%,
+    rgba(200,169,110,0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
 .animate-spin        { animation: spin           0.7s  linear         infinite; }
 .animate-toast-in    { animation: toast-in       0.28s cubic-bezier(0.34, 1.4, 0.64, 1) both; }
 .animate-fade-up     { animation: fade-slide-up  0.38s ease-out both; }
