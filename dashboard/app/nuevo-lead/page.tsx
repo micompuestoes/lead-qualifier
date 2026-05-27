@@ -9,6 +9,7 @@ import LeadBadge from '@/components/LeadBadge';
 import ScoreBar from '@/components/ScoreBar';
 import { useToast } from '@/components/Toast';
 import { useTheme } from '@/components/ThemeProvider';
+import PageHeader from '@/components/PageHeader';
 
 interface FormData { name: string; email: string; phone: string; message: string }
 const FORM_VACIO: FormData = { name: '', email: '', phone: '', message: '' };
@@ -166,9 +167,12 @@ export default function NuevoLeadPage() {
       <div className="p-8 max-w-2xl">
         {mostrarConfeti && <Confetti />}
 
-        <div className="animate-reveal-in mb-8">
-          <h1 style={{ color: c.text1 }}>Lead cualificado</h1>
-          <p className="text-sm mt-1" style={{ color: c.text2 }}>El agente ha procesado el lead correctamente.</p>
+        <div className="animate-reveal-in">
+          <PageHeader
+            eyebrow="Resultado"
+            title="Lead cualificado"
+            description="El agente ha procesado el lead correctamente."
+          />
         </div>
 
         {/* Score + clasificación */}
@@ -254,12 +258,11 @@ export default function NuevoLeadPage() {
 
   return (
     <div className="p-8 max-w-2xl">
-      <div className="mb-8">
-        <h1 style={{ color: c.text1 }}>Cualificar nuevo lead</h1>
-        <p className="text-sm mt-1" style={{ color: c.text2 }}>
-          El agente de IA analizará el mensaje, puntuará el lead y generará un email de respuesta.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Captación"
+        title="Cualificar nuevo lead"
+        description="El agente de IA analizará el mensaje, puntuará el lead y generará un email de respuesta."
+      />
 
       {/* Pasos de procesamiento */}
       {procesando && (

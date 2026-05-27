@@ -7,6 +7,7 @@ import { obtenerLeads } from '@/lib/api';
 import type { Lead, Clasificacion, EstadoLead } from '@/types/lead';
 import LeadCard from '@/components/LeadCard';
 import { useTheme } from '@/components/ThemeProvider';
+import PageHeader from '@/components/PageHeader';
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -114,72 +115,64 @@ export default function LeadsPage() {
       )}
 
       {/* ── Cabecera ── */}
-      <div className="flex items-start justify-between mb-8">
-        <div>
-          <h1 style={{ color: c.text1 }}>Leads</h1>
-
-          {/* Resumen con plural correcto y desglose de clasificaciones */}
-          {total === 0 ? (
-            <p className="text-sm mt-1" style={{ color: c.text2 }}>Sin leads todavía</p>
+      <PageHeader
+        title="Leads"
+        description={
+          total === 0 ? (
+            <p style={{ fontSize: 14, color: c.text2 }}>Sin leads todavía</p>
           ) : (
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <span className="text-sm" style={{ color: c.text2 }}>
-                {plural(total, 'lead', 'leads')}
-              </span>
-              {calientes > 0 && (
-                <>
-                  <span style={{ color: c.divider }}>·</span>
-                  <span className="flex items-center gap-1.5 text-sm" style={{ color: '#b45309' }}>
-                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: '#b45309' }} />
-                    {plural(calientes, 'caliente', 'calientes')}
-                  </span>
-                </>
-              )}
-              {tibios > 0 && (
-                <>
-                  <span style={{ color: c.divider }}>·</span>
-                  <span className="flex items-center gap-1.5 text-sm" style={{ color: '#9a7a3a' }}>
-                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: '#c8a96e' }} />
-                    {plural(tibios, 'tibio', 'tibios')}
-                  </span>
-                </>
-              )}
-              {frios > 0 && (
-                <>
-                  <span style={{ color: c.divider }}>·</span>
-                  <span className="flex items-center gap-1.5 text-sm" style={{ color: '#3a7a9a' }}>
-                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: '#6ea8c8' }} />
-                    {plural(frios, 'frío', 'fríos')}
-                  </span>
-                </>
-              )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 14, color: c.text2 }}>{plural(total, 'lead', 'leads')}</span>
+              {calientes > 0 && <>
+                <span style={{ color: c.divider }}>·</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: '#b45309' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#b45309', flexShrink: 0 }} />
+                  {plural(calientes, 'caliente', 'calientes')}
+                </span>
+              </>}
+              {tibios > 0 && <>
+                <span style={{ color: c.divider }}>·</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: '#9a7a3a' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#c8a96e', flexShrink: 0 }} />
+                  {plural(tibios, 'tibio', 'tibios')}
+                </span>
+              </>}
+              {frios > 0 && <>
+                <span style={{ color: c.divider }}>·</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: '#3a7a9a' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#6ea8c8', flexShrink: 0 }} />
+                  {plural(frios, 'frío', 'fríos')}
+                </span>
+              </>}
             </div>
-          )}
-        </div>
-
-        <Link href="/nuevo-lead"
-          className="flex items-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-xl shrink-0"
-          style={{
-            background: '#c8a96e', color: '#1a1814',
-            textDecoration: 'none',
-            boxShadow: '0 2px 12px rgba(200,169,110,0.35)',
-            transition: 'opacity 0.15s, box-shadow 0.15s',
-          }}
-          onMouseEnter={e => {
-            (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 20px rgba(200,169,110,0.5)';
-            (e.currentTarget as HTMLElement).style.opacity = '0.92';
-          }}
-          onMouseLeave={e => {
-            (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 12px rgba(200,169,110,0.35)';
-            (e.currentTarget as HTMLElement).style.opacity = '1';
-          }}
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          Nuevo lead
-        </Link>
-      </div>
+          )
+        }
+        action={
+          <Link href="/nuevo-lead"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              fontSize: 14, fontWeight: 600, padding: '10px 18px',
+              borderRadius: 12, textDecoration: 'none',
+              background: '#c8a96e', color: '#1a1814',
+              boxShadow: '0 2px 12px rgba(200,169,110,0.35)',
+              transition: 'box-shadow 0.15s, opacity 0.15s',
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 20px rgba(200,169,110,0.5)';
+              (e.currentTarget as HTMLElement).style.opacity = '0.92';
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 12px rgba(200,169,110,0.35)';
+              (e.currentTarget as HTMLElement).style.opacity = '1';
+            }}
+          >
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Nuevo lead
+          </Link>
+        }
+      />
 
       {/* ── Métricas ── */}
       <div className="grid grid-cols-3 gap-4 mb-8">

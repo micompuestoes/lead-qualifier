@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth, useUser } from '@clerk/nextjs';
 import { useToast } from '@/components/Toast';
 import { useTheme } from '@/components/ThemeProvider';
+import PageHeader from '@/components/PageHeader';
 
 interface Perfil {
   name: string;
@@ -316,12 +317,11 @@ export default function PerfilPage() {
     <div className="p-8 max-w-2xl mx-auto">
 
       {/* ── Header ── */}
-      <div className="mb-8">
-        <h1 style={{ color: c.text1 }}>Mi perfil</h1>
-        <p className="text-sm mt-1" style={{ color: c.text2 }}>
-          Configura tu empresa, notificaciones e integraciones
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Cuenta"
+        title="Mi perfil"
+        description="Configura tu empresa, notificaciones e integraciones"
+      />
 
       <div className="space-y-5">
 

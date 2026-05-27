@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { useToast } from '@/components/Toast';
 import { useTheme } from '@/components/ThemeProvider';
+import PageHeader from '@/components/PageHeader';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
@@ -98,12 +99,11 @@ export default function AnunciosPage() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-8">
-      <div>
-        <h1 style={{ color: c.text1 }}>Generador de anuncios</h1>
-        <p className="text-sm mt-1" style={{ color: c.text2 }}>
-          Describe el inmueble y la IA redactará anuncios listos para publicar en cada canal.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Herramientas"
+        title="Generador de anuncios"
+        description="Describe el inmueble y la IA redactará anuncios listos para publicar en cada canal."
+      />
 
       <form onSubmit={generar} className="space-y-6">
 

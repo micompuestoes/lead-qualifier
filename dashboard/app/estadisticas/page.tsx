@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import Link from 'next/link';
 import { useTheme } from '@/components/ThemeProvider';
+import PageHeader from '@/components/PageHeader';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
@@ -115,10 +116,11 @@ export default function EstadisticasPage() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">
-      <div>
-        <h1 style={{ color: c.text1 }}>Estadísticas</h1>
-        <p className="text-sm mt-1" style={{ color: c.text2 }}>Resumen de la actividad de tu dashboard</p>
-      </div>
+      <PageHeader
+        eyebrow="Análisis"
+        title="Estadísticas"
+        description="Resumen de la actividad de tu dashboard"
+      />
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
