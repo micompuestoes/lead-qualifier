@@ -102,7 +102,24 @@ const cuentaLinks: NavLink[] = [
   { href: '/perfil', label: 'Mi perfil', icon: <IconProfile /> },
 ];
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+const BASE        = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+const CACHE_KEY   = 'inmobia-perfil';
+const FETCH_MS    = 10_000;   // timeout para cada intento
+const RETRY_MS    = 20_000;   // espera entre reintentos si el backend está frío
+
+// ── Cache helpers ─────────────────────────────────────────────────────────────
+
+function leerCache(): Perfil | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    return raw ? (JSON.parse(raw) as Perfil) : null;
+  } catch { return null; }
+}
+
+function escribirCache(perfil: Perfil) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(perfil)); } catch {}
+}
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -165,21 +182,54 @@ export default function Sidebar() {
   const pathname     = usePathname();
   const { getToken } = useAuth();
   const { c, isDark, toggle } = useTheme();
-  const [perfil, setPerfil] = useState<Perfil>({ plan: 'free', name: '', is_admin: false });
+
+  // Arranca con el cache para que el plan sea correcto al instante
+  const [perfil, setPerfil]         = useState<Perfil>(() => leerCache() ?? { plan: 'free', name: '', is_admin: false });
+  const [reconectando, setReconectando] = useState(false);
 
   useEffect(() => {
-    async function cargarPerfil() {
+    let cancelado = false;
+
+    async function cargarPerfil(esReintento = false) {
       try {
         const token = await getToken();
-        if (!token) return;
-        const res = await fetch(`${BASE}/me`, { headers: { Authorization: `Bearer ${token}` } });
-        if (res.ok) {
-          const d = await res.json();
-          setPerfil({ plan: d.plan ?? 'free', name: d.name ?? '', is_admin: d.is_admin ?? false });
+        if (!token || cancelado) return;
+
+        // Timeout explícito para detectar backend frío
+        const controller = new AbortController();
+        const tid = setTimeout(() => controller.abort(), FETCH_MS);
+
+        try {
+          const res = await fetch(`${BASE}/me`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+          });
+          clearTimeout(tid);
+          if (cancelado) return;
+
+          if (res.ok) {
+            const d = await res.json();
+            const p: Perfil = { plan: d.plan ?? 'free', name: d.name ?? '', is_admin: d.is_admin ?? false };
+            setPerfil(p);
+            escribirCache(p);
+            setReconectando(false);
+          }
+        } catch {
+          // AbortError → backend frío. Reintentamos una vez.
+          clearTimeout(tid);
+          if (cancelado) return;
+          if (!esReintento) {
+            setReconectando(true);
+            setTimeout(() => { if (!cancelado) cargarPerfil(true); }, RETRY_MS);
+          } else {
+            setReconectando(false); // rendirse tras 2 intentos
+          }
         }
-      } catch { /* silencioso */ }
+      } catch { /* error de getToken — silencioso */ }
     }
+
     cargarPerfil();
+    return () => { cancelado = true; };
   }, [getToken]);
 
   const esActivo      = (href: string) =>
@@ -306,6 +356,31 @@ export default function Sidebar() {
                 : 'Anuncios IA y estadísticas avanzadas'}
             </p>
           </Link>
+        </div>
+      )}
+
+      {/* ── Indicador de reconexión ── */}
+      {reconectando && (
+        <div style={{
+          margin: '0 12px 10px',
+          padding: '8px 12px',
+          borderRadius: 10,
+          background: 'rgba(200,169,110,0.08)',
+          border: '1px solid rgba(200,169,110,0.2)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}>
+          <div style={{
+            width: 12, height: 12, borderRadius: '50%',
+            border: '2px solid rgba(200,169,110,0.3)',
+            borderTopColor: '#c8a96e',
+            flexShrink: 0,
+            animation: 'spin 0.8s linear infinite',
+          }} />
+          <p style={{ fontSize: 11, color: '#9a7a3a', lineHeight: 1.3 }}>
+            Reconectando con el servidor…
+          </p>
         </div>
       )}
 
