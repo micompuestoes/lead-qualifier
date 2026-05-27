@@ -11,18 +11,17 @@ import PageHeader from '@/components/PageHeader';
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
-const CLASIFICACIONES: (Clasificacion | 'TODAS')[] = ['TODAS', 'CALIENTE', 'TIBIO', 'FRÍO'];
 const ESTADOS: (EstadoLead | 'TODOS')[] = ['TODOS', 'PENDIENTE', 'CONTACTADO', 'CERRADO', 'DESCARTADO'];
 
-const CLASIF_LABEL: Record<string, string> = {
-  TODAS: 'Todas', CALIENTE: 'Caliente', TIBIO: 'Tibio', 'FRÍO': 'Frío',
-};
-const ESTADO_LABEL: Record<string, string> = {
-  TODOS: 'Todos', PENDIENTE: 'Pendiente', CONTACTADO: 'Contactado',
-  CERRADO: 'Cerrado', DESCARTADO: 'Descartado',
+const ESTADO_CONFIG: Record<string, { label: string; dot: string | null }> = {
+  TODOS:      { label: 'Todos',       dot: null         },
+  PENDIENTE:  { label: 'Pendiente',   dot: '#c8a96e'    },
+  CONTACTADO: { label: 'Contactado',  dot: '#6ea8c8'    },
+  CERRADO:    { label: 'Cerrado',     dot: '#6ec87a'    },
+  DESCARTADO: { label: 'Descartado',  dot: '#9a9490'    },
 };
 
-// ── Helper ────────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function plural(n: number, singular: string, pluralStr: string) {
   return `${n} ${n === 1 ? singular : pluralStr}`;
@@ -80,6 +79,11 @@ export default function LeadsPage() {
       pendingLeads.current = [];
     }
     setLeadsNuevos(0);
+  }
+
+  // Clic en una tarjeta métrica: activa/desactiva el filtro de clasificación
+  function toggleClasif(clasif: Clasificacion) {
+    setFiltroClasif(prev => prev === clasif ? 'TODAS' : clasif);
   }
 
   // ── Datos derivados ──────────────────────────────────────────────────────────
@@ -174,47 +178,77 @@ export default function LeadsPage() {
         }
       />
 
-      {/* ── Métricas ── */}
+      {/* ── Métricas — también son el filtro de clasificación ── */}
       <div className="grid grid-cols-3 gap-4 mb-8">
-        <MetricaCard label="Calientes" valor={calientes} total={total}
-          color="#b45309" barColor="rgba(180,83,9,0.7)" c={c} />
-        <MetricaCard label="Tibios"    valor={tibios}    total={total}
-          color="#9a7a3a" barColor="#c8a96e" c={c} />
-        <MetricaCard label="Fríos"     valor={frios}     total={total}
-          color="#3a7a9a" barColor="rgba(110,168,200,0.8)" c={c} />
+        <MetricaCard
+          label="Calientes" valor={calientes} total={total}
+          color="#b45309" barColor="rgba(180,83,9,0.7)" c={c}
+          isActive={filtroClasif === 'CALIENTE'}
+          isDimmed={filtroClasif !== 'TODAS' && filtroClasif !== 'CALIENTE'}
+          onClick={() => toggleClasif('CALIENTE')}
+        />
+        <MetricaCard
+          label="Tibios" valor={tibios} total={total}
+          color="#9a7a3a" barColor="#c8a96e" c={c}
+          isActive={filtroClasif === 'TIBIO'}
+          isDimmed={filtroClasif !== 'TODAS' && filtroClasif !== 'TIBIO'}
+          onClick={() => toggleClasif('TIBIO')}
+        />
+        <MetricaCard
+          label="Fríos" valor={frios} total={total}
+          color="#3a7a9a" barColor="rgba(110,168,200,0.8)" c={c}
+          isActive={filtroClasif === 'FRÍO'}
+          isDimmed={filtroClasif !== 'TODAS' && filtroClasif !== 'FRÍO'}
+          onClick={() => toggleClasif('FRÍO')}
+        />
       </div>
 
-      {/* ── Filtros ── */}
-      <div className="flex flex-wrap gap-6 mb-7">
-        {[
-          { title: 'Clasificación', opciones: CLASIFICACIONES, labels: CLASIF_LABEL, valor: filtroClasif, setter: setFiltroClasif },
-          { title: 'Estado',        opciones: ESTADOS,         labels: ESTADO_LABEL, valor: filtroEstado, setter: setFiltroEstado },
-        ].map(({ title, opciones, labels, valor, setter }) => (
-          <div key={title}>
-            <p className="text-xs font-semibold uppercase tracking-widest mb-2.5"
-              style={{ color: c.text2, letterSpacing: '0.1em' }}>
-              {title}
-            </p>
-            <div className="flex gap-1.5">
-              {opciones.map(o => {
-                const activo = valor === o;
-                return (
-                  <button key={o}
-                    onClick={() => (setter as (v: typeof o) => void)(o)}
-                    className="px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150"
-                    style={{
-                      background:  activo ? c.btnActive    : c.btnInactive,
-                      color:       activo ? c.btnActiveTxt : c.btnInactiveTxt,
-                      border:      activo ? 'none'          : `1px solid ${c.btnInactiveBorder}`,
-                      boxShadow:   activo ? '0 1px 4px rgba(26,24,20,0.08)' : 'none',
-                    }}>
-                    {labels[o] ?? o}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+      {/* ── Filtro de estado — selector segmentado ── */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{
+          display:      'inline-flex',
+          background:   c.muted,
+          border:       `1px solid ${c.inputBorder}`,
+          borderRadius: 14,
+          padding:      4,
+          gap:          2,
+        }}>
+          {ESTADOS.map(estado => {
+            const activo  = filtroEstado === estado;
+            const cfg     = ESTADO_CONFIG[estado];
+            return (
+              <button key={estado}
+                onClick={() => setFiltroEstado(estado)}
+                style={{
+                  display:      'inline-flex',
+                  alignItems:   'center',
+                  gap:          6,
+                  padding:      '7px 14px',
+                  borderRadius: 10,
+                  fontSize:     13,
+                  fontWeight:   activo ? 600 : 400,
+                  background:   activo ? c.card : 'transparent',
+                  color:        activo ? c.text1 : c.text2,
+                  border:       'none',
+                  cursor:       'pointer',
+                  boxShadow:    activo ? '0 1px 6px rgba(26,24,20,0.09)' : 'none',
+                  transition:   'background 0.15s, color 0.15s, box-shadow 0.15s',
+                  whiteSpace:   'nowrap',
+                }}
+              >
+                {cfg.dot && (
+                  <span style={{
+                    width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                    background: cfg.dot,
+                    opacity: activo ? 1 : 0.45,
+                    transition: 'opacity 0.15s',
+                  }} />
+                )}
+                {cfg.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* ── Contenido ── */}
@@ -246,52 +280,85 @@ export default function LeadsPage() {
   );
 }
 
-// ── Métrica card ──────────────────────────────────────────────────────────────
+// ── Métrica card (filtro de clasificación) ────────────────────────────────────
 
-function MetricaCard({ label, valor, total, color, barColor, c }: {
+function MetricaCard({ label, valor, total, color, barColor, c, isActive, isDimmed, onClick }: {
   label: string; valor: number; total: number;
   color: string; barColor: string;
   c: ReturnType<typeof useTheme>['c'];
+  isActive: boolean;
+  isDimmed: boolean;
+  onClick: () => void;
 }) {
   const porcentaje = total > 0 ? Math.round((valor / total) * 100) : 0;
 
   return (
-    <div className="rounded-xl overflow-hidden transition-all duration-200"
+    <div
+      onClick={onClick}
+      className="rounded-xl overflow-hidden"
       style={{
-        background: c.card,
-        border: c.cardBorder,
-        boxShadow: '0 1px 4px rgba(26,24,20,0.04)',
-      }}>
-
+        background:  isActive ? `${color}0d` : c.card,
+        border:      isActive ? `1.5px solid ${color}` : c.cardBorder,
+        boxShadow:   isActive ? `0 6px 24px ${color}28` : '0 1px 4px rgba(26,24,20,0.04)',
+        opacity:     isDimmed ? 0.38 : 1,
+        transform:   isActive ? 'translateY(-1px)' : 'none',
+        cursor:      'pointer',
+        transition:  'all 0.2s ease',
+        userSelect:  'none',
+      }}
+    >
       {/* Barra de acento superior */}
       <div style={{
-        height: 3,
-        background: `linear-gradient(90deg, ${color}, ${color}55)`,
-        opacity: total === 0 ? 0.3 : 1,
+        height:     isActive ? 4 : 3,
+        background: `linear-gradient(90deg, ${color}, ${color}50)`,
+        opacity:    total === 0 ? 0.25 : (isActive ? 1 : 0.65),
+        transition: 'height 0.2s, opacity 0.2s',
       }} />
 
-      <div className="px-5 py-4">
-        <p className="text-xs font-semibold uppercase tracking-widest mb-3"
-          style={{ color: c.text2, letterSpacing: '0.1em' }}>
-          {label}
-        </p>
+      <div style={{ padding: '16px 20px' }}>
+        {/* Label + check activo */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <p style={{
+            fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+            color: isActive ? color : c.text2,
+            transition: 'color 0.2s',
+          }}>
+            {label}
+          </p>
+          {isActive && (
+            <span style={{
+              width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+              background: color,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <svg width="9" height="9" fill="none" viewBox="0 0 24 24" strokeWidth={3.5} stroke="white">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+            </span>
+          )}
+        </div>
 
-        <div className="flex items-end gap-2.5 mb-4">
-          <p className="text-4xl font-bold tabular-nums leading-none"
-            style={{ color: total === 0 ? c.text3 : color }}>
+        {/* Número + porcentaje */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, marginBottom: 14 }}>
+          <p style={{
+            fontSize: 40, fontWeight: 700, lineHeight: 1,
+            fontVariantNumeric: 'tabular-nums',
+            color: total === 0 ? c.text3 : color,
+          }}>
             {total === 0 ? '—' : valor}
           </p>
           {total > 0 && (
-            <p className="text-sm font-medium pb-1" style={{ color: c.text2 }}>
-              {porcentaje}%
-            </p>
+            <p style={{ fontSize: 14, color: c.text2, paddingBottom: 4 }}>{porcentaje}%</p>
           )}
         </div>
 
         {/* Barra de progreso */}
-        <div className="h-1 rounded-full overflow-hidden" style={{ background: 'rgba(200,169,110,0.1)' }}>
-          <div className="h-full rounded-full transition-all duration-700"
-            style={{ width: `${porcentaje}%`, background: barColor }} />
+        <div style={{ height: 3, borderRadius: 2, overflow: 'hidden', background: 'rgba(200,169,110,0.1)' }}>
+          <div style={{
+            height: '100%', borderRadius: 2,
+            width: `${porcentaje}%`, background: barColor,
+            transition: 'width 0.7s ease',
+          }} />
         </div>
       </div>
     </div>
