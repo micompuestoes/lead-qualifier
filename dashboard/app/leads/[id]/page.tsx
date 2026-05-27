@@ -14,40 +14,71 @@ import LeadBadge from '@/components/LeadBadge';
 import ScoreBar from '@/components/ScoreBar';
 import EmailUI from '@/components/EmailUI';
 import AccionesRecomendadas from '@/components/AccionesRecomendadas';
+import { LeadDetailSkeleton } from '@/components/Skeleton';
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
 const ESTADOS: EstadoLead[] = ['PENDIENTE', 'CONTACTADO', 'CERRADO', 'DESCARTADO'];
 
-const ESTADO_ESTILOS: Record<EstadoLead, { bg: string; color: string; border: string }> = {
-  PENDIENTE:  { bg: 'rgba(200,169,110,0.12)', color: '#9a7a3a', border: 'rgba(200,169,110,0.4)'  },
-  CONTACTADO: { bg: 'rgba(110,168,200,0.1)',  color: '#3a7a9a', border: 'rgba(110,168,200,0.35)' },
-  CERRADO:    { bg: 'rgba(110,200,122,0.1)',  color: '#2d7a3a', border: 'rgba(110,200,122,0.35)' },
-  DESCARTADO: { bg: 'rgba(122,116,104,0.08)', color: '#7a7468', border: 'rgba(122,116,104,0.25)' },
+const ESTADO_META: Record<EstadoLead, { label: string; color: string; bg: string; border: string; dot: string }> = {
+  PENDIENTE:  { label: 'Pendiente',  color: '#9a7a3a', bg: 'rgba(200,169,110,0.1)',  border: 'rgba(200,169,110,0.35)',  dot: '#c8a96e' },
+  CONTACTADO: { label: 'Contactado', color: '#3a7a9a', bg: 'rgba(110,168,200,0.08)', border: 'rgba(110,168,200,0.3)',   dot: '#6ea8c8' },
+  CERRADO:    { label: 'Cerrado',    color: '#2d7a3a', bg: 'rgba(110,200,122,0.08)', border: 'rgba(110,200,122,0.3)',   dot: '#6ec87a' },
+  DESCARTADO: { label: 'Descartado', color: '#7a7468', bg: 'rgba(122,116,104,0.07)', border: 'rgba(122,116,104,0.2)',   dot: '#9a9490' },
 };
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function Avatar({ name, size = 52 }: { name: string; size?: number }) {
+  const letras = name.split(' ').slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('');
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%', flexShrink: 0,
+      background: 'linear-gradient(135deg, rgba(200,169,110,0.3) 0%, rgba(200,169,110,0.14) 100%)',
+      border: '2px solid rgba(200,169,110,0.35)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <span style={{ fontSize: size * 0.28, fontWeight: 700, color: '#9a7a3a', letterSpacing: '0.02em' }}>
+        {letras}
+      </span>
+    </div>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p style={{
+      fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
+      textTransform: 'uppercase', color: '#c8a96e', marginBottom: 14,
+    }}>
+      {children}
+    </p>
+  );
+}
 
 // ── Página ────────────────────────────────────────────────────────────────────
 
 export default function LeadDetallePage() {
-  const { id }    = useParams<{ id: string }>();
-  const router    = useRouter();
+  const { id }       = useParams<{ id: string }>();
+  const router       = useRouter();
   const { addToast } = useToast();
   const { getToken } = useAuth();
-  const { c }     = useTheme();
+  const { c }        = useTheme();
 
   const [lead, setLead]                           = useState<Lead | null>(null);
   const [cargando, setCargando]                   = useState(true);
   const [error, setError]                         = useState<string | null>(null);
+  const [statusLocal, setStatusLocal]             = useState<EstadoLead>('PENDIENTE');
   const [actualizando, setActualizando]           = useState(false);
   const [eliminando, setEliminando]               = useState(false);
   const [confirmarEliminar, setConfirmarEliminar] = useState(false);
 
-  // ── Carga inicial ───────────────────────────────────────────────────────────
-
   useEffect(() => {
     async function cargar() {
       try {
-        setLead(await obtenerLead(id, getToken));
+        const data = await obtenerLead(id, getToken);
+        setLead(data);
+        setStatusLocal((data.status ?? 'PENDIENTE') as EstadoLead);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Error al cargar el lead');
       } finally {
@@ -57,17 +88,18 @@ export default function LeadDetallePage() {
     cargar();
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Handlers ────────────────────────────────────────────────────────────────
-
-  async function cambiarEstado(nuevoEstado: EstadoLead) {
-    if (!lead || actualizando) return;
+  async function cambiarEstado(nuevo: EstadoLead) {
+    if (nuevo === statusLocal || actualizando || !lead) return;
+    const prev = statusLocal;
+    setStatusLocal(nuevo);      // optimistic
+    setActualizando(true);
     try {
-      setActualizando(true);
-      const actualizado = await actualizarEstado(id, { status: nuevoEstado }, getToken);
-      setLead({ ...lead, status: actualizado.status });
-      addToast(`Estado → ${nuevoEstado}`, 'success');
-    } catch (e) {
-      addToast(e instanceof Error ? e.message : 'Error al actualizar', 'error');
+      const updated = await actualizarEstado(id, { status: nuevo }, getToken);
+      setLead({ ...lead, status: updated.status });
+      addToast(`Estado actualizado a ${ESTADO_META[nuevo].label}`, 'success');
+    } catch {
+      setStatusLocal(prev);
+      addToast('No se pudo actualizar el estado', 'error');
     } finally {
       setActualizando(false);
     }
@@ -80,33 +112,30 @@ export default function LeadDetallePage() {
       await eliminarLead(id, getToken);
       addToast('Lead eliminado', 'success');
       router.push('/leads');
-    } catch (e) {
-      addToast(e instanceof Error ? e.message : 'Error al eliminar', 'error');
+    } catch {
+      addToast('Error al eliminar el lead', 'error');
       setEliminando(false);
     }
   }
 
-  // ── Estados de carga / error ─────────────────────────────────────────────────
+  // ── Estados de UI ────────────────────────────────────────────────────────────
 
-  if (cargando) {
-    return (
-      <div className="flex items-center justify-center min-h-screen flex-col gap-3">
-        <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin"
-          style={{ borderColor: 'rgba(200,169,110,0.3)', borderTopColor: '#c8a96e' }} />
-        <p className="text-sm" style={{ color: c.text2 }}>Cargando lead…</p>
-      </div>
-    );
-  }
+  if (cargando) return <LeadDetailSkeleton />;
 
   if (error || !lead) {
     return (
-      <div className="p-8">
-        <div className="rounded-xl p-6 text-center max-w-md mx-auto mt-20"
-          style={{ background: 'rgba(180,83,9,0.05)', border: '1px solid rgba(180,83,9,0.15)' }}>
-          <p className="font-medium mb-2" style={{ color: '#b45309' }}>Lead no encontrado</p>
-          <p className="text-sm mb-4" style={{ color: c.text2 }}>{error}</p>
-          <Link href="/leads" className="px-4 py-2 rounded-lg text-sm font-medium"
-            style={{ background: '#1a1814', color: '#f5f0e8', textDecoration: 'none' }}>
+      <div style={{ padding: 32 }}>
+        <div style={{
+          borderRadius: 14, padding: 32, textAlign: 'center',
+          maxWidth: 380, margin: '80px auto',
+          background: 'rgba(180,83,9,0.05)', border: '1px solid rgba(180,83,9,0.15)',
+        }}>
+          <p style={{ fontWeight: 600, color: '#b45309', marginBottom: 8 }}>Lead no encontrado</p>
+          <p style={{ fontSize: 13, color: c.text2, marginBottom: 20 }}>{error}</p>
+          <Link href="/leads" style={{
+            padding: '8px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+            background: '#1a1814', color: '#f5f0e8', textDecoration: 'none',
+          }}>
             Volver a leads
           </Link>
         </div>
@@ -116,158 +145,256 @@ export default function LeadDetallePage() {
 
   // ── Datos derivados ──────────────────────────────────────────────────────────
 
-  const statusActual = (lead.status ?? 'PENDIENTE') as EstadoLead;
-  const asunto       = generarAsunto(lead.name, lead.classification);
-  const puntos       = lead.reasoning ? parsearReasoning(lead.reasoning) : [];
+  const asunto = generarAsunto(lead.name, lead.classification);
+  const puntos = lead.reasoning ? parsearReasoning(lead.reasoning) : [];
+  const meta   = ESTADO_META[statusLocal];
+
+  const card = { background: c.card, border: c.cardBorder, borderRadius: 16 };
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-8 max-w-4xl">
+    <div style={{ padding: 32, maxWidth: 1100, margin: '0 auto' }}>
 
-      {/* Breadcrumb */}
-      <Link href="/leads"
-        className="flex items-center gap-1.5 text-sm mb-6 transition-colors"
-        style={{ color: c.text2, textDecoration: 'none' }}>
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+      {/* ── Breadcrumb ── */}
+      <Link href="/leads" style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        fontSize: 13, color: c.text2, textDecoration: 'none',
+        marginBottom: 28, transition: 'color 0.15s',
+      }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = c.text1; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = c.text2; }}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"/>
+          <polyline points="12 19 5 12 12 5"/>
         </svg>
-        Volver a todos los leads
+        Todos los leads
       </Link>
 
-      {/* ── Tarjeta principal ── */}
-      <div className="rounded-2xl p-6 mb-6 animate-reveal-in"
-        style={{ background: c.card, border: c.cardBorder }}>
-
-        {/* Nombre, email, badge */}
-        <div className="flex items-start justify-between gap-4 mb-4">
-          <div>
-            <h1 className="text-2xl" style={{ color: c.text1 }}>{lead.name}</h1>
-            <p className="mt-0.5" style={{ color: c.text2 }}>{lead.email}</p>
-            {lead.phone && <p className="text-sm mt-0.5" style={{ color: c.text2 }}>{lead.phone}</p>}
+      {/* ── Hero card ── */}
+      <div style={{ ...card, padding: 24, marginBottom: 24 }} className="animate-reveal-in">
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 18, marginBottom: 20 }}>
+          <Avatar name={lead.name} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
+              <h1 style={{ fontSize: '1.6rem', color: c.text1 }}>{lead.name}</h1>
+              <div style={{ flexShrink: 0, paddingTop: 4 }}>
+                <LeadBadge clasificacion={lead.classification} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 14, color: c.text2 }}>{lead.email}</span>
+              {lead.phone && (
+                <>
+                  <span style={{ width: 3, height: 3, borderRadius: '50%', background: c.text3, flexShrink: 0 }} />
+                  <span style={{ fontSize: 14, color: c.text2 }}>{lead.phone}</span>
+                </>
+              )}
+            </div>
           </div>
-          <LeadBadge clasificacion={lead.classification} />
         </div>
 
         {/* Score */}
-        <div className="mb-5">
-          <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: c.text2 }}>
-            Puntuación del agente
-          </p>
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: c.text2 }}>
+              Puntuación IA
+            </p>
+            {lead.score !== null && (
+              <span style={{ fontSize: 26, fontWeight: 700, color: c.text1, lineHeight: 1 }}>
+                {lead.score}
+                <span style={{ fontSize: 13, color: c.text2, fontWeight: 400 }}>/10</span>
+              </span>
+            )}
+          </div>
           <ScoreBar score={lead.score} />
         </div>
 
-        {/* Razonamiento */}
-        {puntos.length > 0 && (
-          <div className="rounded-xl p-4 mb-5" style={{ background: c.muted }}>
-            <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: c.text2 }}>
-              Razonamiento del agente
-            </p>
-            <ul className="space-y-2">
-              {puntos.map((punto, i) => (
-                <li key={i} className="flex items-start gap-2.5">
-                  <span className="mt-1.5 w-1.5 h-1.5 rounded-full shrink-0" style={{ background: '#c8a96e' }} />
-                  <span className="text-sm leading-relaxed" style={{ color: c.text1 }}>{punto}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
         {/* Fechas */}
-        <div className="flex gap-6 text-xs pt-4" style={{ borderTop: `1px solid ${c.divider}`, color: c.text2 }}>
-          <span>Recibido: {formatearFecha(lead.created_at)}</span>
-          {lead.processed_at && <span>Procesado: {formatearFecha(lead.processed_at)}</span>}
-        </div>
-      </div>
-
-      {/* ── Mensaje original ── */}
-      <div className="rounded-2xl p-6 mb-6 animate-reveal-in"
-        style={{ background: c.card, border: c.cardBorder, animationDelay: '80ms' }}>
-        <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: c.text2 }}>
-          Mensaje original
-        </p>
-        <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: c.text1 }}>
-          {lead.message}
-        </p>
-      </div>
-
-      {/* ── Email generado ── */}
-      <div className="mb-6 animate-reveal-in" style={{ animationDelay: '160ms' }}>
-        {lead.generated_email ? (
-          <EmailUI email={lead.generated_email} leadEmail={lead.email} asunto={asunto} />
-        ) : (
-          <div className="rounded-xl p-4 text-sm italic"
-            style={{ background: c.muted, border: `1px solid ${c.divider}`, color: c.text2 }}>
-            Email no disponible
-          </div>
-        )}
-      </div>
-
-      {/* ── Acciones recomendadas ── */}
-      {lead.recommended_actions && lead.recommended_actions.length > 0 && (
-        <div className="animate-reveal-in" style={{ animationDelay: '240ms' }}>
-          <AccionesRecomendadas acciones={lead.recommended_actions} />
-        </div>
-      )}
-
-      {/* ── Selector de estado ── */}
-      <div className="rounded-2xl p-6 mb-6 animate-reveal-in"
-        style={{ background: c.card, border: c.cardBorder, animationDelay: '320ms' }}>
-        <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: c.text2 }}>
-          Estado del lead{' '}
-          {actualizando && (
-            <span className="normal-case font-normal" style={{ color: '#c8a96e' }}>(guardando…)</span>
+        <div style={{
+          display: 'flex', gap: 24, paddingTop: 16, flexWrap: 'wrap',
+          borderTop: `1px solid ${c.divider}`,
+        }}>
+          <span style={{ fontSize: 12, color: c.text2 }}>
+            <span style={{ color: c.text3 }}>Recibido · </span>
+            {formatearFecha(lead.created_at)}
+          </span>
+          {lead.processed_at && (
+            <span style={{ fontSize: 12, color: c.text2 }}>
+              <span style={{ color: c.text3 }}>Procesado · </span>
+              {formatearFecha(lead.processed_at)}
+            </span>
           )}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {ESTADOS.map(estado => {
-            const activo = statusActual === estado;
-            const est    = ESTADO_ESTILOS[estado];
-            return (
-              <button key={estado} onClick={() => cambiarEstado(estado)} disabled={actualizando}
-                className="px-4 py-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
-                style={{
-                  background: activo ? est.bg    : 'transparent',
-                  color:      activo ? est.color : c.text2,
-                  border:     activo ? `1.5px solid ${est.border}` : `1.5px solid ${c.inputBorder}`,
-                }}>
-                {estado}
-              </button>
-            );
-          })}
         </div>
       </div>
 
-      {/* ── Zona de peligro ── */}
-      <div className="rounded-2xl p-6 animate-reveal-in"
-        style={{ border: '1px solid rgba(180,83,9,0.15)', animationDelay: '400ms' }}>
-        <p className="text-sm font-semibold mb-3" style={{ color: '#b45309' }}>Zona de peligro</p>
-        {!confirmarEliminar ? (
-          <button
-            onClick={() => setConfirmarEliminar(true)}
-            className="px-4 py-2 rounded-xl text-sm transition-all"
-            style={{ border: '1px solid rgba(180,83,9,0.25)', color: '#b45309', background: 'transparent' }}
-          >
-            Eliminar lead
-          </button>
-        ) : (
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="text-sm" style={{ color: c.text2 }}>¿Seguro? Esta acción no se puede deshacer.</p>
-            <button onClick={handleEliminar} disabled={eliminando}
-              className="px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50 transition-all"
-              style={{ background: '#b45309', color: '#fff', border: 'none' }}>
-              {eliminando ? 'Eliminando…' : 'Sí, eliminar'}
-            </button>
-            <button onClick={() => setConfirmarEliminar(false)}
-              className="px-4 py-2 rounded-xl text-sm transition-all"
-              style={{ border: `1.5px solid ${c.inputBorder}`, color: c.text2, background: 'transparent' }}>
-              Cancelar
-            </button>
-          </div>
-        )}
-      </div>
+      {/* ── Dos columnas ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 320px', gap: 20, alignItems: 'start' }}>
 
+        {/* ── Columna izquierda ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+          {/* Mensaje original */}
+          <div style={{ ...card, padding: 22 }} className="animate-reveal-in" data-delay="80">
+            <SectionLabel>Mensaje original</SectionLabel>
+            <p style={{ fontSize: 14, lineHeight: 1.75, color: c.text1, whiteSpace: 'pre-wrap' }}>
+              {lead.message}
+            </p>
+          </div>
+
+          {/* Email generado */}
+          <div className="animate-reveal-in" style={{ animationDelay: '120ms' }}>
+            {lead.generated_email ? (
+              <EmailUI email={lead.generated_email} leadEmail={lead.email} asunto={asunto} />
+            ) : (
+              <div style={{
+                ...card, padding: 20,
+                display: 'flex', alignItems: 'center', gap: 10,
+              }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.text3} strokeWidth="1.5" strokeLinecap="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                  <polyline points="22,6 12,13 2,6"/>
+                </svg>
+                <span style={{ fontSize: 13, color: c.text3, fontStyle: 'italic' }}>Email no generado aún</span>
+              </div>
+            )}
+          </div>
+
+          {/* Acciones recomendadas */}
+          {lead.recommended_actions && lead.recommended_actions.length > 0 && (
+            <div className="animate-reveal-in" style={{ animationDelay: '160ms' }}>
+              <AccionesRecomendadas acciones={lead.recommended_actions} />
+            </div>
+          )}
+        </div>
+
+        {/* ── Columna derecha (sidebar) ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+          {/* Estado */}
+          <div style={{ ...card, padding: 20 }} className="animate-reveal-in" data-delay="80">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <SectionLabel>Estado del lead</SectionLabel>
+              {actualizando && (
+                <span style={{ fontSize: 11, color: '#c8a96e' }}>Guardando…</span>
+              )}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {ESTADOS.map(estado => {
+                const m      = ESTADO_META[estado];
+                const activo = statusLocal === estado;
+                return (
+                  <button key={estado} onClick={() => cambiarEstado(estado)} disabled={actualizando}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '10px 14px', borderRadius: 10, width: '100%',
+                      fontSize: 13, fontWeight: activo ? 600 : 400,
+                      background: activo ? m.bg : 'transparent',
+                      color: activo ? m.color : c.text2,
+                      border: activo ? `1.5px solid ${m.border}` : '1.5px solid transparent',
+                      cursor: actualizando ? 'default' : 'pointer',
+                      textAlign: 'left', transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => {
+                      if (!activo && !actualizando)
+                        (e.currentTarget as HTMLElement).style.background = `${m.dot}0a`;
+                    }}
+                    onMouseLeave={e => {
+                      if (!activo)
+                        (e.currentTarget as HTMLElement).style.background = 'transparent';
+                    }}
+                  >
+                    <span style={{
+                      width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                      background: m.dot, opacity: activo ? 1 : 0.4,
+                      transition: 'opacity 0.15s',
+                    }} />
+                    {m.label}
+                    {activo && (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                        stroke={m.color} strokeWidth="2.5" strokeLinecap="round"
+                        style={{ marginLeft: 'auto' }}>
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Razonamiento IA */}
+          {puntos.length > 0 && (
+            <div style={{ ...card, padding: 20 }} className="animate-reveal-in" data-delay="120">
+              <SectionLabel>Razonamiento del agente</SectionLabel>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {puntos.map((punto, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <span style={{
+                      width: 5, height: 5, borderRadius: '50%', background: '#c8a96e',
+                      flexShrink: 0, marginTop: 6,
+                    }} />
+                    <p style={{ fontSize: 13, lineHeight: 1.65, color: c.text1 }}>{punto}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Zona de peligro */}
+          <div style={{
+            borderRadius: 16, padding: 20,
+            border: '1px solid rgba(180,83,9,0.13)',
+          }} className="animate-reveal-in" data-delay="160">
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#b45309', marginBottom: 14 }}>
+              Zona de peligro
+            </p>
+            {!confirmarEliminar ? (
+              <button onClick={() => setConfirmarEliminar(true)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 7,
+                  fontSize: 13, padding: '9px 14px', borderRadius: 10,
+                  border: '1px solid rgba(180,83,9,0.2)',
+                  color: '#b45309', background: 'transparent', cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                  <path d="M10 11v6"/><path d="M14 11v6"/>
+                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                </svg>
+                Eliminar lead
+              </button>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <p style={{ fontSize: 12, color: c.text2, lineHeight: 1.5 }}>
+                  Esta acción es permanente y no se puede deshacer.
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={handleEliminar} disabled={eliminando}
+                    style={{
+                      flex: 1, padding: '9px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+                      background: '#b45309', color: '#fff', border: 'none', cursor: eliminando ? 'default' : 'pointer',
+                      opacity: eliminando ? 0.6 : 1,
+                    }}>
+                    {eliminando ? 'Eliminando…' : 'Confirmar'}
+                  </button>
+                  <button onClick={() => setConfirmarEliminar(false)}
+                    style={{
+                      flex: 1, padding: '9px', borderRadius: 10, fontSize: 13,
+                      border: `1.5px solid ${c.inputBorder}`, color: c.text2,
+                      background: 'transparent', cursor: 'pointer',
+                    }}>
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

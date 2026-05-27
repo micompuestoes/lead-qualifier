@@ -8,6 +8,7 @@ import type { Lead, Clasificacion, EstadoLead } from '@/types/lead';
 import LeadCard from '@/components/LeadCard';
 import { LeadCardSkeleton } from '@/components/Skeleton';
 import { useTheme } from '@/components/ThemeProvider';
+import { useToast } from '@/components/Toast';
 import PageHeader from '@/components/PageHeader';
 
 // ── Constantes ────────────────────────────────────────────────────────────────
@@ -30,9 +31,34 @@ function plural(n: number, singular: string, pluralStr: string) {
 
 // ── Página ────────────────────────────────────────────────────────────────────
 
+// ── CSV export ─────────────────────────────────────────────────────────────────
+
+function generarCSV(leads: Lead[]) {
+  const esc = (s: string | null | undefined) => `"${(s ?? '').replace(/"/g, '""')}"`;
+  const filas = leads.map(l => [
+    esc(l.name), esc(l.email), esc(l.phone),
+    l.classification ?? '', l.score ?? '',
+    l.status ?? '',
+    l.created_at ? new Date(l.created_at).toLocaleDateString('es-ES') : '',
+    esc(l.message),
+  ].join(','));
+  const csv  = ['Nombre,Email,Teléfono,Clasificación,Score,Estado,Fecha,Mensaje', ...filas].join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement('a'), {
+    href: url,
+    download: `leads-${new Date().toISOString().slice(0, 10)}.csv`,
+  });
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+// ── Página ────────────────────────────────────────────────────────────────────
+
 export default function LeadsPage() {
   const { getToken } = useAuth();
   const { c } = useTheme();
+  const { addToast } = useToast();
 
   const [leads, setLeads]               = useState<Lead[]>([]);
   const [cargando, setCargando]         = useState(true);
@@ -41,6 +67,14 @@ export default function LeadsPage() {
   const [filtroEstado, setFiltroEstado] = useState<EstadoLead | 'TODOS'>('TODOS');
   const [busqueda, setBusqueda]         = useState('');
   const [busquedaFocus, setBusquedaFocus] = useState(false);
+  const [plan, setPlan]                 = useState('free');
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('inmobia-perfil');
+      if (raw) setPlan(JSON.parse(raw).plan ?? 'free');
+    } catch {}
+  }, []);
 
   const idsConocidos = useRef<Set<string>>(new Set());
   const pendingLeads = useRef<Lead[]>([]);
@@ -87,6 +121,16 @@ export default function LeadsPage() {
   // Clic en tarjeta métrica: toggle de clasificación
   function toggleClasif(clasif: Clasificacion) {
     setFiltroClasif(prev => prev === clasif ? 'TODAS' : clasif);
+  }
+
+  function handleExportCSV() {
+    if (plan === 'free') {
+      addToast('El export CSV requiere el plan Pro o Agencia', 'error');
+      return;
+    }
+    if (leads.length === 0) { addToast('No hay leads que exportar', 'error'); return; }
+    generarCSV(leads);
+    addToast(`${leads.length} leads exportados`, 'success');
   }
 
   // Cambio inline de estado desde la tarjeta
@@ -163,7 +207,35 @@ export default function LeadsPage() {
           )
         }
         action={
-          <Link href="/nuevo-lead"
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Export CSV */}
+            <button onClick={handleExportCSV}
+              title={plan === 'free' ? 'Disponible en plan Pro o Agencia' : `Exportar ${leads.length} leads a CSV`}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                fontSize: 13, fontWeight: 500, padding: '9px 14px',
+                borderRadius: 11, border: `1.5px solid ${c.inputBorder}`,
+                background: 'transparent', color: plan === 'free' ? c.text3 : c.text2,
+                cursor: plan === 'free' ? 'not-allowed' : 'pointer',
+                transition: 'all 0.15s',
+              }}>
+              {plan === 'free' ? (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+              ) : (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+              )}
+              CSV
+            </button>
+
+            {/* Nuevo lead */}
+            <Link href="/nuevo-lead"
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 7,
               fontSize: 14, fontWeight: 600, padding: '10px 18px',
@@ -186,6 +258,7 @@ export default function LeadsPage() {
             </svg>
             Nuevo lead
           </Link>
+          </div>
         }
       />
 
