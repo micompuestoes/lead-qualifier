@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import Link from 'next/link';
+import { obtenerLeads } from '@/lib/api';
+import type { Lead } from '@/types/lead';
 import { useTheme } from '@/components/ThemeProvider';
 import PageHeader from '@/components/PageHeader';
 
@@ -150,12 +152,166 @@ function PlanGate({ c }: { c: ReturnType<typeof useTheme>['c'] }) {
   );
 }
 
+// ── Calendario de actividad (heatmap estilo GitHub) ─────────────────────────────
+
+const WEEKS = 22;
+const NIVEL_COLOR = [
+  'rgba(200,169,110,0.10)',  // 0
+  'rgba(200,169,110,0.32)',  // 1
+  'rgba(200,169,110,0.52)',  // 2
+  'rgba(200,169,110,0.74)',  // 3
+  '#c8a96e',                  // 4+
+];
+const DIAS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+
+function ymd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function nivel(n: number): number {
+  if (n <= 0) return 0;
+  if (n === 1) return 1;
+  if (n <= 2) return 2;
+  if (n <= 4) return 3;
+  return 4;
+}
+
+function CalendarHeatmap({ leads, c }: { leads: Lead[]; c: ReturnType<typeof useTheme>['c'] }) {
+  // Conteo por día
+  const counts = new Map<string, number>();
+  for (const l of leads) {
+    if (!l.created_at) continue;
+    const k = ymd(new Date(l.created_at));
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const dowHoy = (hoy.getDay() + 6) % 7;                 // Lunes = 0
+  const lunesActual = new Date(hoy); lunesActual.setDate(hoy.getDate() - dowHoy);
+  const primerLunes = new Date(lunesActual); primerLunes.setDate(lunesActual.getDate() - (WEEKS - 1) * 7);
+
+  interface Celda { date: Date; key: string; count: number; future: boolean }
+  const semanas: Celda[][] = [];
+  for (let w = 0; w < WEEKS; w++) {
+    const dias: Celda[] = [];
+    for (let d = 0; d < 7; d++) {
+      const date = new Date(primerLunes);
+      date.setDate(primerLunes.getDate() + w * 7 + d);
+      const key = ymd(date);
+      dias.push({ date, key, count: counts.get(key) ?? 0, future: date > hoy });
+    }
+    semanas.push(dias);
+  }
+
+  // Stats del periodo
+  let totalPeriodo = 0;
+  let mejorDia: Celda | null = null;
+  for (const sem of semanas) for (const c2 of sem) {
+    if (c2.future) continue;
+    totalPeriodo += c2.count;
+    if (!mejorDia || c2.count > mejorDia.count) mejorDia = c2;
+  }
+
+  // Etiquetas de mes (cuando cambia el mes respecto a la semana anterior)
+  const etiquetasMes = semanas.map((sem, i) => {
+    const mes = sem[0].date.getMonth();
+    const prevMes = i > 0 ? semanas[i - 1][0].date.getMonth() : -1;
+    return mes !== prevMes
+      ? sem[0].date.toLocaleDateString('es-ES', { month: 'short' })
+      : '';
+  });
+
+  const CELL = 14, GAP = 4;
+
+  return (
+    <div style={{ background: c.card, border: c.cardBorder, borderRadius: 16, padding: 20 }}>
+      <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: c.text2, marginBottom: 18 }}>
+        Actividad de leads
+      </p>
+
+      <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+
+        {/* Heatmap */}
+        <div style={{ display: 'flex', gap: 6 }}>
+          {/* Etiquetas de día */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: GAP, paddingTop: 18 }}>
+            {DIAS.map((d, i) => (
+              <span key={i} style={{
+                height: CELL, fontSize: 9, lineHeight: `${CELL}px`,
+                color: c.text3, width: 12, textAlign: 'center',
+                opacity: i % 2 === 0 ? 1 : 0,   // alterna para no saturar
+              }}>{d}</span>
+            ))}
+          </div>
+
+          {/* Columnas (semanas) */}
+          <div>
+            {/* Meses */}
+            <div style={{ display: 'flex', gap: GAP, height: 18 }}>
+              {etiquetasMes.map((m, i) => (
+                <span key={i} style={{ width: CELL, fontSize: 9, color: c.text2, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                  {m}
+                </span>
+              ))}
+            </div>
+            {/* Celdas */}
+            <div style={{ display: 'flex', gap: GAP }}>
+              {semanas.map((sem, wi) => (
+                <div key={wi} style={{ display: 'flex', flexDirection: 'column', gap: GAP }}>
+                  {sem.map((cel) => (
+                    <div
+                      key={cel.key}
+                      title={cel.future ? '' : `${cel.count} ${cel.count === 1 ? 'lead' : 'leads'} · ${cel.date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}`}
+                      style={{
+                        width: CELL, height: CELL, borderRadius: 3,
+                        background: cel.future ? 'transparent' : NIVEL_COLOR[nivel(cel.count)],
+                        border: cel.future ? 'none' : `1px solid ${c.bg === '#0f0e0b' ? 'rgba(255,255,255,0.02)' : 'rgba(26,24,20,0.03)'}`,
+                      }}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Panel lateral de resumen */}
+        <div style={{ flex: 1, minWidth: 180, display: 'flex', flexDirection: 'column', gap: 18, paddingTop: 4 }}>
+          <div>
+            <p style={{ fontSize: 30, fontWeight: 700, lineHeight: 1, color: c.text1 }}>{totalPeriodo}</p>
+            <p style={{ fontSize: 12, color: c.text2, marginTop: 4 }}>leads en los últimos {Math.round(WEEKS / 4.345)} meses</p>
+          </div>
+          {mejorDia && mejorDia.count > 0 && (
+            <div>
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: c.text2, marginBottom: 4 }}>
+                Día más activo
+              </p>
+              <p style={{ fontSize: 14, color: c.text1 }}>
+                {mejorDia.date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+                <span style={{ color: '#9a7a3a', fontWeight: 600 }}> · {mejorDia.count} leads</span>
+              </p>
+            </div>
+          )}
+          {/* Leyenda */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 'auto' }}>
+            <span style={{ fontSize: 10, color: c.text3 }}>menos</span>
+            {NIVEL_COLOR.map((col, i) => (
+              <span key={i} style={{ width: 11, height: 11, borderRadius: 3, background: col }} />
+            ))}
+            <span style={{ fontSize: 10, color: c.text3 }}>más</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function EstadisticasPage() {
   const { getToken } = useAuth();
   const { c } = useTheme();
   const [stats, setStats]       = useState<Stats | null>(null);
+  const [leads, setLeads]       = useState<Lead[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError]       = useState<string | null>(null);
 
@@ -169,6 +325,8 @@ export default function EstadisticasPage() {
         if (res.status === 403) { setError('plan'); return; }
         if (!res.ok) throw new Error();
         setStats(await res.json());
+        // Leads para el calendario de actividad (no crítico para el render)
+        obtenerLeads(getToken).then(setLeads).catch(() => {});
       } catch {
         setError('general');
       } finally {
@@ -184,7 +342,6 @@ export default function EstadisticasPage() {
 
   const totalTemp  = stats.calientes + stats.tibios + stats.frios;
   const maxEstado  = Math.max(...Object.values(stats.por_estado), 1);
-  const maxMes     = Math.max(...stats.por_mes.map(m => m.total), 1);
   const variacion  = stats.mes_anterior > 0
     ? Math.round(((stats.este_mes - stats.mes_anterior) / stats.mes_anterior) * 100)
     : null;
@@ -361,41 +518,8 @@ export default function EstadisticasPage() {
         </div>
       </div>
 
-      {/* ── Tendencia mensual ── */}
-      {stats.por_mes.length > 0 && (
-        <div style={cardStyle}>
-          <p style={sectionLabel}>Tendencia mensual</p>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 130, paddingTop: 4 }}>
-            {[...stats.por_mes].reverse().map(m => {
-              const pct    = Math.round((m.total / maxMes) * 100);
-              const isMax  = m.total === maxMes && maxMes > 0;
-              const [año, mes] = m.mes.split('-');
-              const label  = new Date(parseInt(año), parseInt(mes) - 1)
-                .toLocaleDateString('es-ES', { month: 'short' });
-              return (
-                <div key={m.mes} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-                  <span style={{
-                    fontSize: 11, fontWeight: isMax ? 700 : 400,
-                    color: isMax ? '#c8a96e' : c.text2,
-                  }}>
-                    {m.total}
-                  </span>
-                  <div style={{
-                    width: '100%',
-                    height: `${Math.max(pct, 5)}%`,
-                    borderRadius: '5px 5px 0 0',
-                    background: isMax
-                      ? 'linear-gradient(180deg, #c8a96e 0%, rgba(200,169,110,0.55) 100%)'
-                      : `rgba(200,169,110,0.22)`,
-                    transition: 'height 0.7s cubic-bezier(0.4,0,0.2,1)',
-                  }} />
-                  <span style={{ fontSize: 11, color: c.text2 }}>{label}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* ── Calendario de actividad ── */}
+      <CalendarHeatmap leads={leads} c={c} />
     </div>
   );
 }
