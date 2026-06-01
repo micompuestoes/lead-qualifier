@@ -123,8 +123,8 @@ export default function LegalDoc({ title, updated, intro, sections }: Props) {
         <div style={{ marginTop: 56, paddingTop: 24, borderTop: `1px solid ${c.divider}` }}>
           <p style={{ fontSize: 13, color: c.text3, marginBottom: 10 }}>
             ¿Dudas sobre este documento? Escríbenos a{' '}
-            <a href="mailto:hola@inmobia.es" style={{ color: '#9a7a3a', textDecoration: 'none' }}>
-              hola@inmobia.es
+            <a href="mailto:contacto@inmobia.es" style={{ color: '#9a7a3a', textDecoration: 'none' }}>
+              contacto@inmobia.es
             </a>.
           </p>
           <div style={{ display: 'flex', gap: 18 }}>

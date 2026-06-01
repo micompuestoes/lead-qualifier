@@ -6,7 +6,7 @@ const SECCIONES: LegalSection[] = [
   {
     heading: 'Responsable del tratamiento',
     body: [
-      'Inmobia es responsable del tratamiento de los datos personales que se gestionan a través de la plataforma. Para cualquier consulta sobre privacidad puedes escribir a hola@inmobia.es.',
+      'Inmobia es responsable del tratamiento de los datos personales que se gestionan a través de la plataforma. Para cualquier consulta sobre privacidad puedes escribir a contacto@inmobia.es.',
     ],
   },
   {
@@ -55,7 +55,7 @@ const SECCIONES: LegalSection[] = [
   {
     heading: 'Tus derechos',
     body: [
-      'Puedes ejercer tus derechos de acceso, rectificación, supresión, oposición, limitación y portabilidad escribiendo a hola@inmobia.es.',
+      'Puedes ejercer tus derechos de acceso, rectificación, supresión, oposición, limitación y portabilidad escribiendo a contacto@inmobia.es.',
       'También tienes derecho a presentar una reclamación ante la Agencia Española de Protección de Datos (AEPD).',
     ],
   },
