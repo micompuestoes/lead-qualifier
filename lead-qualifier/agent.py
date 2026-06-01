@@ -1,33 +1,35 @@
 """
-Agente principal de cualificación de leads.
-Implementa el agentic loop real: Claude decide qué tools llamar y en qué orden.
+Agente de cualificación de leads inmobiliarios.
+
+Pipeline optimizado: el análisis, el perfil y la puntuación son deterministas
+(Python puro, instantáneo y gratis). La IA se usa para UNA sola cosa: redactar
+el email de respuesta. Esto reduce de ~5-10 llamadas a Claude por lead a 1,
+bajando coste y latencia drásticamente sin perder calidad.
 """
 
-import json
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Optional
 
 import anthropic
-import certifi
 import httpx
 
-from prompts import SYSTEM_PROMPT, EMAIL_GENERATION_PROMPT
-from tools import TOOLS_DEFINITION, execute_tool
+from prompts import SYSTEM_PROMPT
+from tools import analyze_intent, lookup_company, score_lead
+from database import save_lead
 
 logger = logging.getLogger(__name__)
 
-# Modelo a usar — fácil de cambiar aquí
+# Modelo para la redacción del email — fácil de cambiar aquí.
 CLAUDE_MODEL = "claude-sonnet-4-20250514"
-MAX_ITERATIONS = 10  # Límite de seguridad para el loop
 
 
 def _make_anthropic_client(api_key: str) -> anthropic.Anthropic:
     """
-    Crea el cliente de Anthropic con SSL del almacén nativo de Windows.
-    truststore inyecta los certificados raíz del sistema operativo en el contexto SSL,
-    lo que soluciona el error CERTIFICATE_VERIFY_FAILED en Python de Microsoft Store.
+    Crea el cliente de Anthropic con SSL del almacén nativo del sistema.
+    truststore inyecta los certificados raíz del SO en el contexto SSL,
+    lo que soluciona CERTIFICATE_VERIFY_FAILED en algunos entornos Windows.
     """
     import ssl
     import truststore
@@ -35,6 +37,102 @@ def _make_anthropic_client(api_key: str) -> anthropic.Anthropic:
     http_client = httpx.Client(verify=ssl_ctx)
     return anthropic.Anthropic(api_key=api_key, http_client=http_client)
 
+
+# ─────────────────────────────────────────────
+# Redacción del email (única llamada a la IA)
+# ─────────────────────────────────────────────
+
+def _siguiente_paso(classification: str, operation: str) -> str:
+    """Pista para la IA sobre qué CTA proponer según el tipo de lead."""
+    if operation in ("VENTA", "TASACION"):
+        return "ofrece una valoración gratuita y una visita para tasar el inmueble"
+    if classification == "CALIENTE":
+        return "propón ver inmuebles que encajen con su búsqueda y una llamada o visita esta misma semana"
+    if classification == "TIBIO":
+        return "ofrece enviarle una selección de opciones y resuelve sus dudas sin compromiso"
+    return "haz 1 o 2 preguntas concretas (zona, presupuesto o plazo) para poder ayudarle mejor"
+
+
+def _limpiar_email(texto: str) -> str:
+    """Quita comillas o vallas de código que a veces envuelven la respuesta."""
+    t = texto.strip()
+    if t.startswith("```"):
+        t = t.split("```")[1] if "```" in t[3:] else t.lstrip("`")
+    if len(t) >= 2 and t[0] == '"' and t[-1] == '"':
+        t = t[1:-1].strip()
+    return t.strip()
+
+
+def _email_fallback(primer_nombre: str, firma: str, classification: str, operation: str) -> str:
+    """Email de respaldo si la IA no está disponible — el lead nunca se queda sin respuesta."""
+    if operation in ("VENTA", "TASACION"):
+        cuerpo = ("Gracias por contar con nosotros para la venta de tu inmueble. "
+                  "Nos encantaría ofrecerte una valoración gratuita y sin compromiso. "
+                  "¿Cuándo te vendría bien que hablemos?")
+    elif classification == "CALIENTE":
+        cuerpo = ("Gracias por tu mensaje. Tenemos opciones que pueden encajar con lo que buscas "
+                  "y me gustaría enseñártelas. ¿Te viene bien que te llame esta semana?")
+    else:
+        cuerpo = ("Gracias por tu mensaje. Para ayudarte mejor, ¿podrías indicarme la zona que te "
+                  "interesa, tu presupuesto aproximado y en qué plazo te gustaría avanzar?")
+    return f"Hola {primer_nombre},\n\n{cuerpo}\n\nUn saludo,\n{firma}"
+
+
+def _redactar_email(
+    client: anthropic.Anthropic,
+    name: str,
+    primer_nombre: str,
+    firma: str,
+    email: str,
+    message: str,
+    intent: dict,
+    scoring: dict,
+) -> str:
+    """Genera el email de respuesta con una única llamada a Claude."""
+    classification = scoring.get("classification", "TIBIO")
+    score          = scoring.get("score", 5)
+    operation      = intent.get("operation", "INFORMACION")
+    reasoning      = scoring.get("reasoning", "")
+    hint           = _siguiente_paso(classification, operation)
+
+    user_prompt = f"""Redacta el email de respuesta para este lead inmobiliario.
+Devuelve ÚNICAMENTE el texto del email: sin asunto, sin comillas y sin notas adicionales.
+
+Lead: {name} <{email}>
+Mensaje recibido: "{message}"
+
+Cualificación interna (NO la menciones nunca en el email):
+- Clasificación: {classification} ({score}/10)
+- Operación detectada: {operation}
+- Señales clave: {reasoning}
+
+Reglas:
+- Empieza con "Hola {primer_nombre},".
+- Máximo 150 palabras, español natural y cercano, como un buen comercial inmobiliario.
+- Siguiente paso a proponer: {hint}.
+- No inventes inmuebles, precios ni datos que no aparezcan en el mensaje.
+- Cierra exactamente con:
+Un saludo,
+{firma}"""
+
+    try:
+        resp = client.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=600,
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_prompt}],
+        )
+        texto = resp.content[0].text if resp.content else ""
+        limpio = _limpiar_email(texto)
+        return limpio or _email_fallback(primer_nombre, firma, classification, operation)
+    except Exception as exc:
+        logger.error("Error redactando email con IA: %s — usando fallback", exc)
+        return _email_fallback(primer_nombre, firma, classification, operation)
+
+
+# ─────────────────────────────────────────────
+# Punto de entrada principal
+# ─────────────────────────────────────────────
 
 def qualify_lead(
     name: str,
@@ -46,182 +144,66 @@ def qualify_lead(
     agency_name: Optional[str] = None,
 ) -> dict:
     """
-    Punto de entrada principal del agente.
-    Ejecuta el agentic loop completo y devuelve el resultado estructurado.
+    Cualifica un lead inmobiliario completo y lo guarda en la base de datos.
 
-    agency_name: nombre comercial de la agencia para firmar el email de respuesta.
-                 Si no se proporciona, se firma como "el equipo".
+    Flujo:
+      1. analyze_intent  (Python, determinista)
+      2. lookup_company  (Python, determinista)
+      3. score_lead      (Python, determinista)
+      4. redactar email  (1 llamada a Claude)
+      5. guardar en BD
+
+    agency_name: nombre comercial de la agencia para firmar el email.
     """
-    lead_id = str(uuid.uuid4())
-    firma = (agency_name or "").strip() or "el equipo"
+    lead_id       = str(uuid.uuid4())
+    firma         = (agency_name or "").strip() or "el equipo"
     primer_nombre = name.split()[0] if name.strip() else "cliente"
+
     logger.info("═" * 60)
-    logger.info("🚀 Iniciando cualificación de lead inmobiliario")
+    logger.info("🚀 Cualificando lead inmobiliario")
     logger.info("   ID      : %s", lead_id)
     logger.info("   Nombre  : %s", name)
     logger.info("   Email   : %s", email)
     logger.info("   Agencia : %s", firma)
     logger.info("═" * 60)
 
-    telefono_nota = phone or "No proporcionado"
-    contactable = "Sí — tiene teléfono, prioriza la llamada" if phone else "Solo por email"
+    # ── 1-3: análisis determinista ──
+    intent  = analyze_intent(message, name)
+    company = lookup_company(email)
+    scoring = score_lead(intent, company, message)
 
-    # Mensaje inicial al agente con todos los datos del lead
-    initial_message = f"""Nuevo contacto inmobiliario recibido. Cualifícalo usando las herramientas, en orden.
+    classification      = scoring.get("classification", "TIBIO")
+    score               = scoring.get("score", 5)
+    reasoning           = scoring.get("reasoning", "Análisis completado")
+    recommended_actions = scoring.get("recommended_actions", ["Revisar manualmente"])
 
-Datos del lead:
-- Nombre: {name}
-- Email: {email}
-- Teléfono: {telefono_nota} (contactabilidad: {contactable})
-- Mensaje: {message}
+    # ── 4: email (única llamada a la IA) ──
+    generated_email = _redactar_email(
+        anthropic_client, name, primer_nombre, firma, email, message, intent, scoring,
+    )
 
-ID del lead para guardar en BD: {lead_id}
-
-Pasos:
-1. analyze_intent — extrae operación, tipo de inmueble, zona, presupuesto, plazo y financiación.
-2. lookup_company — perfil del contacto a partir del email (recuerda: el correo personal NO penaliza).
-3. score_lead — puntúa (1-10) y clasifica (CALIENTE/TIBIO/FRÍO).
-4. generate_email — redacta la respuesta y escríbela directamente en el campo generated_email de save_to_db.
-5. save_to_db — guarda todo con el ID proporcionado.
-
-El email debe empezar con "Hola {primer_nombre}," y cerrar exactamente con:
-"Un saludo,\\n{firma}"
-Máximo 150 palabras, español natural, y propón un siguiente paso concreto según la clasificación.
-"""
-
-    messages = [{"role": "user", "content": initial_message}]
-
-    # Estado acumulado del agente — se rellena conforme las tools devuelven resultados
-    agent_state = {
-        "lead_id": lead_id,
-        "lead_data": {"name": name, "email": email, "phone": phone, "message": message},
-        "intent_analysis": None,
-        "company_info": None,
-        "score": None,
-        "classification": None,
-        "reasoning": None,
-        "generated_email": None,
-        "recommended_actions": [],
-    }
-
-    # ─────────────────────────────────────────
-    # Agentic loop
-    # ─────────────────────────────────────────
-    iteration = 0
-    while iteration < MAX_ITERATIONS:
-        iteration += 1
-        logger.info("─── Iteración %d del agente ───────────────────", iteration)
-
-        response = anthropic_client.messages.create(
-            model=CLAUDE_MODEL,
-            max_tokens=4096,
-            system=SYSTEM_PROMPT,
-            tools=TOOLS_DEFINITION,
-            messages=messages,
+    # ── 5: persistir ──
+    try:
+        save_lead(
+            lead_id=lead_id,
+            tenant_id=tenant_id,
+            name=name,
+            email=email,
+            phone=phone,
+            message=message,
+            classification=classification,
+            score=score,
+            reasoning=reasoning,
+            generated_email=generated_email,
+            recommended_actions=recommended_actions,
+            intent_analysis=intent,
+            company_info=company,
         )
-
-        logger.info("   Stop reason: %s", response.stop_reason)
-
-        # Agregar respuesta del asistente al historial
-        messages.append({"role": "assistant", "content": response.content})
-
-        # Si Claude terminó sin más tool calls, salimos del loop
-        if response.stop_reason == "end_turn":
-            logger.info("✅ Agente finalizado (end_turn)")
-            break
-
-        # Procesar tool calls si las hay
-        if response.stop_reason == "tool_use":
-            tool_results = []
-
-            for content_block in response.content:
-                if content_block.type != "tool_use":
-                    continue
-
-                tool_name = content_block.name
-                tool_input = content_block.input
-                tool_use_id = content_block.id
-
-                logger.info("🔧 Tool llamada: %s", tool_name)
-                logger.debug("   Input: %s", json.dumps(tool_input, ensure_ascii=False, indent=2))
-
-                try:
-                    # Ejecutar la tool — pasamos tenant_id para que save_to_db lo use
-                    result = execute_tool(tool_name, tool_input, tenant_id=tenant_id)
-
-                    # Guardar resultados en el estado del agente
-                    _update_agent_state(agent_state, tool_name, tool_input, result)
-
-                    result_str = json.dumps(result, ensure_ascii=False)
-                    logger.info("   ✓ Resultado: %s", result_str[:200])
-
-                except Exception as e:
-                    logger.error("   ✗ Error en tool %s: %s", tool_name, str(e))
-                    result_str = json.dumps({"error": str(e), "tool": tool_name})
-
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": tool_use_id,
-                    "content": result_str,
-                })
-
-            # Enviar los resultados de las tools de vuelta a Claude
-            messages.append({"role": "user", "content": tool_results})
-
-    else:
-        logger.warning("⚠️  Se alcanzó el límite máximo de iteraciones (%d)", MAX_ITERATIONS)
-
-    # ─────────────────────────────────────────
-    # Construir respuesta final
-    # ─────────────────────────────────────────
-    return _build_final_response(agent_state, response)
-
-
-def _update_agent_state(state: dict, tool_name: str, tool_input: dict, result: Any) -> None:
-    """Actualiza el estado acumulado del agente con el resultado de cada tool."""
-    if tool_name == "analyze_intent":
-        state["intent_analysis"] = result
-
-    elif tool_name == "lookup_company":
-        state["company_info"] = result
-
-    elif tool_name == "score_lead":
-        state["score"] = result.get("score")
-        state["classification"] = result.get("classification")
-        state["reasoning"] = result.get("reasoning")
-        state["recommended_actions"] = result.get("recommended_actions", [])
-
-    elif tool_name == "generate_email":
-        # El email real lo escribe Claude — aquí guardamos lo que pasó como input
-        # El texto real se extrae del argumento que Claude pasó a save_to_db
-        pass
-
-    elif tool_name == "save_to_db":
-        # Cuando se guarda en BD, actualizamos el estado con el email final
-        state["generated_email"] = tool_input.get("generated_email", "")
-        if not state["recommended_actions"] and tool_input.get("recommended_actions"):
-            state["recommended_actions"] = tool_input.get("recommended_actions", [])
-
-
-def _build_final_response(state: dict, last_response) -> dict:
-    """Construye el JSON de respuesta final a partir del estado del agente."""
-
-    # Extraer el texto final que Claude escribió (si lo hay)
-    final_text = ""
-    for block in last_response.content:
-        if hasattr(block, "text"):
-            final_text = block.text
-            break
-
-    # Fallbacks por si algún campo no se llenó correctamente
-    classification = state.get("classification") or "TIBIO"
-    score = state.get("score") or 5
-    reasoning = state.get("reasoning") or "Análisis completado"
-    generated_email = state.get("generated_email") or final_text or "Email pendiente de generación"
-    recommended_actions = state.get("recommended_actions") or ["Revisar manualmente"]
+    except Exception as exc:
+        logger.error("Error guardando lead %s en BD: %s", lead_id, exc)
 
     result = {
-        "lead_id": state["lead_id"],
+        "lead_id": lead_id,
         "classification": classification,
         "score": score,
         "reasoning": reasoning,
@@ -230,12 +212,5 @@ def _build_final_response(state: dict, last_response) -> dict:
         "processed_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    logger.info("═" * 60)
-    logger.info("📋 RESULTADO FINAL")
-    logger.info("   Lead ID       : %s", result["lead_id"])
-    logger.info("   Clasificación : %s", result["classification"])
-    logger.info("   Score         : %d/10", result["score"])
-    logger.info("   Razonamiento  : %s", result["reasoning"])
-    logger.info("═" * 60)
-
+    logger.info("📋 Resultado: %s · %d/10 · %s", classification, score, intent.get("operation"))
     return result

@@ -99,12 +99,21 @@ class AdInput(BaseModel):
 class TeamMemberInput(BaseModel):
     member_id: str
 
+class PublicLeadInput(LeadInput):
+    """Lead entrante desde el formulario público. Incluye honeypot anti-bots."""
+    # Campo trampa: invisible para humanos. Si llega relleno, es un bot.
+    website: Optional[str] = None
+
 
 # ─────────────────────────────────────────────
 # Stripe
 # ─────────────────────────────────────────────
 
 FREE_LEAD_LIMIT = 10
+
+# Solo se avisa a la agencia de leads que merecen la pena (TIBIO y CALIENTE).
+# Los FRÍO (score < 5) quedan en el dashboard pero no generan email de aviso.
+NOTIFY_MIN_SCORE = 5
 
 def _stripe_configured() -> bool:
     return bool(os.getenv("STRIPE_SECRET_KEY"))
@@ -347,8 +356,16 @@ def get_anthropic_client() -> anthropic.Anthropic:
 
 
 def _notificar_tenant(tenant_id: str, lead: LeadInput, result: dict) -> None:
-    """Envía email al tenant si el lead tiene score >= 6."""
+    """Avisa por email a la agencia solo si el lead es bueno (score >= NOTIFY_MIN_SCORE)."""
     try:
+        score = result.get("score") or 0
+        if score < NOTIFY_MIN_SCORE:
+            logger.info(
+                "Lead %s con score %s < %s — no se envía aviso al tenant",
+                lead.email, score, NOTIFY_MIN_SCORE,
+            )
+            return
+
         tenant = get_tenant(tenant_id)
         if not tenant:
             return
@@ -369,6 +386,47 @@ def _notificar_tenant(tenant_id: str, lead: LeadInput, result: dict) -> None:
         )
     except Exception as e:
         logger.warning("No se pudo enviar notificación al tenant %s: %s", tenant_id, str(e))
+
+
+# ─────────────────────────────────────────────
+# Rate limiting en memoria para el formulario público
+# ─────────────────────────────────────────────
+
+import threading
+
+_rate_hits: dict[str, list[float]] = {}
+_rate_lock = threading.Lock()
+
+# Límites: por IP (anti-spam individual) y por api_key (cap de coste por agencia)
+RATE_IP_PER_MIN     = 5
+RATE_IP_PER_HOUR    = 30
+RATE_KEY_PER_MIN    = 20
+RATE_KEY_PER_HOUR   = 200
+
+
+def _client_ip(request: Request) -> str:
+    """IP real del cliente, respetando el proxy de Render/Vercel (X-Forwarded-For)."""
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _rate_limited(bucket: str, per_min: int, per_hour: int) -> bool:
+    """Sliding window simple en memoria. Devuelve True si se supera el límite."""
+    now = time.time()
+    with _rate_lock:
+        hits = [t for t in _rate_hits.get(bucket, []) if t > now - 3600]
+        if len(hits) >= per_hour or sum(1 for t in hits if t > now - 60) >= per_min:
+            _rate_hits[bucket] = hits
+            return True
+        hits.append(now)
+        _rate_hits[bucket] = hits
+        # Limpieza ocasional para que el dict no crezca sin control
+        if len(_rate_hits) > 5000:
+            for k in [k for k, v in _rate_hits.items() if not v or v[-1] < now - 3600]:
+                _rate_hits.pop(k, None)
+        return False
 
 
 def _serializar_lead(lead: dict) -> dict:
@@ -617,14 +675,32 @@ async def delete_imap(tenant_id: str = Depends(get_tenant_id)):
 # ─────────────────────────────────────────────
 
 @app.post("/intake/{api_key}", status_code=200)
-async def public_intake(api_key: str, lead: LeadInput):
+async def public_intake(api_key: str, lead: PublicLeadInput, request: Request):
     """
     Endpoint público para recibir leads desde formularios externos.
     No requiere autenticación — usa la api_key del tenant.
 
+    Protegido con honeypot anti-bots y rate limiting por IP y por api_key
+    para evitar abuso (cada lead procesado consume créditos de IA).
+
     La inmobiliaria pone en su web:
       POST https://tu-api.render.com/intake/lq_xxxxxxxxxxxx
     """
+    # ── Honeypot: si el campo trampa viene relleno, es un bot ──
+    if lead.website:
+        logger.warning("Intake rechazado por honeypot (api_key %s)", api_key[:8])
+        # Devolvemos OK falso para no dar pistas al bot
+        return {"ok": True, "message": "Tu consulta ha sido recibida."}
+
+    # ── Rate limiting (no consumir IA en ataques) ──
+    ip = _client_ip(request)
+    if _rate_limited(f"ip:{ip}", RATE_IP_PER_MIN, RATE_IP_PER_HOUR):
+        logger.warning("Intake rate-limited por IP %s", ip)
+        raise HTTPException(status_code=429, detail="Demasiadas solicitudes. Espera unos minutos.")
+    if _rate_limited(f"key:{api_key}", RATE_KEY_PER_MIN, RATE_KEY_PER_HOUR):
+        logger.warning("Intake rate-limited por api_key %s", api_key[:8])
+        raise HTTPException(status_code=429, detail="Demasiadas solicitudes. Inténtalo más tarde.")
+
     tenant = get_tenant_by_api_key(api_key)
     if not tenant:
         raise HTTPException(status_code=404, detail="API key no válida")
@@ -633,7 +709,7 @@ async def public_intake(api_key: str, lead: LeadInput):
         raise HTTPException(status_code=403, detail="Cuenta desactivada")
 
     tenant_id = tenant["id"]
-    logger.info("Intake público — %s <%s> (tenant: %s)", lead.name, lead.email, tenant_id)
+    logger.info("Intake público — %s <%s> (tenant: %s, ip: %s)", lead.name, lead.email, tenant_id, ip)
 
     try:
         client = get_anthropic_client()
