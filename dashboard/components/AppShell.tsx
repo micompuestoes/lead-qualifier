@@ -9,7 +9,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const fullBleed =
     pathname.startsWith('/sign-in') ||
     pathname.startsWith('/sign-up') ||
-    pathname.startsWith('/form/');
+    pathname.startsWith('/form/') ||
+    pathname === '/terminos' ||
+    pathname === '/privacidad';
 
   return (
     <main className={fullBleed ? 'flex-1 min-h-screen' : 'flex-1 ml-60 min-h-screen'}>

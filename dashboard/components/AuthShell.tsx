@@ -260,15 +260,21 @@ export default function AuthShell({ mode }: { mode: 'sign-in' | 'sign-up' }) {
           )}
         </div>
 
-        <p style={{
-          position: 'absolute', bottom: 20, fontSize: 11, color: c.text3,
-          display: 'flex', alignItems: 'center', gap: 6,
+        <div style={{
+          position: 'absolute', bottom: 20, left: 0, right: 0,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
         }}>
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-          </svg>
-          Protegido con cifrado de extremo a extremo
-        </p>
+          <p style={{ fontSize: 11, color: c.text3, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            Protegido con cifrado de extremo a extremo
+          </p>
+          <div style={{ display: 'flex', gap: 16 }}>
+            <a href="/terminos" style={{ fontSize: 11, color: c.text3, textDecoration: 'none' }}>Términos</a>
+            <a href="/privacidad" style={{ fontSize: 11, color: c.text3, textDecoration: 'none' }}>Privacidad</a>
+          </div>
+        </div>
       </div>
 
       {/* Responsive: ocultar panel de marca en pantallas estrechas */}

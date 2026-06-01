@@ -327,6 +327,11 @@ export default function PricingPage() {
       <p style={{ textAlign: 'center', fontSize: 12, color: c.text3, marginTop: 24 }}>
         Precios sin IVA. Facturación mensual. Procesado de forma segura por Stripe.
       </p>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 18, marginTop: 14 }}>
+        <a href="/terminos" style={{ fontSize: 12, color: c.text2, textDecoration: 'none' }}>Términos de servicio</a>
+        <span style={{ color: c.divider }}>·</span>
+        <a href="/privacidad" style={{ fontSize: 12, color: c.text2, textDecoration: 'none' }}>Política de privacidad</a>
+      </div>
 
       <style>{`
         .shimmer-badge { animation: shimmer-sweep 3s linear infinite; }

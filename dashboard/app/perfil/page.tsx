@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth, useUser } from '@clerk/nextjs';
+import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/Toast';
 import { useTheme } from '@/components/ThemeProvider';
 import PageHeader from '@/components/PageHeader';
@@ -40,6 +41,7 @@ export default function PerfilPage() {
   const { getToken } = useAuth();
   const { user } = useUser();
   const { c } = useTheme();
+  const router = useRouter();
 
   const [perfil, setPerfil]       = useState<Perfil | null>(null);
   const [cargando, setCargando]   = useState(true);
@@ -310,6 +312,8 @@ export default function PerfilPage() {
 
   const planInfo = planConfig[perfil?.plan ?? 'free'] ?? planConfig.free;
   const isPaid   = perfil?.plan && perfil.plan !== 'free';
+  const canImap  = perfil?.plan === 'pro' || perfil?.plan === 'agencia';
+  const inicial  = (perfil?.name || perfil?.email || 'L').trim().charAt(0).toUpperCase();
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -322,6 +326,37 @@ export default function PerfilPage() {
         title="Mi perfil"
         description="Configura tu empresa, notificaciones e integraciones"
       />
+
+      {/* ── Tarjeta de identidad ── */}
+      <div style={{
+        ...card,
+        marginBottom: 20,
+        display: 'flex', alignItems: 'center', gap: 18,
+      }}>
+        <div style={{
+          width: 60, height: 60, borderRadius: 16, flexShrink: 0,
+          background: 'linear-gradient(135deg, rgba(200,169,110,0.28) 0%, rgba(200,169,110,0.12) 100%)',
+          border: '1.5px solid rgba(200,169,110,0.32)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <span style={{ fontSize: 26, fontWeight: 700, color: '#9a7a3a' }}>{inicial}</span>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 600, color: c.text1, marginBottom: 3 }}>
+            {perfil?.name || 'Tu empresa'}
+          </h2>
+          <p style={{ fontSize: 13, color: c.text2 }}>{perfil?.email}</p>
+        </div>
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '6px 13px', borderRadius: 99, flexShrink: 0,
+          fontSize: 12, fontWeight: 600,
+          background: planInfo.bg, color: planInfo.color,
+        }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: planInfo.color }} />
+          Plan {planInfo.label}
+        </span>
+      </div>
 
       <div className="space-y-5">
 
@@ -380,7 +415,40 @@ export default function PerfilPage() {
             automáticamente en leads cualificados por la IA.
           </p>
 
-          {imap.configured ? (
+          {!canImap ? (
+            /* ── Bloqueado para plan Free ── */
+            <div className="rounded-xl px-5 py-5"
+              style={{ background: c.muted, border: `1px solid ${c.inputBorder}` }}>
+              <div className="flex items-start gap-3">
+                <div style={{
+                  width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                  background: 'rgba(200,169,110,0.14)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#c8a96e"
+                    strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <p className="text-sm font-semibold" style={{ color: c.text1, marginBottom: 3 }}>
+                    Disponible en los planes Pro y Agencia
+                  </p>
+                  <p className="text-xs" style={{ color: c.text2, lineHeight: 1.55, marginBottom: 14 }}>
+                    Conecta tu bandeja y convierte automáticamente cada email de un potencial
+                    cliente en un lead cualificado por la IA, sin copiar y pegar nada.
+                  </p>
+                  <button onClick={() => router.push('/pricing')}
+                    style={{ ...btnPrimary, padding: '9px 18px', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1a1814" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                    </svg>
+                    Mejorar mi plan
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : imap.configured ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between rounded-xl px-4 py-3"
                 style={{ background: 'rgba(110,200,122,0.08)', border: '1px solid rgba(110,200,122,0.2)' }}>

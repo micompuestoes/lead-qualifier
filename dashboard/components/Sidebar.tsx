@@ -236,7 +236,8 @@ export default function Sidebar() {
     href === '/leads' ? pathname.startsWith('/leads') : pathname === href;
   const esAuth        = pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up');
   const esFormPublico = pathname.startsWith('/form/');
-  if (esAuth || esFormPublico) return null;
+  const esLegal       = pathname === '/terminos' || pathname === '/privacidad';
+  if (esAuth || esFormPublico || esLegal) return null;
 
   const plan = planConfig[perfil.plan] ?? planConfig.free;
 

@@ -10,8 +10,21 @@ import { ToastProvider } from '@/components/Toast';
 import { ThemeProvider } from '@/components/ThemeProvider';
 
 export const metadata: Metadata = {
-  title: 'Lead Qualifier — Dashboard',
-  description: 'Gestión de leads cualificados por IA',
+  title: {
+    default: 'Lead Qualifier — Cualificación de leads inmobiliarios con IA',
+    template: '%s · Lead Qualifier',
+  },
+  description:
+    'La plataforma que cualifica tus leads inmobiliarios con inteligencia artificial, prioriza los que van a cerrar y redacta la respuesta perfecta.',
+  applicationName: 'Lead Qualifier',
+  authors: [{ name: 'Lead Qualifier' }],
+  keywords: ['leads inmobiliarios', 'cualificación de leads', 'IA inmobiliaria', 'CRM inmobiliario'],
+  openGraph: {
+    title: 'Lead Qualifier — Cualificación de leads inmobiliarios con IA',
+    description: 'Convierte cada consulta en una oportunidad real.',
+    type: 'website',
+    locale: 'es_ES',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

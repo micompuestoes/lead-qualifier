@@ -573,7 +573,10 @@ async def save_imap(
     """
     Guarda y verifica la configuración IMAP del tenant.
     Si host está vacío se autodetecta por el dominio del email.
+    Disponible solo para planes Pro y Agencia.
     """
+    _require_plan(tenant_id, "pro")
+
     host = (data.host or "").strip()
     port = data.port
 
@@ -603,7 +606,8 @@ async def save_imap(
 
 @app.delete("/me/imap", status_code=204)
 async def delete_imap(tenant_id: str = Depends(get_tenant_id)):
-    """Desconecta y borra la config IMAP del tenant."""
+    """Desconecta y borra la config IMAP del tenant. Solo Pro y Agencia."""
+    _require_plan(tenant_id, "pro")
     disable_imap(tenant_id)
 
 
@@ -813,6 +817,11 @@ async def stripe_webhook(request: Request):
             tenant = get_tenant_by_stripe_customer(customer_id)
             if tenant:
                 set_tenant_plan(tenant["id"], "free", None, customer_id)
+                # Al bajar a free, la conexión IMAP deja de estar disponible: la desactivamos
+                try:
+                    disable_imap(tenant["id"])
+                except Exception as exc:
+                    logger.warning("No se pudo desactivar IMAP al degradar %s: %s", tenant["id"], exc)
                 logger.info("Suscripción cancelada: tenant %s → free", tenant["id"])
 
     return {"ok": True}
