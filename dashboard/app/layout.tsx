@@ -5,6 +5,7 @@ import { ClerkProvider } from '@clerk/nextjs';
 import { esES } from '@clerk/localizations';
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
+import AppShell from '@/components/AppShell';
 import { ToastProvider } from '@/components/Toast';
 import { ThemeProvider } from '@/components/ThemeProvider';
 
@@ -30,9 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <ToastProvider>
               <div className="flex min-h-screen">
                 <Sidebar />
-                <main className="flex-1 ml-60 min-h-screen">
-                  {children}
-                </main>
+                <AppShell>{children}</AppShell>
               </div>
             </ToastProvider>
           </ThemeProvider>

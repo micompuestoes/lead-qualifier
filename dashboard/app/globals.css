@@ -124,6 +124,20 @@
   to   { transform: rotate(360deg); }
 }
 
+/* Glow ambiental lento para paneles premium (auth) */
+@keyframes aurora {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.55; }
+  50%      { transform: translate(4%, -3%) scale(1.12); opacity: 0.8; }
+}
+
+/* Brillo que recorre un borde/acento dorado */
+@keyframes shimmer-sweep {
+  0%   { background-position: -150% 0; }
+  100% { background-position: 250% 0; }
+}
+
+.animate-aurora { animation: aurora 14s ease-in-out infinite; }
+
 /* ── Skeleton shimmer ────────────────────────────────────────────────────── */
 
 @keyframes skeleton-shimmer {
