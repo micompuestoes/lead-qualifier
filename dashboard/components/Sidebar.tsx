@@ -8,6 +8,15 @@ import { useTheme } from './ThemeProvider';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
+function IconHome() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round"
+        d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75" />
+    </svg>
+  );
+}
+
 function IconLeads() {
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="currentColor">
@@ -91,6 +100,7 @@ const planConfig: Record<string, { label: string; bg: string; color: string }> =
 };
 
 const principalLinks: NavLink[] = [
+  { href: '/',           label: 'Inicio',     icon: <IconHome />  },
   { href: '/leads',      label: 'Leads',      icon: <IconLeads /> },
   { href: '/nuevo-lead', label: 'Nuevo lead', icon: <IconPlus />  },
 ];
@@ -253,7 +263,7 @@ export default function Sidebar() {
     >
       {/* ── Brand ── */}
       <Link
-        href="/leads"
+        href="/"
         className="px-5 py-5 flex flex-col gap-3 shrink-0 transition-opacity hover:opacity-80"
         style={{ borderBottom: `1px solid ${c.divider}` }}
       >
