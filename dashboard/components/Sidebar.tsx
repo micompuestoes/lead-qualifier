@@ -282,9 +282,12 @@ export default function Sidebar() {
           <div className="min-w-0 flex-1">
             <p style={{ fontSize: 14, fontWeight: 600, color: c.text1, lineHeight: 1.3, transition: 'color 0.2s' }}
               className="truncate">
-              {perfil.name || 'Lead Qualifier'}
+              {perfil.name || 'Tu agencia'}
             </p>
-            <p style={{ fontSize: 11, color: c.text3, marginTop: 1, transition: 'color 0.2s' }}>Agente de IA</p>
+            <p style={{ fontSize: 11, marginTop: 2, transition: 'color 0.2s' }} className="truncate">
+              <span style={{ color: '#9a7a3a', fontWeight: 700 }}>Inmobia</span>
+              <span style={{ color: c.text3 }}> · IA inmobiliaria</span>
+            </p>
           </div>
         </div>
         <span style={{

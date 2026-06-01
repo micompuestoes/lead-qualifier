@@ -6,7 +6,7 @@ const SECCIONES: LegalSection[] = [
   {
     heading: 'Responsable del tratamiento',
     body: [
-      'Lead Qualifier es responsable del tratamiento de los datos personales que se gestionan a través de la plataforma. Para cualquier consulta sobre privacidad puedes escribir a hola@leadqualifier.es.',
+      'Inmobia es responsable del tratamiento de los datos personales que se gestionan a través de la plataforma. Para cualquier consulta sobre privacidad puedes escribir a hola@inmobia.es.',
     ],
   },
   {
@@ -55,7 +55,7 @@ const SECCIONES: LegalSection[] = [
   {
     heading: 'Tus derechos',
     body: [
-      'Puedes ejercer tus derechos de acceso, rectificación, supresión, oposición, limitación y portabilidad escribiendo a hola@leadqualifier.es.',
+      'Puedes ejercer tus derechos de acceso, rectificación, supresión, oposición, limitación y portabilidad escribiendo a hola@inmobia.es.',
       'También tienes derecho a presentar una reclamación ante la Agencia Española de Protección de Datos (AEPD).',
     ],
   },

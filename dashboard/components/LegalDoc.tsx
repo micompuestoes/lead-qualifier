@@ -47,7 +47,7 @@ export default function LegalDoc({ title, updated, intro, sections }: Props) {
       }}>
         <Link href="/leads" style={{ display: 'flex', alignItems: 'center', gap: 11, textDecoration: 'none' }}>
           <Logo />
-          <span style={{ fontSize: 15, fontWeight: 600, color: c.text1 }}>Lead Qualifier</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color: c.text1 }}>Inmobia</span>
         </Link>
         <Link href="/leads" style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -123,8 +123,8 @@ export default function LegalDoc({ title, updated, intro, sections }: Props) {
         <div style={{ marginTop: 56, paddingTop: 24, borderTop: `1px solid ${c.divider}` }}>
           <p style={{ fontSize: 13, color: c.text3, marginBottom: 10 }}>
             ¿Dudas sobre este documento? Escríbenos a{' '}
-            <a href="mailto:hola@leadqualifier.es" style={{ color: '#9a7a3a', textDecoration: 'none' }}>
-              hola@leadqualifier.es
+            <a href="mailto:hola@inmobia.es" style={{ color: '#9a7a3a', textDecoration: 'none' }}>
+              hola@inmobia.es
             </a>.
           </p>
           <div style={{ display: 'flex', gap: 18 }}>

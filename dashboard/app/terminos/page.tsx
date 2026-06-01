@@ -6,7 +6,7 @@ const SECCIONES: LegalSection[] = [
   {
     heading: 'Objeto del servicio',
     body: [
-      'Lead Qualifier es una plataforma SaaS que utiliza inteligencia artificial para cualificar leads inmobiliarios, generar respuestas y ayudar a las agencias a priorizar sus contactos comerciales.',
+      'Inmobia es una plataforma SaaS que utiliza inteligencia artificial para cualificar leads inmobiliarios, generar respuestas y ayudar a las agencias a priorizar sus contactos comerciales.',
       'Al crear una cuenta y utilizar el servicio, aceptas estos Términos de Servicio en su totalidad.',
     ],
   },
@@ -71,7 +71,7 @@ export default function TerminosPage() {
     <LegalDoc
       title="Términos de Servicio"
       updated="1 de junio de 2026"
-      intro="Estos términos regulan el uso de Lead Qualifier. Te recomendamos leerlos con atención antes de utilizar la plataforma."
+      intro="Estos términos regulan el uso de Inmobia. Te recomendamos leerlos con atención antes de utilizar la plataforma."
       sections={SECCIONES}
     />
   );

@@ -11,16 +11,16 @@ import { ThemeProvider } from '@/components/ThemeProvider';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Lead Qualifier — Cualificación de leads inmobiliarios con IA',
-    template: '%s · Lead Qualifier',
+    default: 'Inmobia — Cualificación de leads inmobiliarios con IA',
+    template: '%s · Inmobia',
   },
   description:
     'La plataforma que cualifica tus leads inmobiliarios con inteligencia artificial, prioriza los que van a cerrar y redacta la respuesta perfecta.',
-  applicationName: 'Lead Qualifier',
-  authors: [{ name: 'Lead Qualifier' }],
+  applicationName: 'Inmobia',
+  authors: [{ name: 'Inmobia' }],
   keywords: ['leads inmobiliarios', 'cualificación de leads', 'IA inmobiliaria', 'CRM inmobiliario'],
   openGraph: {
-    title: 'Lead Qualifier — Cualificación de leads inmobiliarios con IA',
+    title: 'Inmobia — Cualificación de leads inmobiliarios con IA',
     description: 'Convierte cada consulta en una oportunidad real.',
     type: 'website',
     locale: 'es_ES',
