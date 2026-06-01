@@ -275,6 +275,7 @@ async def _sync_imap_tenant(t: dict) -> None:
                 message=lead_input.message,
                 anthropic_client=client,
                 tenant_id=t["id"],
+                agency_name=t.get("name"),
             )
             _notificar_tenant(t["id"], lead_input, result)
             logger.info(
@@ -421,6 +422,7 @@ async def qualify_lead_endpoint(
             message=lead.message,
             anthropic_client=client,
             tenant_id=tenant_id,
+            agency_name=tenant.get("name") if tenant else None,
         )
 
         email_sent = send_lead_response_email(
@@ -638,6 +640,7 @@ async def public_intake(api_key: str, lead: LeadInput):
             message=lead.message,
             anthropic_client=client,
             tenant_id=tenant_id,
+            agency_name=tenant.get("name"),
         )
 
         # Email de respuesta al lead

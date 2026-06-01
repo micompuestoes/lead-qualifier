@@ -43,39 +43,50 @@ def qualify_lead(
     message: str,
     anthropic_client: anthropic.Anthropic,
     tenant_id: str = "legacy",
+    agency_name: Optional[str] = None,
 ) -> dict:
     """
     Punto de entrada principal del agente.
     Ejecuta el agentic loop completo y devuelve el resultado estructurado.
+
+    agency_name: nombre comercial de la agencia para firmar el email de respuesta.
+                 Si no se proporciona, se firma como "el equipo".
     """
     lead_id = str(uuid.uuid4())
+    firma = (agency_name or "").strip() or "el equipo"
+    primer_nombre = name.split()[0] if name.strip() else "cliente"
     logger.info("═" * 60)
-    logger.info("🚀 Iniciando cualificación de lead")
-    logger.info("   ID     : %s", lead_id)
-    logger.info("   Nombre : %s", name)
-    logger.info("   Email  : %s", email)
+    logger.info("🚀 Iniciando cualificación de lead inmobiliario")
+    logger.info("   ID      : %s", lead_id)
+    logger.info("   Nombre  : %s", name)
+    logger.info("   Email   : %s", email)
+    logger.info("   Agencia : %s", firma)
     logger.info("═" * 60)
 
+    telefono_nota = phone or "No proporcionado"
+    contactable = "Sí — tiene teléfono, prioriza la llamada" if phone else "Solo por email"
+
     # Mensaje inicial al agente con todos los datos del lead
-    initial_message = f"""Nuevo lead recibido. Cualifícalo usando las herramientas disponibles.
+    initial_message = f"""Nuevo contacto inmobiliario recibido. Cualifícalo usando las herramientas, en orden.
 
 Datos del lead:
 - Nombre: {name}
 - Email: {email}
-- Teléfono: {phone or "No proporcionado"}
+- Teléfono: {telefono_nota} (contactabilidad: {contactable})
 - Mensaje: {message}
 
 ID del lead para guardar en BD: {lead_id}
 
-Por favor:
-1. Analiza la intención del mensaje
-2. Investiga el dominio del email
-3. Calcula la puntuación y clasificación
-4. Genera un email de respuesta en español (máximo 150 palabras, tono cálido y profesional)
-5. Guarda todo en la base de datos con el ID proporcionado
+Pasos:
+1. analyze_intent — extrae operación, tipo de inmueble, zona, presupuesto, plazo y financiación.
+2. lookup_company — perfil del contacto a partir del email (recuerda: el correo personal NO penaliza).
+3. score_lead — puntúa (1-10) y clasifica (CALIENTE/TIBIO/FRÍO).
+4. generate_email — redacta la respuesta y escríbela directamente en el campo generated_email de save_to_db.
+5. save_to_db — guarda todo con el ID proporcionado.
 
-Para el email generado: escríbelo directamente en el campo generated_email de save_to_db.
-El email debe empezar con "Hola {name.split()[0]}," y terminar con "Un saludo,\\nEl equipo"
+El email debe empezar con "Hola {primer_nombre}," y cerrar exactamente con:
+"Un saludo,\\n{firma}"
+Máximo 150 palabras, español natural, y propón un siguiente paso concreto según la clasificación.
 """
 
     messages = [{"role": "user", "content": initial_message}]

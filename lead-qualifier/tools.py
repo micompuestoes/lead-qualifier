@@ -1,20 +1,45 @@
 """
 Definición e implementación de las herramientas (tools) que usa el agente Claude.
 Cada tool tiene: definición JSON para la API + función Python que la ejecuta.
+
+Dominio: cualificación de leads INMOBILIARIOS para el mercado español.
 """
 
 import json
 import logging
+import re
+import unicodedata
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Dominios de email personal más comunes — se tratan como leads individuales
+# Dominios de email personal más comunes — en vivienda son LO NORMAL (no penalizan)
 PERSONAL_EMAIL_DOMAINS = {
     "gmail.com", "hotmail.com", "hotmail.es", "outlook.com", "outlook.es",
     "yahoo.com", "yahoo.es", "icloud.com", "me.com", "live.com",
-    "protonmail.com", "tutanota.com", "msn.com", "telefonica.net",
+    "protonmail.com", "proton.me", "tutanota.com", "msn.com", "telefonica.net",
+    "terra.es", "ya.com", "wanadoo.es",
 }
+
+# Pistas en el dominio de que el contacto es un profesional/inversor del sector
+SECTOR_DOMAIN_HINTS = (
+    "inmobil", "inmo", "realty", "realestate", "homes", "house", "fincas",
+    "propert", "estate", "invers", "invest", "capital", "patrimon", "promot",
+    "construc", "habitat", "vivienda", "haus", "casa",
+)
+
+
+# ─────────────────────────────────────────────
+# Normalización de texto (acentos, mayúsculas)
+# ─────────────────────────────────────────────
+
+def _normalizar(texto: str) -> str:
+    """Pasa a minúsculas y elimina acentos para comparar palabras clave."""
+    sin_acentos = "".join(
+        c for c in unicodedata.normalize("NFD", texto.lower())
+        if unicodedata.category(c) != "Mn"
+    )
+    return sin_acentos
 
 
 # ─────────────────────────────────────────────
@@ -25,8 +50,9 @@ TOOLS_DEFINITION = [
     {
         "name": "analyze_intent",
         "description": (
-            "Analiza el mensaje del lead para extraer su intención, urgencia y palabras clave. "
-            "Llama esta tool PRIMERO antes de cualquier otra."
+            "Analiza el mensaje del contacto inmobiliario y extrae: operación (compra/alquiler/venta/"
+            "inversión/tasación/información), tipo de inmueble, zona, presupuesto, plazo, financiación "
+            "y urgencia. Llama esta tool PRIMERO antes de cualquier otra."
         ),
         "input_schema": {
             "type": "object",
@@ -46,15 +72,16 @@ TOOLS_DEFINITION = [
     {
         "name": "lookup_company",
         "description": (
-            "Extrae el dominio del email e infiere información de la empresa: sector, tamaño estimado, "
-            "si es un email personal (Gmail/Hotmail) o corporativo."
+            "Determina el perfil del contacto a partir del email: si es un particular (correo personal, "
+            "lo normal en vivienda), un profesional o inversor del sector inmobiliario (correo corporativo "
+            "relacionado), o una empresa. NO penaliza los correos personales."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "email": {
                     "type": "string",
-                    "description": "Email del lead para extraer el dominio empresarial",
+                    "description": "Email del lead para inferir su perfil",
                 },
             },
             "required": ["email"],
@@ -63,8 +90,8 @@ TOOLS_DEFINITION = [
     {
         "name": "score_lead",
         "description": (
-            "Calcula la puntuación (1-10) y clasificación (CALIENTE/TIBIO/FRÍO) del lead "
-            "usando el análisis de intención y la info de empresa. "
+            "Calcula la puntuación (1-10) y clasificación (CALIENTE/TIBIO/FRÍO) del lead inmobiliario "
+            "usando el análisis de intención y el perfil del contacto. "
             "Llama esta tool después de analyze_intent y lookup_company."
         ),
         "input_schema": {
@@ -180,228 +207,433 @@ TOOLS_DEFINITION = [
 # Implementaciones Python de cada tool
 # ─────────────────────────────────────────────
 
+# ─────────────────────────────────────────────
+# Detectores de señales inmobiliarias
+# ─────────────────────────────────────────────
+
+def _detectar_operacion(msg: str) -> str:
+    """Identifica la operación: VENTA, COMPRA, ALQUILER, INVERSION, TASACION o INFORMACION."""
+    # El orden importa: vender y tasar tienen prioridad (aportan inventario a la agencia)
+    if any(w in msg for w in ("quiero vender", "vender mi", "vender mi piso", "vender mi casa",
+                              "poner a la venta", "pongo a la venta", "deshacerme", "traspasar mi")):
+        return "VENTA"
+    if any(w in msg for w in ("tasar", "tasacion", "valorar mi", "valoracion de mi",
+                              "cuanto vale mi", "cuanto valdria", "precio de mi")):
+        return "TASACION"
+    if any(w in msg for w in ("invertir", "inversion", "rentabilidad", "para alquilar despues",
+                              "como inversion", "cartera", "varios inmuebles", "rentar")):
+        return "INVERSION"
+    if any(w in msg for w in ("alquilar", "alquiler", "arrendar", "de renta", "en renta",
+                              "mensualidad", "al mes")):
+        # "alquilar mi piso" sería poner en alquiler (también inventario), pero lo agrupamos en ALQUILER
+        return "ALQUILER"
+    # Compra directa
+    if any(w in msg for w in ("comprar", "compra", "adquirir", "adquisicion")):
+        return "COMPRA"
+    # Verbo de búsqueda + mención de un inmueble → intención de compra
+    verbos_busqueda = (
+        "busco", "buscando", "busca ", "quiero", "necesito", "me gustaria",
+        "me interesa", "nos interesa", "estoy buscando", "estamos buscando",
+    )
+    inmueble_kw = (
+        "piso", "casa", "atico", "duplex", "chalet", "chale", "adosado", "pareado",
+        "estudio", "loft", "apartamento", "villa", "local", "nave", "oficina",
+        "terreno", "parcela", "solar", "garaje", "trastero", "finca", "vivienda",
+        "inmueble", "propiedad",
+    )
+    if any(v in msg for v in verbos_busqueda) and any(re.search(rf"\b{k}", msg) for k in inmueble_kw):
+        return "COMPRA"
+    return "INFORMACION"
+
+
+def _detectar_tipo_inmueble(msg: str) -> str | None:
+    """Detecta el tipo de inmueble mencionado."""
+    tipos = {
+        "atico": "ático", "duplex": "dúplex", "chalet": "chalet", "chale": "chalet",
+        "adosado": "adosado", "pareado": "pareado", "estudio": "estudio",
+        "loft": "loft", "piso": "piso", "apartamento": "apartamento", "casa": "casa",
+        "villa": "villa", "local": "local comercial", "nave": "nave industrial",
+        "oficina": "oficina", "terreno": "terreno", "parcela": "parcela",
+        "solar": "solar", "garaje": "garaje", "trastero": "trastero",
+        "finca": "finca", "masia": "masía", "cortijo": "cortijo",
+    }
+    for clave, etiqueta in tipos.items():
+        if re.search(rf"\b{clave}s?\b", msg):
+            return etiqueta
+    return None
+
+
+def _detectar_presupuesto(message: str) -> dict | None:
+    """
+    Extrae un presupuesto / precio en euros del mensaje original (con mayúsculas y acentos).
+    Reconoce: 300.000€, 300000 euros, 300k, 1,2 millones, 450 mil, hasta 250.000…
+    Devuelve {'valor': int|None, 'texto': str} o None si no encuentra nada.
+    """
+    texto = message.replace(" ", " ")
+    low = _normalizar(texto)
+
+    # 1) Millones: "1,2 millones", "2 millones", "un millon"
+    m = re.search(r"(\d+(?:[.,]\d+)?)\s*millon", low)
+    if m:
+        num = float(m.group(1).replace(".", "").replace(",", "."))
+        return {"valor": int(num * 1_000_000), "texto": m.group(0).strip()}
+    if re.search(r"\bun millon\b", low):
+        return {"valor": 1_000_000, "texto": "un millón"}
+
+    # 2) "450 mil", "450mil"
+    m = re.search(r"(\d{1,4})\s*mil\b", low)
+    if m:
+        return {"valor": int(m.group(1)) * 1_000, "texto": m.group(0).strip()}
+
+    # 3) "300k", "300 k"
+    m = re.search(r"(\d{2,4})\s*k\b", low)
+    if m:
+        return {"valor": int(m.group(1)) * 1_000, "texto": m.group(0).strip()}
+
+    # 4) Cifra con € o "euros": 300.000€, 300000 euros, 250,000 eur
+    m = re.search(r"(\d[\d.\s,]{2,})\s*(?:€|eur|euros)", low)
+    if not m:
+        # 5) Cifra grande "pegada" a símbolo €: €300000
+        m = re.search(r"(?:€|eur|euros)\s*(\d[\d.\s,]{2,})", low)
+    if m:
+        crudo = re.sub(r"[.\s,]", "", m.group(1))
+        if crudo.isdigit():
+            valor = int(crudo)
+            if valor >= 10_000:  # filtrar cifras absurdas (m², años…)
+                return {"valor": valor, "texto": m.group(0).strip()}
+
+    return None
+
+
+def _detectar_financiacion(msg: str) -> str:
+    """Detecta el estado de financiación: contado, hipoteca_aprobada, necesita o desconocido."""
+    if any(w in msg for w in ("al contado", "pago al contado", "sin hipoteca",
+                              "no necesito financiacion", "dispongo del", "tengo el dinero",
+                              "liquidez", "en efectivo")):
+        return "contado"
+    if any(w in msg for w in ("hipoteca aprobada", "hipoteca preaprobada", "hipoteca concedida",
+                              "financiacion aprobada", "preaprobada", "banco me ha concedido",
+                              "tengo la hipoteca")):
+        return "hipoteca_aprobada"
+    if any(w in msg for w in ("necesito hipoteca", "necesito financiacion", "pedir hipoteca",
+                              "solicitar hipoteca", "me podeis financiar", "necesitaria financiacion",
+                              "opciones de financiacion")):
+        return "necesita"
+    return "desconocido"
+
+
+# Topónimos frecuentes (no exhaustivo, solo señal de zona concreta)
+TOPONIMOS = (
+    "madrid", "barcelona", "valencia", "sevilla", "malaga", "bilbao", "zaragoza",
+    "alicante", "murcia", "palma", "vigo", "gijon", "marbella", "granada", "cordoba",
+    "valladolid", "santander", "donostia", "san sebastian", "pamplona", "logrono",
+    "salamanca", "leon", "burgos", "albacete", "tarragona", "girona", "lleida",
+    "getafe", "alcala", "mostoles", "fuenlabrada", "pozuelo", "majadahonda",
+    "hospitalet", "badalona", "sabadell", "terrassa", "cornella",
+)
+
+
+def _detectar_zona(message: str, msg_norm: str) -> bool:
+    """
+    ¿El contacto especifica una zona/ubicación concreta?
+    Evita falsos positivos: la mera palabra "zona" o "barrio" no cuenta;
+    exige un topónimo conocido, un área reconocible o un nombre propio tras preposición.
+    """
+    # 1) Topónimo conocido
+    if any(t in msg_norm for t in TOPONIMOS):
+        return True
+    # 2) Áreas reconocibles por sí mismas
+    if any(w in msg_norm for w in ("centro", "casco antiguo", "casco historico", "ensanche")):
+        return True
+    # 3) Preposición/locución de lugar seguida de un nombre propio (Capitalizado) en el original
+    patron = (
+        r"\b(?:en|por|cerca de|junto a|zona de|zona del|barrio de|barrio del|"
+        r"distrito de|distrito del|en la calle|calle|avenida)\s+"
+        r"(?:el\s+|la\s+|los\s+|las\s+|del\s+|de la\s+)?"
+        r"[A-ZÁÉÍÓÚÑ][\wáéíóúñ]{2,}"
+    )
+    return bool(re.search(patron, message))
+
+
+def _detectar_habitaciones(msg: str) -> int | None:
+    """Detecta nº de habitaciones/dormitorios mencionados."""
+    m = re.search(r"(\d+)\s*(?:hab|habitacion|habitaciones|dormitor|cuarto)", msg)
+    if m:
+        return int(m.group(1))
+    palabras = {"una": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5}
+    for palabra, num in palabras.items():
+        if re.search(rf"\b{palabra}\s+(?:hab|habitacion|dormitor)", msg):
+            return num
+    return None
+
+
 def analyze_intent(message: str, name: str) -> dict:
     """
-    Analiza el mensaje del lead para extraer intención, urgencia y palabras clave.
-    Este análisis es determinista (no llama a Claude de nuevo) para mantener velocidad.
+    Analiza el mensaje del contacto inmobiliario y extrae todas las señales relevantes
+    para cualificarlo: operación, tipo de inmueble, zona, presupuesto, plazo y financiación.
+    Determinista y rápido (sin llamadas extra a Claude).
     """
-    logger.info("🔍 Analizando intención del mensaje de %s", name)
+    logger.info("🔍 Analizando intención inmobiliaria del mensaje de %s", name)
 
-    message_lower = message.lower()
+    msg = _normalizar(message)
 
-    # Detectar urgencia por palabras clave
-    urgency_high = any(w in message_lower for w in [
-        "urgente", "urgencia", "inmediatamente", "cuanto antes", "ya", "hoy",
-        "esta semana", "pronto", "rápido", "necesito ya", "asap",
-    ])
-    urgency_medium = any(w in message_lower for w in [
-        "próximamente", "en breve", "este mes", "planificando", "evaluando",
-    ])
+    # ── Operación e inmueble ──
+    operacion       = _detectar_operacion(msg)
+    tipo_inmueble   = _detectar_tipo_inmueble(msg)
+    presupuesto     = _detectar_presupuesto(message)
+    financiacion    = _detectar_financiacion(msg)
+    tiene_zona      = _detectar_zona(message, msg)
+    habitaciones    = _detectar_habitaciones(msg)
+
+    # ── Urgencia / plazo ──
+    urgency_high = any(w in msg for w in (
+        "urgente", "urgencia", "inmediatamente", "cuanto antes", "lo antes posible",
+        "esta semana", "hoy", "ya mismo", "rapido", "con prisa", "me mudo",
+        "antes de fin de mes", "esta misma semana", "asap",
+    ))
+    urgency_medium = any(w in msg for w in (
+        "proximamente", "en breve", "este mes", "proximos meses", "este ano",
+        "estoy mirando", "estamos mirando", "valorando", "planeando", "pensando en",
+    ))
     urgency = "alta" if urgency_high else ("media" if urgency_medium else "baja")
 
-    # Extraer palabras clave relevantes (indicadores de calidad del lead)
+    # ── Palabras clave inmobiliarias (señal de concreción) ──
     keyword_indicators = [
-        "automatizar", "optimizar", "integrar", "escalar", "equipo", "agentes",
-        "empleados", "clientes", "ventas", "leads", "crm", "erp", "facturación",
-        "gestión", "seguimiento", "reportes", "análisis", "ia", "software",
-        "plataforma", "api", "presupuesto", "inversión", "proyecto",
+        "comprar", "vender", "alquilar", "invertir", "hipoteca", "contado",
+        "presupuesto", "financiacion", "visita", "ver el", "reforma", "obra nueva",
+        "segunda mano", "exterior", "ascensor", "terraza", "garaje", "metros",
+        "m2", "habitaciones", "dormitorios", "zona", "barrio", "tasar", "valorar",
     ]
-    keywords = [w for w in keyword_indicators if w in message_lower]
+    keywords = [w for w in keyword_indicators if w in msg]
 
-    # Evaluar calidad del mensaje
+    # ── Calidad del mensaje ──
     word_count = len(message.split())
-    if word_count < 10:
+    señales_clave = sum([
+        operacion != "INFORMACION",
+        tipo_inmueble is not None,
+        presupuesto is not None,
+        tiene_zona,
+        habitaciones is not None,
+    ])
+    if word_count < 8 and señales_clave == 0:
         quality = "muy_vago"
-    elif word_count < 20 and len(keywords) < 2:
+    elif señales_clave <= 1 and word_count < 25:
         quality = "vago"
     else:
         quality = "claro"
 
-    # Inferir intención principal
-    if any(w in message_lower for w in ["automatizar", "automatización"]):
-        intention = "Automatización de procesos"
-    elif any(w in message_lower for w in ["leads", "captación", "ventas", "clientes"]):
-        intention = "Captación y gestión de leads/ventas"
-    elif any(w in message_lower for w in ["crm", "gestión", "seguimiento"]):
-        intention = "Gestión y seguimiento de clientes"
-    elif any(w in message_lower for w in ["integrar", "conectar", "api"]):
-        intention = "Integración de sistemas"
-    elif quality == "muy_vago":
-        intention = "Intención no especificada (mensaje muy corto)"
-    else:
-        intention = "Consulta general sobre soluciones digitales"
+    # ── Etiqueta legible de la intención ──
+    etiquetas_op = {
+        "VENTA":       "Quiere vender su inmueble",
+        "TASACION":    "Solicita tasación/valoración de su inmueble",
+        "COMPRA":      "Busca comprar un inmueble",
+        "ALQUILER":    "Busca alquiler",
+        "INVERSION":   "Interés en inversión inmobiliaria",
+        "INFORMACION": "Consulta general sin operación definida",
+    }
+    intention = etiquetas_op.get(operacion, "Consulta inmobiliaria")
+    if tipo_inmueble and operacion in ("COMPRA", "ALQUILER", "INVERSION"):
+        intention += f" ({tipo_inmueble})"
 
     result = {
-        "intention": intention,
-        "urgency": urgency,
-        "keywords": keywords,
-        "message_quality": quality,
-        "word_count": word_count,
+        "intention":        intention,
+        "operation":        operacion,
+        "property_type":    tipo_inmueble,
+        "has_zone":         tiene_zona,
+        "rooms":            habitaciones,
+        "budget":           presupuesto["valor"] if presupuesto else None,
+        "budget_text":      presupuesto["texto"] if presupuesto else None,
+        "financing":        financiacion,
+        "urgency":          urgency,
+        "keywords":         keywords,
+        "message_quality":  quality,
+        "word_count":       word_count,
     }
 
-    logger.info("  → Intención: %s | Urgencia: %s | Calidad: %s", intention, urgency, quality)
+    logger.info(
+        "  → Op: %s | Inmueble: %s | Presupuesto: %s | Financiación: %s | Urgencia: %s | Calidad: %s",
+        operacion, tipo_inmueble, result["budget"], financiacion, urgency, quality,
+    )
     return result
 
 
 def lookup_company(email: str) -> dict:
     """
-    Extrae el dominio del email e infiere información básica de la empresa.
-    No hace scraping real — infiere a partir del dominio y patrones conocidos.
+    Infiere el PERFIL del contacto a partir del email.
+    En vivienda, el correo personal es lo normal: NUNCA penaliza.
+    Un correo corporativo del sector puede señalar un inversor o profesional (mayor valor).
     """
-    logger.info("🏢 Investigando empresa para email: %s", email)
+    logger.info("👤 Analizando perfil del contacto: %s", email)
 
-    domain = email.split("@")[-1].lower()
+    domain = email.split("@")[-1].lower() if "@" in email else ""
     is_personal = domain in PERSONAL_EMAIL_DOMAINS
+    es_sector = any(h in domain for h in SECTOR_DOMAIN_HINTS)
 
     if is_personal:
         result = {
             "domain": domain,
             "is_personal_email": True,
+            "profile": "particular",
             "company_name": None,
-            "estimated_sector": "Particular / Freelance",
-            "estimated_size": "individual",
-            "notes": "Email de cuenta personal — tratar como lead individual, no empresa",
+            "notes": "Correo personal — perfil particular, lo habitual en vivienda. No penaliza.",
         }
-        logger.info("  → Email personal detectado (%s)", domain)
+        logger.info("  → Perfil: particular (%s)", domain)
         return result
 
-    # Intentar inferir sector por el dominio (heurísticas básicas)
-    sector = _infer_sector_from_domain(domain)
-    company_name = _domain_to_company_name(domain)
+    company_name = domain.split(".")[0].capitalize() if domain else None
+
+    if es_sector:
+        profile = "profesional_inmobiliario"
+        notes = f"Correo corporativo del sector ({domain}) — posible inversor o profesional. Alto valor recurrente."
+    else:
+        profile = "empresa"
+        notes = f"Correo corporativo ({domain}) — empresa u organización. Posible inversor o empleado buscando vivienda."
 
     result = {
         "domain": domain,
         "is_personal_email": False,
+        "profile": profile,
         "company_name": company_name,
-        "estimated_sector": sector,
-        "estimated_size": "desconocido",
-        "notes": f"Email corporativo. Dominio: {domain}",
+        "notes": notes,
     }
 
-    logger.info("  → Empresa: %s | Sector inferido: %s", company_name, sector)
+    logger.info("  → Perfil: %s (%s)", profile, domain)
     return result
-
-
-def _domain_to_company_name(domain: str) -> str:
-    """Convierte el dominio en un nombre de empresa legible."""
-    # Quita la extensión (.com, .es, .net, etc.)
-    name = domain.split(".")[0]
-    return name.capitalize()
-
-
-def _infer_sector_from_domain(domain: str) -> str:
-    """Infiere el sector basándose en palabras en el dominio."""
-    domain_lower = domain.lower()
-    sector_keywords = {
-        "inmobil": "Inmobiliaria",
-        "realty": "Inmobiliaria",
-        "homes": "Inmobiliaria",
-        "clinic": "Salud / Clínica",
-        "dental": "Salud / Dental",
-        "law": "Legal / Jurídico",
-        "legal": "Legal / Jurídico",
-        "abogad": "Legal / Jurídico",
-        "consult": "Consultoría",
-        "tech": "Tecnología",
-        "software": "Tecnología / Software",
-        "digital": "Marketing Digital",
-        "market": "Marketing",
-        "hotel": "Hostelería",
-        "restaur": "Hostelería",
-        "shop": "Comercio / Ecommerce",
-        "tienda": "Comercio / Ecommerce",
-        "academ": "Educación",
-        "school": "Educación",
-        "edu": "Educación",
-        "gym": "Fitness / Bienestar",
-        "fit": "Fitness / Bienestar",
-        "farm": "Farmacia / Salud",
-        "construct": "Construcción",
-        "obra": "Construcción",
-    }
-    for keyword, sector in sector_keywords.items():
-        if keyword in domain_lower:
-            return sector
-    return "Sector desconocido"
 
 
 def score_lead(intent_analysis: dict, company_info: dict, message: str) -> dict:
     """
-    Calcula la puntuación y clasificación del lead basándose en los análisis previos.
-    Lógica determinista y transparente — fácil de ajustar sin cambiar prompts.
+    Puntúa y clasifica el lead inmobiliario.
+    Rúbrica determinista pensada para el mercado español de vivienda:
+    premia intención de transacción, presupuesto, financiación resuelta, plazo y concreción.
     """
-    logger.info("📊 Calculando puntuación del lead")
+    logger.info("📊 Calculando puntuación del lead inmobiliario")
 
-    score = 5  # Base neutra
+    score = 5.0
     reasons = []
     actions = []
 
-    # ── Factor 1: Urgencia ──────────────────
-    urgency = intent_analysis.get("urgency", "baja")
-    if urgency == "alta":
-        score += 2
-        reasons.append("urgencia explícita en el mensaje")
-        actions.append("Llamar en menos de 2 horas")
-    elif urgency == "media":
-        score += 1
-        reasons.append("cierta urgencia implícita")
-        actions.append("Contactar hoy o mañana")
-    else:
-        actions.append("Responder por email en 24h")
+    operation    = intent_analysis.get("operation", "INFORMACION")
+    quality      = intent_analysis.get("message_quality", "vago")
+    urgency      = intent_analysis.get("urgency", "baja")
+    budget       = intent_analysis.get("budget")
+    financing    = intent_analysis.get("financing", "desconocido")
+    has_zone     = intent_analysis.get("has_zone", False)
+    rooms        = intent_analysis.get("rooms")
+    prop_type    = intent_analysis.get("property_type")
 
-    # ── Factor 2: Email personal vs corporativo ──
-    if company_info.get("is_personal_email"):
-        score -= 2
-        reasons.append("email personal — no empresa identificada")
-        actions.append("Verificar si es autónomo o particular")
-    else:
+    # ── Factor 1: Operación (lo que más pesa) ──
+    # Vendedores e inversores son intrínsecamente valiosos (inventario / recurrencia).
+    intencion_fuerte = operation in ("VENTA", "TASACION", "INVERSION")
+    if operation in ("VENTA", "TASACION"):
+        score += 3
+        reasons.append("quiere vender/tasar su inmueble (aporta inventario a la agencia)")
+        actions.append("Ofrecer valoración gratuita y agendar visita para tasar el inmueble")
+    elif operation == "INVERSION":
+        score += 2.5
+        reasons.append("perfil inversor (operaciones recurrentes y de mayor importe)")
+        actions.append("Enviar oportunidades con rentabilidad estimada")
+    elif operation == "COMPRA":
+        score += 1.5
+        reasons.append("intención de compra")
+        actions.append("Preparar selección de inmuebles que encajen con su búsqueda")
+    elif operation == "ALQUILER":
         score += 1
-        reasons.append(f"email corporativo ({company_info.get('domain', '')})")
-
-    # ── Factor 3: Calidad del mensaje ──────
-    quality = intent_analysis.get("message_quality", "vago")
-    if quality == "claro":
-        score += 1
-        reasons.append("mensaje detallado con necesidad clara")
-    elif quality == "muy_vago":
-        score -= 2
-        reasons.append("mensaje muy vago — necesita más contexto")
-        actions.append("Pedir más información sobre su necesidad concreta")
-
-    # ── Factor 4: Keywords relevantes ──────
-    keyword_count = len(intent_analysis.get("keywords", []))
-    if keyword_count >= 4:
-        score += 1
-        reasons.append(f"{keyword_count} indicadores de madurez en el mensaje")
-    elif keyword_count >= 2:
-        score += 0  # neutro, sin bonus
+        reasons.append("interés en alquiler")
+        actions.append("Enviar disponibilidad de alquiler en su zona")
     else:
         score -= 1
-        reasons.append("pocos indicadores de necesidad específica")
+        reasons.append("operación no definida en el mensaje")
+        actions.append("Llamar para identificar qué busca exactamente")
 
-    # Clamp: asegurar rango 1-10
-    score = max(1, min(10, score))
+    # ── Factor 2: Presupuesto explícito (señal fuerte de seriedad) ──
+    if budget:
+        score += 2
+        reasons.append(f"presupuesto definido (~{budget:,} €)".replace(",", "."))
+    elif operation in ("COMPRA", "INVERSION"):
+        actions.append("Confirmar presupuesto disponible")
 
-    # Clasificación según score
-    if score >= 7:
+    # ── Factor 3: Financiación resuelta (señal fuerte de capacidad) ──
+    if financing == "contado":
+        score += 2
+        reasons.append("compra al contado (máxima capacidad y rapidez de cierre)")
+    elif financing == "hipoteca_aprobada":
+        score += 2
+        reasons.append("hipoteca ya aprobada (listo para cerrar)")
+    elif financing == "necesita":
+        score += 0.5
+        reasons.append("necesita financiación")
+        actions.append("Ofrecer ayuda con la financiación / contacto con su banco")
+
+    # ── Factor 4: Concreción del encargo ──
+    # El tipo de inmueble apenas pesa (casi todos lo mencionan); zona y habitaciones sí.
+    concrecion = 0.0
+    if has_zone:           concrecion += 1.0
+    if rooms is not None:  concrecion += 0.5
+    if prop_type:          concrecion += 0.5
+    if concrecion:
+        score += concrecion
+        if has_zone and rooms is not None:
+            reasons.append("encargo concreto (zona y nº de habitaciones)")
+
+    # ── Factor 5: Urgencia / plazo ──
+    if urgency == "alta":
+        score += 1.5
+        reasons.append("plazo corto / urgencia explícita")
+        actions.insert(0, "Llamar HOY: el lead quiere avanzar de inmediato")
+    elif urgency == "media":
+        score += 0.5
+        reasons.append("plazo a medio plazo")
+
+    # ── Factor 6: Calidad del mensaje ──
+    if quality == "muy_vago":
+        score -= 2
+        reasons.append("mensaje muy vago — falta contexto")
+        actions.append("Hacer 1-2 preguntas concretas (zona, presupuesto, plazo)")
+    elif quality == "vago":
+        score -= 0.5
+
+    # ── Factor 7: Perfil del contacto (el correo personal NUNCA penaliza) ──
+    if company_info.get("profile") == "profesional_inmobiliario":
+        score += 0.5
+        reasons.append("perfil profesional/inversor del sector")
+
+    # Redondear y acotar 1-10
+    score = int(round(max(1.0, min(10.0, score))))
+
+    # ── Regla de capacidad (readiness) ──
+    # Un comprador/inquilino solo es CALIENTE si demuestra capacidad real:
+    # presupuesto, financiación resuelta o urgencia explícita. Si no, es un buen
+    # lead que hay que cualificar primero (TIBIO), no se marca como caliente.
+    readiness = bool(budget) or financing in ("contado", "hipoteca_aprobada") or urgency == "alta"
+    if operation in ("COMPRA", "ALQUILER") and not readiness and score > 7:
+        score = 7
+        reasons.append("falta confirmar capacidad (presupuesto/financiación/plazo) antes de priorizar")
+        actions.append("Cualificar capacidad de compra antes de dedicar visitas")
+
+    # ── Clasificación ──
+    if score >= 8:
         classification = "CALIENTE"
-        if "Enviar propuesta personalizada" not in actions:
-            actions.append("Enviar propuesta personalizada")
-    elif score >= 4:
+    elif score >= 5:
         classification = "TIBIO"
-        actions.append("Enviar caso de uso relevante para su sector")
     else:
         classification = "FRÍO"
-        actions.append("Añadir a secuencia de nurturing por email")
 
-    # Construir razonamiento legible
+    # Acción de cierre según clasificación
+    if classification == "CALIENTE":
+        actions.append("Priorizar: contactar en menos de 1 hora")
+    elif classification == "TIBIO":
+        actions.append("Hacer seguimiento esta semana con opciones concretas")
+    else:
+        actions.append("Incluir en seguimiento periódico (newsletter de novedades)")
+
     reasoning = "; ".join(reasons) if reasons else "Evaluación estándar sin factores destacados"
 
     result = {
         "score": score,
         "classification": classification,
         "reasoning": reasoning,
-        "recommended_actions": list(dict.fromkeys(actions)),  # eliminar duplicados
+        "recommended_actions": list(dict.fromkeys(actions))[:5],  # sin duplicados, máx 5
     }
 
     logger.info("  → Score: %d/10 | Clasificación: %s", score, classification)
@@ -430,16 +662,16 @@ def generate_email(
         "✉️  Generando email para %s (score %d, %s)",
         lead_data.get("name"), score, classification
     )
-    # Plantilla base que Claude usará como contexto para generar
-    name = lead_data.get("name", "").split()[0]  # solo el nombre
-    company = company_info.get("company_name") or company_info.get("domain", "tu empresa")
+    # El texto real lo redacta Claude; aquí solo devolvemos contexto para guiarlo.
+    nombre_completo = lead_data.get("name", "")
+    name = nombre_completo.split()[0] if nombre_completo.strip() else "cliente"
 
     placeholder = (
         f"[EMAIL PENDIENTE DE GENERACIÓN]\n"
         f"Destinatario: {name}\n"
-        f"Empresa: {company}\n"
+        f"Perfil: {company_info.get('profile', 'particular')}\n"
         f"Clasificación: {classification} ({score}/10)\n"
-        f"Contexto: {reasoning}"
+        f"Contexto para personalizar: {reasoning}"
     )
     return placeholder
 
