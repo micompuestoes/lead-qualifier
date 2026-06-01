@@ -342,12 +342,34 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+def _allowed_origins() -> list[str]:
+    """
+    Orígenes permitidos para CORS. Se construye desde variables de entorno
+    para no exponer la API a cualquier web (evita CSRF/abuso desde terceros).
+
+    - ALLOWED_ORIGINS: lista separada por comas (tiene prioridad).
+    - DASHBOARD_URL / FRONTEND_URL: la URL del dashboard en producción.
+    - localhost:3000 siempre permitido para desarrollo.
+    """
+    origins: list[str] = []
+    raw = os.getenv("ALLOWED_ORIGINS", "")
+    origins.extend(o.strip().rstrip("/") for o in raw.split(",") if o.strip())
+    for var in ("DASHBOARD_URL", "FRONTEND_URL"):
+        v = os.getenv(var, "").strip().rstrip("/")
+        if v:
+            origins.append(v)
+    for dev in ("http://localhost:3000", "http://127.0.0.1:3000"):
+        origins.append(dev)
+    # Sin duplicados, preservando orden
+    return list(dict.fromkeys(origins))
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins(),
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Admin-Key"],
 )
 
 
@@ -487,6 +509,8 @@ async def qualify_lead_endpoint(
             lead_email=lead.email,
             lead_name=lead.name,
             generated_email_body=result["generated_email"],
+            reply_to=(tenant.get("notify_email") or tenant.get("email")) if tenant else None,
+            from_name=tenant.get("name") if tenant else None,
         )
         if email_sent:
             logger.info("Email de respuesta enviado a %s", lead.email)
@@ -723,11 +747,13 @@ async def public_intake(api_key: str, lead: PublicLeadInput, request: Request):
             agency_name=tenant.get("name"),
         )
 
-        # Email de respuesta al lead
+        # Email de respuesta al lead (firmado por la agencia, con Reply-To a la agencia)
         send_lead_response_email(
             lead_email=lead.email,
             lead_name=lead.name,
             generated_email_body=result["generated_email"],
+            reply_to=tenant.get("notify_email") or tenant.get("email"),
+            from_name=tenant.get("name"),
         )
 
         # Notificación a la inmobiliaria

@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useUser } from '@clerk/nextjs';
 import { useAuth } from '@clerk/nextjs';
-import { obtenerLeads } from '@/lib/api';
+import { obtenerLeads, apiFetch } from '@/lib/api';
 import type { Lead, EstadoLead } from '@/types/lead';
 import LeadCard from '@/components/LeadCard';
 import { KpiSkeleton, LeadCardSkeleton } from '@/components/Skeleton';
+import OnboardingChecklist, { type OnbStep } from '@/components/OnboardingChecklist';
 import { useTheme } from '@/components/ThemeProvider';
 import PageHeader from '@/components/PageHeader';
 
@@ -79,11 +80,30 @@ export default function HomePage() {
   const [leads, setLeads]       = useState<Lead[]>([]);
   const [cargando, setCargando] = useState(true);
 
+  // Estado para el onboarding
+  const [setup, setSetup] = useState({ name: '', plan: 'free', imap: false });
+  const [setupCargado, setSetupCargado] = useState(false);
+
   useEffect(() => {
     obtenerLeads(getToken)
       .then(setLeads)
       .catch(() => {})
       .finally(() => setCargando(false));
+
+    // Info de configuración para el onboarding (no bloquea la UI principal)
+    (async () => {
+      try {
+        const [meRes, imapRes] = await Promise.all([
+          apiFetch('/me', getToken),
+          apiFetch('/me/imap', getToken),
+        ]);
+        const next = { name: '', plan: 'free', imap: false };
+        if (meRes.ok)   { const d = await meRes.json(); next.name = d.name ?? ''; next.plan = d.plan ?? 'free'; }
+        if (imapRes.ok) { const i = await imapRes.json(); next.imap = !!i.configured; }
+        setSetup(next);
+      } catch { /* silencioso */ }
+      finally { setSetupCargado(true); }
+    })();
   }, [getToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Stats computados desde los leads
@@ -105,6 +125,18 @@ export default function HomePage() {
   }
 
   const nombre = user?.firstName ?? '';
+
+  // ── Onboarding: pasos de configuración ──
+  const pasosOnboarding: OnbStep[] = [
+    { label: 'Configura tu empresa', desc: 'Nombre comercial y email de notificaciones', done: !!setup.name, href: '/perfil', cta: 'Configurar' },
+    { label: 'Comparte tu formulario de captación', desc: 'Pega el enlace en tu web para recibir leads', done: total > 0, href: '/perfil', cta: 'Ver enlace' },
+    ...(setup.plan === 'pro' || setup.plan === 'agencia'
+      ? [{ label: 'Conecta tu bandeja de entrada', desc: 'Convierte tus emails en leads automáticamente', done: setup.imap, href: '/perfil', cta: 'Conectar' }]
+      : []),
+    { label: 'Cualifica tu primer lead', desc: 'Pruébalo con un contacto real', done: total > 0, href: '/nuevo-lead', cta: 'Empezar' },
+  ];
+  const onboardingCompleto = pasosOnboarding.every(p => p.done);
+  const mostrarOnboarding = !cargando && setupCargado && !onboardingCompleto;
 
   const cardStyle = {
     background: c.card, border: c.cardBorder, borderRadius: 14, padding: 20,
@@ -160,6 +192,9 @@ export default function HomePage() {
           </Link>
         }
       />
+
+      {/* ── Onboarding (solo si la configuración no está completa) ── */}
+      {mostrarOnboarding && <OnboardingChecklist steps={pasosOnboarding} />}
 
       {/* ── KPIs ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 32 }}>
