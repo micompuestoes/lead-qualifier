@@ -38,7 +38,10 @@ async function handleResponse<T>(res: Response): Promise<T> {
     let mensaje = `Error ${res.status}`;
     try {
       const data = await res.json();
-      mensaje = data.detail ?? JSON.stringify(data);
+      const d = data.detail;
+      if (typeof d === 'string')        mensaje = d;
+      else if (d && typeof d === 'object') mensaje = d.message ?? JSON.stringify(d);
+      else                              mensaje = JSON.stringify(data);
     } catch { /* body no es JSON */ }
     throw new Error(mensaje);
   }
