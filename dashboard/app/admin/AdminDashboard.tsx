@@ -134,7 +134,7 @@ export default function AdminDashboard({ tenants: inicial, error }: { tenants: T
   ];
 
   return (
-    <div style={{ padding: 32, maxWidth: 1080, margin: '0 auto' }}>
+    <div className="r-pad" style={{ padding: 32, maxWidth: 1080, margin: '0 auto' }}>
 
       <PageHeader
         eyebrow="Administración"
@@ -158,7 +158,7 @@ export default function AdminDashboard({ tenants: inicial, error }: { tenants: T
       )}
 
       {/* ── Métricas ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
+      <div className="r-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
         {metricCards.map(m => (
           <div key={m.label} style={cardStyle}>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: c.text2, marginBottom: 8 }}>
@@ -233,8 +233,8 @@ export default function AdminDashboard({ tenants: inicial, error }: { tenants: T
 
       {/* ── Tabla ── */}
       {visibles.length > 0 ? (
-        <div style={{ background: c.card, border: c.cardBorder, borderRadius: 14, overflow: 'hidden' }}>
-          <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+        <div className="r-scroll-x" style={{ background: c.card, border: c.cardBorder, borderRadius: 14, overflow: 'hidden' }}>
+          <table className="r-table" style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${c.divider}`, background: c.muted }}>
                 <SortableTh label="Empresa" active={sortKey === 'name'}  dir={sortDir} onClick={() => toggleSort('name')}  style={thStyle} c={c} />

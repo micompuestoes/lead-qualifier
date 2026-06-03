@@ -164,7 +164,7 @@ export default function NuevoLeadPage() {
 
   if (resultado) {
     return (
-      <div className="p-8 max-w-2xl">
+      <div className="p-8 max-w-2xl r-pad">
         {mostrarConfeti && <Confetti />}
 
         <div className="animate-reveal-in">
@@ -257,7 +257,7 @@ export default function NuevoLeadPage() {
   // ── Formulario ────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-8 max-w-2xl">
+    <div className="p-8 max-w-2xl r-pad">
       <PageHeader
         eyebrow="Captación"
         title="Cualificar nuevo lead"

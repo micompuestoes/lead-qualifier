@@ -19,7 +19,7 @@ export default function PageHeader({ eyebrow, title, description, action }: Prop
     <header style={{ marginBottom: 40 }}>
 
       {/* Título + acción */}
-      <div style={{
+      <div className="page-header-row" style={{
         display:        'flex',
         alignItems:     description ? 'flex-end' : 'center',
         justifyContent: 'space-between',

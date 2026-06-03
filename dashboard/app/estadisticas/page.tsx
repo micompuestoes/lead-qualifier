@@ -398,7 +398,7 @@ export default function EstadisticasPage() {
   };
 
   return (
-    <div style={{ padding: 32, maxWidth: 960, margin: '0 auto' }}>
+    <div className="r-pad" style={{ padding: 32, maxWidth: 960, margin: '0 auto' }}>
 
       <PageHeader
         eyebrow="Análisis"
@@ -407,7 +407,7 @@ export default function EstadisticasPage() {
       />
 
       {/* ── KPIs ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+      <div className="r-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
         {kpis.map(kpi => (
           <div key={kpi.label} style={cardStyle}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -431,7 +431,7 @@ export default function EstadisticasPage() {
       </div>
 
       {/* ── Estado + Temperatura ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
+      <div className="r-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
 
         {/* Por estado */}
         <div style={cardStyle}>

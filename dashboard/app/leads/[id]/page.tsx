@@ -154,7 +154,7 @@ export default function LeadDetallePage() {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ padding: 32, maxWidth: 1100, margin: '0 auto' }}>
+    <div className="r-pad" style={{ padding: 32, maxWidth: 1100, margin: '0 auto' }}>
 
       {/* ── Breadcrumb ── */}
       <Link href="/leads" style={{
@@ -236,7 +236,7 @@ export default function LeadDetallePage() {
       </div>
 
       {/* ── Dos columnas ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 320px', gap: 20, alignItems: 'start' }}>
+      <div className="r-col" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 320px', gap: 20, alignItems: 'start' }}>
 
         {/* ── Columna izquierda ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

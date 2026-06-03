@@ -161,7 +161,7 @@ export default function HomePage() {
   ];
 
   return (
-    <div style={{ padding: 32, maxWidth: 1024, margin: '0 auto' }}>
+    <div className="r-pad" style={{ padding: 32, maxWidth: 1024, margin: '0 auto' }}>
 
       {/* Tour guiado de primera visita */}
       <ProductTour />
@@ -201,7 +201,7 @@ export default function HomePage() {
       {mostrarOnboarding && <OnboardingChecklist steps={pasosOnboarding} />}
 
       {/* ── KPIs ── */}
-      <div data-tour="kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 32 }}>
+      <div data-tour="kpis" className="r-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 32 }}>
         {cargando
           ? Array.from({ length: 3 }).map((_, i) => <KpiSkeleton key={i} />)
           : kpis.map(kpi => (
@@ -305,7 +305,7 @@ export default function HomePage() {
         }}>
           Acceso rápido
         </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+        <div className="r-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
           {ACCIONES.map(accion => (
             <Link key={accion.href} href={accion.href} style={{ textDecoration: 'none' }}>
               <div style={{

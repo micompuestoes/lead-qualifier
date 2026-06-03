@@ -195,7 +195,7 @@ export default function AnunciosPage() {
   };
 
   return (
-    <div style={{ padding: 32, maxWidth: 800, margin: '0 auto' }}>
+    <div className="r-pad" style={{ padding: 32, maxWidth: 800, margin: '0 auto' }}>
 
       <PageHeader
         eyebrow="Herramientas IA"
@@ -208,7 +208,7 @@ export default function AnunciosPage() {
         {/* ── Inmueble ── */}
         <div>
           <SectionLabel label="Inmueble" />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+          <div className="r-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
             {[
               { key: 'tipo', label: 'Tipo de inmueble', opts: TIPOS },
               { key: 'op',   label: 'Operación',        opts: OPS  },
@@ -240,7 +240,7 @@ export default function AnunciosPage() {
         {/* ── Detalles ── */}
         <div>
           <SectionLabel label="Detalles" />
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+          <div className="r-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
             {[
               { key: 'm2',     label: 'm²',          ph: '80'        },
               { key: 'hab',    label: 'Habitaciones', ph: '3'         },
@@ -304,7 +304,7 @@ export default function AnunciosPage() {
           {/* Canales */}
           <div>
             <label style={labelSt}>Canales a generar</label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            <div className="r-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
               {CANALES.map(canal => {
                 const sel = canales.includes(canal.id);
                 return (

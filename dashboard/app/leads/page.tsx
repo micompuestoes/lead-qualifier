@@ -193,7 +193,7 @@ export default function LeadsPage() {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ padding: 32 }}>
+    <div className="r-pad" style={{ padding: 32 }}>
 
       {/* Banner nuevos leads */}
       {leadsNuevos > 0 && (
@@ -297,7 +297,7 @@ export default function LeadsPage() {
       />
 
       {/* ── Métricas (filtro de clasificación) ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
+      <div className="r-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
         <MetricaCard
           label="Calientes" valor={calientes} total={total}
           color="#b45309" barColor="rgba(180,83,9,0.7)" c={c}

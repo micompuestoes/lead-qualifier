@@ -14,7 +14,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     pathname === '/privacidad';
 
   return (
-    <main className={fullBleed ? 'flex-1 min-h-screen' : 'flex-1 ml-60 min-h-screen'}>
+    <main className={fullBleed ? 'flex-1 min-h-screen' : 'flex-1 ml-60 min-h-screen app-main'}>
       {children}
     </main>
   );

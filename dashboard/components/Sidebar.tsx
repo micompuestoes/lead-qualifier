@@ -206,6 +206,10 @@ export default function Sidebar() {
   // Arranca con el cache para que el plan sea correcto al instante
   const [perfil, setPerfil]         = useState<Perfil>(() => leerCache() ?? { plan: 'free', name: '', is_admin: false });
   const [reconectando, setReconectando] = useState(false);
+  const [abierto, setAbierto]       = useState(false);  // cajón móvil
+
+  // Cierra el cajón al cambiar de página
+  useEffect(() => { setAbierto(false); }, [pathname]);
 
   useEffect(() => {
     let cancelado = false;
@@ -262,9 +266,34 @@ export default function Sidebar() {
   const plan = planConfig[perfil.plan] ?? planConfig.free;
 
   return (
-    <aside
-      className="fixed top-0 left-0 h-screen w-60 flex flex-col z-10"
-      style={{
+    <>
+      {/* ── Barra superior (solo móvil) ── */}
+      <header className="mobile-topbar">
+        <button
+          onClick={() => setAbierto(true)}
+          aria-label="Abrir menú"
+          style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 38, height: 38, borderRadius: 9, flexShrink: 0,
+            background: 'transparent', border: `1px solid ${c.inputBorder}`,
+            color: c.text1, cursor: 'pointer',
+          }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+        <span style={{ fontSize: 15, fontWeight: 600, color: c.text1 }}>
+          {perfil.name || 'Inmobia'}
+        </span>
+      </header>
+
+      {/* ── Velo del cajón (solo móvil) ── */}
+      {abierto && <div className="sidebar-overlay" onClick={() => setAbierto(false)} />}
+
+      <aside
+        className={`fixed top-0 left-0 h-screen w-60 flex flex-col z-10 app-sidebar${abierto ? ' is-open' : ''}`}
+        style={{
         background:   c.sidebar,
         borderRight:  `1px solid ${c.sidebarBorder}`,
         boxShadow:    c.sidebarShadow,
@@ -450,5 +479,6 @@ export default function Sidebar() {
         </button>
       </div>
     </aside>
+    </>
   );
 }
