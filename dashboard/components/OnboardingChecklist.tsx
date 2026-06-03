@@ -23,6 +23,7 @@ export default function OnboardingChecklist({ steps }: { steps: OnbStep[] }) {
   return (
     <div
       className="animate-fade-up"
+      data-tour="onboarding"
       style={{
         position: 'relative', overflow: 'hidden',
         background: 'linear-gradient(135deg, rgba(200,169,110,0.10) 0%, rgba(200,169,110,0.03) 100%)',
@@ -117,6 +118,19 @@ export default function OnboardingChecklist({ steps }: { steps: OnbStep[] }) {
             </div>
           );
         })}
+      </div>
+
+      {/* Enlace a la guía */}
+      <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${c.divider}` }}>
+        <Link href="/ayuda" style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          fontSize: 12.5, fontWeight: 600, color: '#9a7a3a', textDecoration: 'none',
+        }}>
+          ¿Te pierdes? Consulta la guía
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
+          </svg>
+        </Link>
       </div>
     </div>
   );

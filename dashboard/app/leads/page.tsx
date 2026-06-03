@@ -287,6 +287,19 @@ export default function LeadsPage() {
         />
       </div>
 
+      {/* Ayuda contextual */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -12, marginBottom: 18 }}>
+        <Link href="/ayuda#cualificacion" style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          fontSize: 12, color: c.text2, textDecoration: 'none',
+        }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          ¿Cómo se puntúan los leads?
+        </Link>
+      </div>
+
       {/* ── Buscador + Estado ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28, flexWrap: 'wrap' }}>
 

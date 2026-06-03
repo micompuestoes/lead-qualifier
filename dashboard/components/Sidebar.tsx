@@ -312,7 +312,7 @@ export default function Sidebar() {
       </Link>
 
       {/* ── Navigation ── */}
-      <nav className="flex-1 overflow-y-auto" style={{ padding: '20px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <nav data-tour="nav" className="flex-1 overflow-y-auto" style={{ padding: '20px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         <SectionLabel c={c}>Principal</SectionLabel>
         {principalLinks.map(l => <NavItem key={l.href} link={l} active={esActivo(l.href)} c={c} />)}
 

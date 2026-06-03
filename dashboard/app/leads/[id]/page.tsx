@@ -198,8 +198,14 @@ export default function LeadDetallePage() {
         {/* Score */}
         <div style={{ marginBottom: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: c.text2 }}>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: c.text2, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               Puntuación IA
+              <Link href="/ayuda#cualificacion" title="¿Cómo funciona la puntuación?"
+                style={{ display: 'inline-flex', color: c.text3 }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+              </Link>
             </p>
             {lead.score !== null && (
               <span style={{ fontSize: 26, fontWeight: 700, color: c.text1, lineHeight: 1 }}>

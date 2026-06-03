@@ -9,6 +9,7 @@ import type { Lead, EstadoLead } from '@/types/lead';
 import LeadCard from '@/components/LeadCard';
 import { KpiSkeleton, LeadCardSkeleton } from '@/components/Skeleton';
 import OnboardingChecklist, { type OnbStep } from '@/components/OnboardingChecklist';
+import ProductTour from '@/components/ProductTour';
 import { useTheme } from '@/components/ThemeProvider';
 import PageHeader from '@/components/PageHeader';
 
@@ -162,13 +163,16 @@ export default function HomePage() {
   return (
     <div style={{ padding: 32, maxWidth: 1024, margin: '0 auto' }}>
 
+      {/* Tour guiado de primera visita */}
+      <ProductTour />
+
       {/* ── Cabecera personalizada ── */}
       <PageHeader
         eyebrow={fechaHoy()}
         title={nombre ? `${saludo()}, ${nombre}` : saludo()}
         description="Aquí tienes el resumen de tu actividad"
         action={
-          <Link href="/nuevo-lead" style={{
+          <Link href="/nuevo-lead" data-tour="nuevo-lead" style={{
             display: 'inline-flex', alignItems: 'center', gap: 7,
             fontSize: 14, fontWeight: 600, padding: '10px 18px',
             borderRadius: 12, textDecoration: 'none',
@@ -197,7 +201,7 @@ export default function HomePage() {
       {mostrarOnboarding && <OnboardingChecklist steps={pasosOnboarding} />}
 
       {/* ── KPIs ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 32 }}>
+      <div data-tour="kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 32 }}>
         {cargando
           ? Array.from({ length: 3 }).map((_, i) => <KpiSkeleton key={i} />)
           : kpis.map(kpi => (
