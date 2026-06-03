@@ -29,6 +29,8 @@ function plural(n: number, singular: string, pluralStr: string) {
   return `${n} ${n === 1 ? singular : pluralStr}`;
 }
 
+const PAGE_SIZE = 24;   // leads por página
+
 // ── Página ────────────────────────────────────────────────────────────────────
 
 // ── CSV export ─────────────────────────────────────────────────────────────────
@@ -68,6 +70,9 @@ export default function LeadsPage() {
   const [busqueda, setBusqueda]         = useState('');
   const [busquedaFocus, setBusquedaFocus] = useState(false);
   const [plan, setPlan]                 = useState('free');
+  const [offset, setOffset]             = useState(0);
+  const [hayMas, setHayMas]             = useState(false);
+  const [cargandoMas, setCargandoMas]   = useState(false);
 
   useEffect(() => {
     try {
@@ -90,7 +95,7 @@ export default function LeadsPage() {
   useEffect(() => {
     const iv = setInterval(async () => {
       try {
-        const data = await obtenerLeads(getToken);
+        const data = await obtenerLeads(getToken, { limit: PAGE_SIZE, offset: 0 });
         const nuevos = data.filter(l => !idsConocidos.current.has(l.id));
         if (nuevos.length > 0) { pendingLeads.current = data; setLeadsNuevos(nuevos.length); }
       } catch { /* silencioso */ }
@@ -101,18 +106,41 @@ export default function LeadsPage() {
   async function cargarLeads() {
     try {
       setCargando(true); setError(null);
-      const data = await obtenerLeads(getToken);
+      const data = await obtenerLeads(getToken, { limit: PAGE_SIZE, offset: 0 });
       setLeads(data);
+      setOffset(data.length);
+      setHayMas(data.length === PAGE_SIZE);
       idsConocidos.current = new Set(data.map(l => l.id));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al cargar leads');
     } finally { setCargando(false); }
   }
 
+  async function cargarMas() {
+    if (cargandoMas) return;
+    try {
+      setCargandoMas(true);
+      const data = await obtenerLeads(getToken, { limit: PAGE_SIZE, offset });
+      setLeads(prev => {
+        const vistos = new Set(prev.map(l => l.id));
+        const nuevos = data.filter(l => !vistos.has(l.id));
+        nuevos.forEach(l => idsConocidos.current.add(l.id));
+        return [...prev, ...nuevos];
+      });
+      setOffset(prev => prev + data.length);
+      setHayMas(data.length === PAGE_SIZE);
+    } catch {
+      addToast('No se pudieron cargar más leads', 'error');
+    } finally { setCargandoMas(false); }
+  }
+
   function aplicarLeadsNuevos() {
     if (pendingLeads.current.length > 0) {
-      setLeads(pendingLeads.current);
-      idsConocidos.current = new Set(pendingLeads.current.map(l => l.id));
+      const data = pendingLeads.current;
+      setLeads(data);
+      setOffset(data.length);
+      setHayMas(data.length === PAGE_SIZE);
+      idsConocidos.current = new Set(data.map(l => l.id));
       pendingLeads.current = [];
     }
     setLeadsNuevos(0);
@@ -123,14 +151,20 @@ export default function LeadsPage() {
     setFiltroClasif(prev => prev === clasif ? 'TODAS' : clasif);
   }
 
-  function handleExportCSV() {
+  async function handleExportCSV() {
     if (plan === 'free') {
       addToast('El export CSV requiere el plan Pro o Agencia', 'error');
       return;
     }
-    if (leads.length === 0) { addToast('No hay leads que exportar', 'error'); return; }
-    generarCSV(leads);
-    addToast(`${leads.length} leads exportados`, 'success');
+    try {
+      // Traer todos los leads (no solo los cargados en pantalla) para exportar
+      const todos = await obtenerLeads(getToken, { limit: 500 });
+      if (todos.length === 0) { addToast('No hay leads que exportar', 'error'); return; }
+      generarCSV(todos);
+      addToast(`${todos.length} leads exportados`, 'success');
+    } catch {
+      addToast('No se pudo exportar', 'error');
+    }
   }
 
   // Cambio inline de estado desde la tarjeta
@@ -400,11 +434,37 @@ export default function LeadsPage() {
         <EmptyState sinLeads={total === 0} c={c}
           onLimpiarFiltros={hayFiltros ? () => { setFiltroClasif('TODAS'); setFiltroEstado('TODOS'); setBusqueda(''); } : undefined} />
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-          {leadsFiltrados.map((lead, i) => (
-            <LeadCard key={lead.id} lead={lead} index={i} onStatusChange={handleStatusChange} />
-          ))}
-        </div>
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+            {leadsFiltrados.map((lead, i) => (
+              <LeadCard key={lead.id} lead={lead} index={i} onStatusChange={handleStatusChange} />
+            ))}
+          </div>
+
+          {/* Cargar más */}
+          {hayMas && (
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 28 }}>
+              <button onClick={cargarMas} disabled={cargandoMas}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  padding: '11px 24px', borderRadius: 12, fontSize: 13.5, fontWeight: 600,
+                  background: c.card, color: c.text1, border: `1.5px solid ${c.inputBorder}`,
+                  cursor: cargandoMas ? 'default' : 'pointer', opacity: cargandoMas ? 0.6 : 1,
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => { if (!cargandoMas) (e.currentTarget as HTMLElement).style.borderColor = 'rgba(200,169,110,0.5)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = c.inputBorder; }}
+              >
+                {cargandoMas ? (
+                  <>
+                    <span className="animate-spin" style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(200,169,110,0.3)', borderTopColor: '#c8a96e' }} />
+                    Cargando…
+                  </>
+                ) : 'Cargar más leads'}
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

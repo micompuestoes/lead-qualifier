@@ -50,8 +50,15 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 // ── Funciones de API (reciben getToken como primer argumento) ─────────────────
 
-export async function obtenerLeads(getToken: GetToken): Promise<Lead[]> {
-  const res = await apiFetch('/leads', getToken, { cache: 'no-store' } as RequestInit);
+export async function obtenerLeads(
+  getToken: GetToken,
+  opts?: { limit?: number; offset?: number },
+): Promise<Lead[]> {
+  const qs = new URLSearchParams();
+  if (opts?.limit  != null) qs.set('limit',  String(opts.limit));
+  if (opts?.offset != null) qs.set('offset', String(opts.offset));
+  const path = '/leads' + (qs.toString() ? `?${qs.toString()}` : '');
+  const res = await apiFetch(path, getToken, { cache: 'no-store' } as RequestInit);
   const data = await handleResponse<{ leads: Lead[] }>(res);
   return normalizarLeads(data.leads);
 }

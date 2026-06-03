@@ -582,12 +582,12 @@ def get_leads_by_email(email: str, tenant_id: str) -> list:
     return [_row_a_dict(r) for r in rows]
 
 
-def get_recent_leads(limit: int = 100, tenant_id: str = "legacy") -> list:
-    """Devuelve los últimos N leads del tenant."""
+def get_recent_leads(limit: int = 100, tenant_id: str = "legacy", offset: int = 0) -> list:
+    """Devuelve los leads del tenant ordenados por fecha desc, con paginación (limit/offset)."""
     with engine.connect() as conn:
         rows = conn.execute(
-            text("SELECT * FROM leads WHERE tenant_id = :tid ORDER BY created_at DESC LIMIT :limit"),
-            {"limit": limit, "tid": tenant_id},
+            text("SELECT * FROM leads WHERE tenant_id = :tid ORDER BY created_at DESC LIMIT :limit OFFSET :offset"),
+            {"limit": limit, "tid": tenant_id, "offset": offset},
         ).fetchall()
     return [_row_a_dict(r) for r in rows]
 

@@ -550,13 +550,16 @@ async def qualify_lead_endpoint(
 @app.get("/leads")
 async def list_leads(
     limit: int = 100,
+    offset: int = 0,
     tenant_id: str = Depends(get_tenant_id),
 ):
-    """Lista los leads del tenant, ordenados por fecha descendente."""
+    """Lista los leads del tenant, ordenados por fecha descendente, con paginación."""
     ensure_tenant(tenant_id)
     if limit > 500:
         limit = 500
-    leads = get_recent_leads(limit, tenant_id=tenant_id)
+    if offset < 0:
+        offset = 0
+    leads = get_recent_leads(limit, tenant_id=tenant_id, offset=offset)
     return {"leads": [_serializar_lead(l) for l in leads], "total": len(leads)}
 
 
@@ -752,6 +755,25 @@ async def public_intake(api_key: str, lead: PublicLeadInput, request: Request):
 
     tenant_id = tenant["id"]
     logger.info("Intake público — %s <%s> (tenant: %s, ip: %s)", lead.name, lead.email, tenant_id, ip)
+
+    # ── Límite del plan gratuito ──
+    # Si el tenant está en free y ha superado su cuota mensual, NO perdemos el lead:
+    # lo guardamos sin cualificar (sin gastar IA) para que mejore su plan y lo desbloquee.
+    if tenant.get("plan", "free") == "free" and get_lead_count_this_month(tenant_id) >= FREE_LEAD_LIMIT:
+        from database import save_lead
+        import uuid as _uuid
+        save_lead(
+            lead_id=str(_uuid.uuid4()), tenant_id=tenant_id,
+            name=lead.name, email=lead.email, phone=lead.phone, message=lead.message,
+            classification=None, score=None,
+            reasoning="Sin cualificar: has alcanzado el límite de leads del plan gratuito este mes. Mejora tu plan para desbloquear la cualificación con IA.",
+            generated_email=None, recommended_actions=[], intent_analysis={}, company_info={},
+        )
+        logger.info("Intake free sobre límite — lead capturado sin IA (tenant %s)", tenant_id)
+        return {
+            "ok": True,
+            "message": "Tu consulta ha sido recibida. En breve nos pondremos en contacto contigo.",
+        }
 
     try:
         client = get_anthropic_client()
