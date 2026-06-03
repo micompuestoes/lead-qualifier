@@ -6,6 +6,7 @@ import { esES } from '@clerk/localizations';
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
 import AppShell from '@/components/AppShell';
+import SentryInit from '@/components/SentryInit';
 import { ToastProvider } from '@/components/Toast';
 import { ThemeProvider } from '@/components/ThemeProvider';
 
@@ -41,6 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </head>
         <body>
           <ThemeProvider>
+            <SentryInit />
             <ToastProvider>
               <div className="flex min-h-screen">
                 <Sidebar />

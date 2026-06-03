@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Habilita instrumentation.ts (monitorización Sentry en servidor) en Next 14
+  experimental: {
+    instrumentationHook: true,
+  },
   /**
    * Proxy de desarrollo: redirige /api/* a FastAPI en localhost:8000.
    * En producción (NEXT_PUBLIC_API_URL definida) no se usa este proxy —

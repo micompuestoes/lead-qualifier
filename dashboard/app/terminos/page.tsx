@@ -4,6 +4,19 @@ import LegalDoc, { type LegalSection } from '@/components/LegalDoc';
 
 const SECCIONES: LegalSection[] = [
   {
+    heading: 'Identificación del titular',
+    body: [
+      'Este servicio es titularidad de:',
+      [
+        'Denominación social: 〔COMPLETAR: razón social〕',
+        'NIF / CIF: 〔COMPLETAR: NIF〕',
+        'Domicilio fiscal: 〔COMPLETAR: domicilio〕',
+        'Email de contacto: contacto@inmobia.es',
+      ],
+      'Antes de operar, sustituye los campos entre 〔corchetes〕 por tus datos reales.',
+    ],
+  },
+  {
     heading: 'Objeto del servicio',
     body: [
       'Inmobia es una plataforma SaaS que utiliza inteligencia artificial para cualificar leads inmobiliarios, generar respuestas y ayudar a las agencias a priorizar sus contactos comerciales.',

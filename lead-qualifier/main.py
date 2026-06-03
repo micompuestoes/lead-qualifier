@@ -58,6 +58,24 @@ logger = logging.getLogger(__name__)
 
 load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=True)
 
+# ─────────────────────────────────────────────
+# Monitorización de errores (Sentry) — opcional
+# Solo se activa si SENTRY_DSN está definida. Sin la variable, no hace nada.
+# ─────────────────────────────────────────────
+_sentry_dsn = os.getenv("SENTRY_DSN", "").strip()
+if _sentry_dsn:
+    try:
+        import sentry_sdk
+        sentry_sdk.init(
+            dsn=_sentry_dsn,
+            environment=os.getenv("SENTRY_ENV", "production"),
+            traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+            send_default_pii=False,
+        )
+        logger.info("Sentry activado (monitorización de errores)")
+    except Exception as exc:  # pragma: no cover
+        logger.warning("No se pudo iniciar Sentry: %s", exc)
+
 
 # ─────────────────────────────────────────────
 # Modelos Pydantic

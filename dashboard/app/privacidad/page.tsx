@@ -6,7 +6,14 @@ const SECCIONES: LegalSection[] = [
   {
     heading: 'Responsable del tratamiento',
     body: [
-      'Inmobia es responsable del tratamiento de los datos personales que se gestionan a través de la plataforma. Para cualquier consulta sobre privacidad puedes escribir a contacto@inmobia.es.',
+      'El responsable del tratamiento de los datos personales es:',
+      [
+        'Denominación social: 〔COMPLETAR: razón social〕',
+        'NIF / CIF: 〔COMPLETAR: NIF〕',
+        'Domicilio: 〔COMPLETAR: domicilio〕',
+        'Email de contacto: contacto@inmobia.es',
+      ],
+      'Para cualquier consulta sobre privacidad puedes escribir a contacto@inmobia.es. Sustituye los campos entre 〔corchetes〕 por tus datos reales antes de operar.',
     ],
   },
   {

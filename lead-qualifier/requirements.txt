@@ -26,3 +26,6 @@ cryptography>=42.0.0       # Fernet: cifrado de contraseñas IMAP en la BD
 
 # ── Pagos ─────────────────────────────────────
 stripe>=10.0.0             # SDK oficial de Stripe para suscripciones
+
+# ── Monitorización (opcional) ─────────────────
+sentry-sdk[fastapi]>=2.0.0  # Captura de errores en producción (solo activo si SENTRY_DSN está definida)
