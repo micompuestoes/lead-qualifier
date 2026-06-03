@@ -185,7 +185,7 @@
 
 @media (max-width: 900px) {
   /* Contenido a ancho completo + hueco para la barra superior móvil */
-  .app-main { margin-left: 0 !important; padding-top: 52px; }
+  .app-main { margin-left: 0 !important; padding-top: 60px; }
 
   /* Barra lateral convertida en cajón deslizante */
   .app-sidebar {
@@ -198,13 +198,21 @@
     box-shadow: 0 16px 50px rgba(0,0,0,0.45);
   }
 
-  /* Barra superior móvil con el botón de menú */
+  /* Barra superior móvil con el botón de menú — efecto cristal esmerilado */
   .mobile-topbar {
     display: flex; align-items: center; gap: 12px;
-    position: fixed; top: 0; left: 0; right: 0; height: 52px;
-    padding: 0 14px; z-index: 56;
-    background: var(--bg-sidebar);
-    border-bottom: 1px solid var(--c-divider);
+    position: fixed; top: 0; left: 0; right: 0; height: 60px;
+    padding: 0 16px; z-index: 56;
+    background: rgba(255, 255, 255, 0.78);
+    -webkit-backdrop-filter: blur(14px) saturate(1.4);
+    backdrop-filter: blur(14px) saturate(1.4);
+    border-bottom: 1px solid rgba(200, 169, 110, 0.22);
+    box-shadow: 0 2px 18px rgba(26, 24, 20, 0.05);
+  }
+  [data-theme="dark"] .mobile-topbar {
+    background: rgba(20, 18, 16, 0.72);
+    border-bottom-color: rgba(200, 169, 110, 0.16);
+    box-shadow: 0 2px 18px rgba(0, 0, 0, 0.35);
   }
 
   /* Velo oscuro al abrir el cajón */

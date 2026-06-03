@@ -274,18 +274,36 @@ export default function Sidebar() {
           aria-label="Abrir menú"
           style={{
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            width: 38, height: 38, borderRadius: 9, flexShrink: 0,
-            background: 'transparent', border: `1px solid ${c.inputBorder}`,
-            color: c.text1, cursor: 'pointer',
+            width: 40, height: 40, borderRadius: 11, flexShrink: 0,
+            background: 'rgba(200,169,110,0.1)',
+            border: '1px solid rgba(200,169,110,0.22)',
+            color: '#9a7a3a', cursor: 'pointer',
+            transition: 'background 0.15s',
           }}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </button>
-        <span style={{ fontSize: 15, fontWeight: 600, color: c.text1 }}>
-          {perfil.name || 'Inmobia'}
-        </span>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <div style={{
+            width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+            background: 'linear-gradient(135deg, #d4b87a 0%, #c8a96e 45%, #a8895a 100%)',
+            boxShadow: '0 3px 10px rgba(200,169,110,0.4)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" strokeWidth={2.2} stroke="#1a1814" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+            </svg>
+          </div>
+          <span style={{
+            fontSize: 15, fontWeight: 600, color: c.text1, letterSpacing: '-0.01em',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {perfil.name || 'Inmobia'}
+          </span>
+        </div>
       </header>
 
       {/* ── Velo del cajón (solo móvil) ── */}
