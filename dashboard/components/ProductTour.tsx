@@ -100,14 +100,27 @@ export default function ProductTour() {
   function siguiente() { if (!esUltimo) setI(p => p + 1); else cerrar(); }
   function anterior() { if (i > 0) setI(p => p - 1); }
 
-  // Posición del tooltip
+  // Posición del tooltip — al lado para objetivos altos o de la barra lateral,
+  // si no debajo o encima, y siempre acotado dentro de la pantalla.
   let tipStyle: React.CSSProperties;
   if (rect) {
-    const debajo = rect.bottom < window.innerHeight * 0.62;
-    const left = Math.min(Math.max(rect.left, 16), window.innerWidth - TOOLTIP_W - 16);
-    tipStyle = debajo
-      ? { top: rect.bottom + 14, left }
-      : { bottom: window.innerHeight - rect.top + 14, left };
+    const TIP_H = 200;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const objetivoLateral = rect.left < 80 || rect.height > vh * 0.5;
+    let top: number, left: number;
+    if (objetivoLateral && rect.right + TOOLTIP_W + 16 < vw) {
+      left = rect.right + 16;
+      top  = rect.top;
+    } else if (rect.bottom + TIP_H + 16 < vh) {
+      top  = rect.bottom + 14;
+      left = rect.left;
+    } else {
+      top  = rect.top - TIP_H - 14;
+      left = rect.left;
+    }
+    left = Math.min(Math.max(left, 16), vw - TOOLTIP_W - 16);
+    top  = Math.min(Math.max(top, 16), vh - TIP_H - 16);
+    tipStyle = { top, left };
   } else {
     // Centrado
     tipStyle = { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
