@@ -26,6 +26,8 @@ Si alguna clave se ha compartido alguna vez, rótala antes de lanzar:
 - [ ] Copiar **Publishable key** y **Secret key**.
 - [ ] Copiar la **JWKS URL** (`https://<tu-instancia>.clerk.accounts.dev/.well-known/jwks.json`).
 - [ ] Apunta tu `user_id` de Clerk (lo verás en tu perfil del dashboard) para `SUPER_ADMIN_USER_ID`.
+- [ ] **Renombrar la aplicación en Clerk a "Inmobia"** (Clerk → Settings) — así los emails y pantallas de Clerk no dicen "Lead Qualifier".
+- [ ] En Vercel, define `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in` y `NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up` para usar tus propias páginas (no la página alojada de Clerk).
 
 ---
 

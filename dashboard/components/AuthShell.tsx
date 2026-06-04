@@ -184,11 +184,13 @@ export default function AuthShell({ mode }: { mode: 'sign-in' | 'sign-up' }) {
     },
     elements: {
       rootBox:           'w-full',
-      cardBox:           'w-full shadow-none',
-      card:              'shadow-none border-none bg-transparent p-0 gap-5',
-      header:            'text-left',
-      headerTitle:       'text-[19px] font-semibold',
-      headerSubtitle:    'text-[13px]',
+      cardBox:           'w-full shadow-none border-none',
+      card:              'shadow-none border-none bg-transparent p-0 gap-5 w-full',
+      // Ocultamos el encabezado interno de Clerk: usamos el nuestro (evita el
+      // título duplicado y el "para continuar en …").
+      header:            'hidden',
+      headerTitle:       'hidden',
+      headerSubtitle:    'hidden',
       socialButtonsBlockButton:
         'border rounded-xl transition-all hover:opacity-90',
       formButtonPrimary:

@@ -1,6 +1,9 @@
-// Middleware de Clerk v7 — protege todas las rutas salvo auth y formularios públicos
+// Middleware de Clerk — protege todo salvo las rutas públicas.
+// A los visitantes sin sesión que entran en una ruta protegida los llevamos a
+// NUESTRA página /sign-in (no a la página alojada de Clerk), conservando el destino.
 
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import { NextResponse } from 'next/server';
 
 const isPublicRoute = createRouteMatcher([
   '/',            // landing pública de marketing
@@ -12,8 +15,13 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
-  if (!isPublicRoute(request)) {
-    await auth.protect();
+  if (isPublicRoute(request)) return;
+
+  const { userId } = await auth();
+  if (!userId) {
+    const signIn = new URL('/sign-in', request.url);
+    signIn.searchParams.set('redirect_url', request.url);
+    return NextResponse.redirect(signIn);
   }
 });
 
