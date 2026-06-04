@@ -476,8 +476,8 @@ export default function Sidebar() {
         <p style={{ fontSize: 12, color: c.text3, fontWeight: 500, flex: 1, transition: 'color 0.2s' }}>
           Mi cuenta
         </p>
-        {/* Notificaciones */}
-        <NotificationBell placement="sidebar" />
+        {/* Notificaciones (esta instancia gestiona el sonido/aviso del navegador) */}
+        <NotificationBell placement="sidebar" enableAlerts />
         {/* Theme toggle */}
         <button
           onClick={toggle}

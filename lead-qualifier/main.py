@@ -32,14 +32,16 @@ from jose import JWTError, jwt
 from pydantic import BaseModel
 
 from database import (
-    add_team_member, count_leads_for_tenant, delete_lead, disable_imap,
-    ensure_tenant, get_all_tenants, get_digest_counts, get_imap_config,
-    get_lead_by_id, get_lead_count_this_month, get_leads_by_email,
+    add_notification, add_team_member, count_leads_for_tenant,
+    count_unread_notifications, delete_lead, disable_imap, ensure_tenant,
+    get_all_tenants, get_digest_counts, get_imap_config, get_lead_by_id,
+    get_lead_count_this_month, get_leads_by_email, get_notifications,
     get_owner_for_member, get_recent_leads, get_stale_pending_leads, get_stats,
     get_team_members, get_tenant, get_tenant_by_api_key,
     get_tenant_by_stripe_customer, get_tenants_with_imap, init_db,
-    remove_team_member, save_imap_config, set_tenant_plan, set_tenant_status,
-    update_imap_last_sync, update_lead_status, update_tenant_profile,
+    mark_notifications_read, remove_team_member, save_imap_config,
+    set_tenant_plan, set_tenant_status, update_imap_last_sync,
+    update_lead_status, update_tenant_profile,
 )
 from email_imap import detectar_servidor_imap, obtener_no_leidos, verificar_conexion
 from email_sender import (
@@ -718,6 +720,26 @@ async def update_my_profile(
 
 
 # ─────────────────────────────────────────────
+# Notificaciones de sistema (pagos, plan…)
+# ─────────────────────────────────────────────
+
+@app.get("/me/notifications")
+async def list_notifications(tenant_id: str = Depends(get_tenant_id)):
+    """Notificaciones de sistema del tenant + contador de no leídas."""
+    return {
+        "notifications": get_notifications(tenant_id, limit=20),
+        "unread": count_unread_notifications(tenant_id),
+    }
+
+
+@app.post("/me/notifications/read")
+async def read_notifications(tenant_id: str = Depends(get_tenant_id)):
+    """Marca todas las notificaciones de sistema como leídas."""
+    mark_notifications_read(tenant_id)
+    return {"ok": True}
+
+
+# ─────────────────────────────────────────────
 # Endpoints IMAP (bandeja de entrada del tenant)
 # ─────────────────────────────────────────────
 
@@ -969,6 +991,11 @@ async def cancel_subscription(tenant_id: str = Depends(get_tenant_id)):
         # cancel_at_period_end=True → el usuario conserva acceso hasta el fin del período
         sub = stripe.Subscription.modify(sub_id, cancel_at_period_end=True)
         cancel_date = sub.get("current_period_end")
+        try:
+            add_notification(tenant_id, "plan", "Cancelación programada",
+                             "Tu suscripción se cancelará al final del período. Mantienes el acceso hasta entonces.")
+        except Exception:
+            pass
         logger.info(
             "Suscripción %s marcada para cancelar al final del período (tenant %s, fecha: %s)",
             sub_id, tenant_id, cancel_date,
@@ -1019,6 +1046,11 @@ async def stripe_webhook(request: Request):
         customer_id = obj.get("customer")
         if tenant_id:
             set_tenant_plan(tenant_id, plan, sub_id, customer_id)
+            try:
+                add_notification(tenant_id, "plan", f"¡Bienvenido al plan {plan.capitalize()}!",
+                                 "Tu suscripción se ha activado. Ya tienes acceso a todas las funciones.")
+            except Exception:
+                pass
             logger.info("Pago completado: tenant %s → %s", tenant_id, plan)
 
     elif etype in ("customer.subscription.updated", "customer.subscription.deleted"):
@@ -1035,6 +1067,11 @@ async def stripe_webhook(request: Request):
                     disable_imap(tenant["id"])
                 except Exception as exc:
                     logger.warning("No se pudo desactivar IMAP al degradar %s: %s", tenant["id"], exc)
+                try:
+                    add_notification(tenant["id"], "plan", "Tu plan ha pasado a Gratuito",
+                                     "Tu suscripción ha finalizado. Puedes volver a mejorar cuando quieras.")
+                except Exception:
+                    pass
                 logger.info("Suscripción cancelada: tenant %s → free", tenant["id"])
 
     elif etype == "invoice.payment_failed":
@@ -1043,6 +1080,11 @@ async def stripe_webhook(request: Request):
         if customer_id:
             tenant = get_tenant_by_stripe_customer(customer_id)
             if tenant:
+                try:
+                    add_notification(tenant["id"], "pago", "Problema con tu pago",
+                                     "No hemos podido cobrar tu suscripción. Actualiza tu tarjeta para no perder el acceso.")
+                except Exception:
+                    pass
                 email = tenant.get("notify_email") or tenant.get("email")
                 if email:
                     try:

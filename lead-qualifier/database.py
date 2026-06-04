@@ -130,6 +130,20 @@ def init_db() -> None:
             )
         """))
 
+    # Tabla de notificaciones de sistema (pagos, cambios de plan, etc.)
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS notifications (
+                id          TEXT PRIMARY KEY,
+                tenant_id   TEXT NOT NULL,
+                type        TEXT NOT NULL,
+                title       TEXT NOT NULL,
+                body        TEXT,
+                read        INTEGER NOT NULL DEFAULT 0,
+                created_at  TEXT NOT NULL
+            )
+        """))
+
     # Índices para rendimiento
     with engine.begin() as conn:
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_leads_email     ON leads (email)"))
@@ -139,6 +153,7 @@ def init_db() -> None:
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_api_key ON tenants (api_key)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_team_owner  ON team_members (owner_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_team_member ON team_members (member_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_notif_tenant ON notifications (tenant_id, created_at)"))
 
     logger.info("Base de datos lista")
 
@@ -590,6 +605,55 @@ def get_recent_leads(limit: int = 100, tenant_id: str = "legacy", offset: int = 
             {"limit": limit, "tid": tenant_id, "offset": offset},
         ).fetchall()
     return [_row_a_dict(r) for r in rows]
+
+
+# ─────────────────────────────────────────────
+# Notificaciones de sistema
+# ─────────────────────────────────────────────
+
+def add_notification(tenant_id: str, tipo: str, title: str, body: str = "") -> None:
+    """Crea una notificación de sistema para un tenant (pago, cambio de plan…)."""
+    import uuid
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                INSERT INTO notifications (id, tenant_id, type, title, body, read, created_at)
+                VALUES (:id, :t, :ty, :ti, :b, 0, :c)
+            """),
+            {
+                "id": str(uuid.uuid4()), "t": tenant_id, "ty": tipo,
+                "ti": title, "b": body, "c": datetime.utcnow().isoformat(),
+            },
+        )
+
+
+def get_notifications(tenant_id: str, limit: int = 20) -> list:
+    """Últimas notificaciones de sistema del tenant."""
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("SELECT * FROM notifications WHERE tenant_id = :t ORDER BY created_at DESC LIMIT :l"),
+            {"t": tenant_id, "l": limit},
+        ).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
+def count_unread_notifications(tenant_id: str) -> int:
+    """Número de notificaciones de sistema sin leer."""
+    with engine.connect() as conn:
+        n = conn.execute(
+            text("SELECT COUNT(*) FROM notifications WHERE tenant_id = :t AND read = 0"),
+            {"t": tenant_id},
+        ).scalar()
+    return n or 0
+
+
+def mark_notifications_read(tenant_id: str) -> None:
+    """Marca como leídas todas las notificaciones del tenant."""
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE notifications SET read = 1 WHERE tenant_id = :t"),
+            {"t": tenant_id},
+        )
 
 
 def get_digest_counts(tenant_id: str, since_iso: str) -> dict:
