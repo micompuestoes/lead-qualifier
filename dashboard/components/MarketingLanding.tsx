@@ -1,0 +1,300 @@
+'use client';
+
+// Landing pública de marketing — lo que ve un prospecto que NO ha iniciado sesión.
+// Diseño autónomo (no depende del tema del dashboard).
+
+import Link from 'next/link';
+
+const GOLD = '#c8a96e';
+const INK  = '#1a1814';
+const CREAM = '#f5f0e8';
+
+function Logo({ size = 38 }: { size?: number }) {
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: size * 0.28, flexShrink: 0,
+      background: 'linear-gradient(135deg, #d4b87a 0%, #c8a96e 45%, #a8895a 100%)',
+      boxShadow: '0 6px 18px rgba(200,169,110,0.4)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <svg width={size * 0.46} height={size * 0.46} viewBox="0 0 24 24" fill="none"
+        strokeWidth={2.2} stroke={INK} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+      </svg>
+    </div>
+  );
+}
+
+const VENTAJAS = [
+  {
+    titulo: 'Cualifica en segundos',
+    desc: 'Cada consulta se analiza y puntúa al instante. Sabes a quién llamar primero sin leer un solo correo.',
+    icon: <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />,
+  },
+  {
+    titulo: 'Prioriza quien va a cerrar',
+    desc: 'Detecta presupuesto, financiación y urgencia. Caliente, tibio o frío — tú a lo importante.',
+    icon: <path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z" />,
+  },
+  {
+    titulo: 'Responde al instante',
+    desc: 'Email personalizado y profesional enviado automáticamente, firmado con el nombre de tu agencia.',
+    icon: <><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></>,
+  },
+  {
+    titulo: 'Capta desde tu web',
+    desc: 'Un formulario con tu marca que convierte cada visita en un lead cualificado en tu panel.',
+    icon: <><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></>,
+  },
+  {
+    titulo: 'Conecta tu correo',
+    desc: 'Los emails de posibles clientes se convierten solos en leads. Sin copiar y pegar.',
+    icon: <><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-10 5L2 7" /></>,
+  },
+  {
+    titulo: 'Anuncios con IA',
+    desc: 'Genera textos listos para Idealista, redes sociales y email en un clic.',
+    icon: <><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></>,
+  },
+];
+
+const PASOS = [
+  { n: '01', t: 'Comparte tu formulario', d: 'Pega tu enlace en la web o conecta tu correo.' },
+  { n: '02', t: 'La IA cualifica el lead', d: 'Lo puntúa, clasifica y redacta la respuesta.' },
+  { n: '03', t: 'Tú cierras la venta', d: 'Llamas primero a quien de verdad va a comprar.' },
+];
+
+const PLANES = [
+  { nombre: 'Free', precio: '0€', desc: '10 leads/mes para probar', destacado: false, feats: ['Cualificación con IA', 'Formulario público', 'Dashboard'] },
+  { nombre: 'Pro', precio: '49€', desc: 'Para inmobiliarias activas', destacado: true, feats: ['Leads ilimitados', 'Conecta tu correo', 'Avisos por email', 'Exportar a CSV'] },
+  { nombre: 'Agencia', precio: '99€', desc: 'Para equipos', destacado: false, feats: ['Todo lo de Pro', 'Anuncios con IA', 'Estadísticas', 'Varios usuarios'] },
+];
+
+export default function MarketingLanding() {
+  const sectionPad: React.CSSProperties = { maxWidth: 1080, margin: '0 auto', padding: '0 24px' };
+
+  return (
+    <div style={{ background: CREAM, color: INK, minHeight: '100vh', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+
+      {/* ── Navbar ── */}
+      <header style={{
+        position: 'sticky', top: 0, zIndex: 20,
+        background: 'rgba(245,240,232,0.82)',
+        backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
+        borderBottom: '1px solid rgba(200,169,110,0.2)',
+      }}>
+        <div style={{ ...sectionPad, display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+            <Logo size={34} />
+            <span style={{ fontSize: 17, fontWeight: 600 }}>Inmobia</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Link href="/sign-in" style={{ fontSize: 14, fontWeight: 600, color: '#5a544c', textDecoration: 'none', padding: '8px 12px' }}>
+              Entrar
+            </Link>
+            <Link href="/sign-up" style={{
+              fontSize: 14, fontWeight: 600, color: INK, textDecoration: 'none',
+              padding: '9px 18px', borderRadius: 11, background: GOLD,
+              boxShadow: '0 2px 12px rgba(200,169,110,0.4)',
+            }}>
+              Empieza gratis
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      {/* ── Hero ── */}
+      <section style={{ position: 'relative', overflow: 'hidden' }}>
+        {/* Aura dorada */}
+        <div className="animate-aurora" style={{
+          position: 'absolute', top: -160, right: -120, width: 520, height: 520, borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(200,169,110,0.28) 0%, transparent 70%)', pointerEvents: 'none',
+        }} />
+        <div style={{ ...sectionPad, padding: '88px 24px 72px', position: 'relative', textAlign: 'center' }}>
+          <span style={{
+            display: 'inline-block', fontSize: 12, fontWeight: 700, letterSpacing: '0.1em',
+            textTransform: 'uppercase', color: '#9a7a3a', background: 'rgba(200,169,110,0.14)',
+            border: '1px solid rgba(200,169,110,0.3)', borderRadius: 99, padding: '6px 14px', marginBottom: 24,
+          }}>
+            IA para inmobiliarias
+          </span>
+          <h1 style={{
+            fontFamily: "'DM Serif Display', Georgia, serif", fontWeight: 400,
+            fontSize: 'clamp(2.2rem, 6vw, 3.6rem)', lineHeight: 1.1, letterSpacing: '-0.025em',
+            margin: '0 auto 22px', maxWidth: 820,
+          }}>
+            Convierte cada consulta en una oportunidad real
+          </h1>
+          <p style={{ fontSize: 'clamp(15px, 2.5vw, 18px)', lineHeight: 1.6, color: '#5a544c', maxWidth: 600, margin: '0 auto 34px' }}>
+            La inteligencia artificial cualifica tus leads inmobiliarios, prioriza los que van a cerrar
+            y redacta la respuesta perfecta. Tú solo cierras operaciones.
+          </p>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Link href="/sign-up" style={{
+              fontSize: 15, fontWeight: 600, color: INK, textDecoration: 'none',
+              padding: '14px 28px', borderRadius: 13, background: GOLD,
+              boxShadow: '0 4px 20px rgba(200,169,110,0.45)',
+            }}>
+              Empieza gratis — 10 leads/mes
+            </Link>
+            <a href="#como-funciona" style={{
+              fontSize: 15, fontWeight: 600, color: INK, textDecoration: 'none',
+              padding: '14px 28px', borderRadius: 13, background: 'transparent',
+              border: '1.5px solid rgba(200,169,110,0.4)',
+            }}>
+              Cómo funciona
+            </a>
+          </div>
+          <p style={{ fontSize: 13, color: '#8a8278', marginTop: 18 }}>Sin tarjeta · Sin permanencia · En español</p>
+        </div>
+      </section>
+
+      {/* ── Ventajas ── */}
+      <section style={{ ...sectionPad, padding: '40px 24px 72px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 18 }}>
+          {VENTAJAS.map(v => (
+            <div key={v.titulo} style={{
+              background: '#fff', border: '1.5px solid rgba(200,169,110,0.18)', borderRadius: 16, padding: 24,
+              boxShadow: '0 1px 6px rgba(26,24,20,0.04)',
+            }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 12, marginBottom: 16,
+                background: 'rgba(200,169,110,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: GOLD,
+              }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                  {v.icon}
+                </svg>
+              </div>
+              <h3 style={{ fontSize: 17, fontWeight: 600, marginBottom: 7 }}>{v.titulo}</h3>
+              <p style={{ fontSize: 14, lineHeight: 1.6, color: '#5a544c' }}>{v.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Cómo funciona ── */}
+      <section id="como-funciona" style={{ background: '#fff', borderTop: '1px solid rgba(200,169,110,0.18)', borderBottom: '1px solid rgba(200,169,110,0.18)' }}>
+        <div style={{ ...sectionPad, padding: '72px 24px' }}>
+          <div style={{ textAlign: 'center', marginBottom: 48 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: GOLD, marginBottom: 12 }}>
+              Cómo funciona
+            </p>
+            <h2 style={{ fontFamily: "'DM Serif Display', Georgia, serif", fontWeight: 400, fontSize: 'clamp(1.8rem, 4vw, 2.4rem)', letterSpacing: '-0.02em', margin: 0 }}>
+              De una consulta a una venta, en tres pasos
+            </h2>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 28 }}>
+            {PASOS.map(p => (
+              <div key={p.n} style={{ textAlign: 'center' }}>
+                <div style={{
+                  fontFamily: "'DM Serif Display', Georgia, serif", fontSize: 34, color: GOLD,
+                  width: 64, height: 64, borderRadius: '50%', margin: '0 auto 16px',
+                  background: 'rgba(200,169,110,0.1)', border: '1.5px solid rgba(200,169,110,0.3)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>{p.n}</div>
+                <h3 style={{ fontSize: 17, fontWeight: 600, marginBottom: 7 }}>{p.t}</h3>
+                <p style={{ fontSize: 14, lineHeight: 1.6, color: '#5a544c', maxWidth: 260, margin: '0 auto' }}>{p.d}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Precios ── */}
+      <section style={{ ...sectionPad, padding: '72px 24px' }}>
+        <div style={{ textAlign: 'center', marginBottom: 44 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: GOLD, marginBottom: 12 }}>
+            Precios
+          </p>
+          <h2 style={{ fontFamily: "'DM Serif Display', Georgia, serif", fontWeight: 400, fontSize: 'clamp(1.8rem, 4vw, 2.4rem)', letterSpacing: '-0.02em', margin: 0 }}>
+            Empieza gratis. Crece cuando quieras.
+          </h2>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 18, maxWidth: 880, margin: '0 auto' }}>
+          {PLANES.map(plan => (
+            <div key={plan.nombre} style={{
+              background: '#fff', borderRadius: 18, padding: 28,
+              border: plan.destacado ? `2px solid ${GOLD}` : '1.5px solid rgba(200,169,110,0.2)',
+              boxShadow: plan.destacado ? '0 12px 40px rgba(200,169,110,0.22)' : '0 1px 6px rgba(26,24,20,0.04)',
+              transform: plan.destacado ? 'translateY(-6px)' : 'none', position: 'relative',
+            }}>
+              {plan.destacado && (
+                <span style={{
+                  position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)',
+                  fontSize: 11, fontWeight: 700, padding: '5px 13px', borderRadius: 99,
+                  background: GOLD, color: INK, whiteSpace: 'nowrap',
+                }}>Más popular</span>
+              )}
+              <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 3 }}>{plan.nombre}</h3>
+              <p style={{ fontSize: 13, color: '#8a8278', marginBottom: 14 }}>{plan.desc}</p>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 20 }}>
+                <span style={{ fontSize: 40, fontWeight: 700, letterSpacing: '-0.02em' }}>{plan.precio}</span>
+                {plan.precio !== '0€' && <span style={{ fontSize: 14, color: '#8a8278' }}>/mes</span>}
+              </div>
+              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px', display: 'flex', flexDirection: 'column', gap: 11 }}>
+                {plan.feats.map(f => (
+                  <li key={f} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 14 }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={GOLD} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <Link href="/sign-up" style={{
+                display: 'block', textAlign: 'center', fontSize: 14, fontWeight: 600, textDecoration: 'none',
+                padding: '12px', borderRadius: 12,
+                background: plan.destacado ? GOLD : 'transparent',
+                color: plan.destacado ? INK : INK,
+                border: plan.destacado ? 'none' : '1.5px solid rgba(200,169,110,0.35)',
+              }}>
+                Empezar
+              </Link>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── CTA final ── */}
+      <section style={{ ...sectionPad, padding: '0 24px 80px' }}>
+        <div style={{
+          position: 'relative', overflow: 'hidden', borderRadius: 24, padding: '56px 32px', textAlign: 'center',
+          background: 'linear-gradient(150deg, #1c1813 0%, #14110d 60%, #0f0d0a 100%)', color: CREAM,
+        }}>
+          <div className="animate-aurora" style={{
+            position: 'absolute', bottom: -120, left: -80, width: 360, height: 360, borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(200,169,110,0.3) 0%, transparent 70%)', pointerEvents: 'none',
+          }} />
+          <h2 style={{ position: 'relative', fontFamily: "'DM Serif Display', Georgia, serif", fontWeight: 400, fontSize: 'clamp(1.8rem, 4vw, 2.6rem)', letterSpacing: '-0.02em', marginBottom: 14 }}>
+            Deja de perder clientes por responder tarde
+          </h2>
+          <p style={{ position: 'relative', fontSize: 16, color: 'rgba(245,240,232,0.65)', maxWidth: 520, margin: '0 auto 28px' }}>
+            Únete a las agencias que ya cualifican sus leads automáticamente con Inmobia.
+          </p>
+          <Link href="/sign-up" style={{
+            position: 'relative', display: 'inline-block', fontSize: 15, fontWeight: 600, color: INK, textDecoration: 'none',
+            padding: '14px 30px', borderRadius: 13, background: GOLD, boxShadow: '0 4px 22px rgba(200,169,110,0.5)',
+          }}>
+            Empieza gratis hoy
+          </Link>
+        </div>
+      </section>
+
+      {/* ── Footer ── */}
+      <footer style={{ borderTop: '1px solid rgba(200,169,110,0.18)' }}>
+        <div style={{ ...sectionPad, padding: '28px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Logo size={28} />
+            <span style={{ fontSize: 14, fontWeight: 600 }}>Inmobia</span>
+            <span style={{ fontSize: 13, color: '#8a8278' }}>· IA inmobiliaria</span>
+          </div>
+          <div style={{ display: 'flex', gap: 18, fontSize: 13 }}>
+            <Link href="/terminos" style={{ color: '#5a544c', textDecoration: 'none' }}>Términos</Link>
+            <Link href="/privacidad" style={{ color: '#5a544c', textDecoration: 'none' }}>Privacidad</Link>
+            <a href="mailto:contacto@inmobia.es" style={{ color: '#5a544c', textDecoration: 'none' }}>Contacto</a>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}

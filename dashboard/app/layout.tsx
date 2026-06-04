@@ -2,6 +2,7 @@
 
 import type { Metadata } from 'next';
 import { ClerkProvider } from '@clerk/nextjs';
+import { auth } from '@clerk/nextjs/server';
 import { esES } from '@clerk/localizations';
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
@@ -28,7 +29,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const { userId } = await auth();
   return (
     <ClerkProvider localization={esES} signInUrl="/sign-in" signUpUrl="/sign-up">
       <html lang="es" suppressHydrationWarning>
@@ -44,10 +46,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ThemeProvider>
             <SentryInit />
             <ToastProvider>
-              <div className="flex min-h-screen">
-                <Sidebar />
-                <AppShell>{children}</AppShell>
-              </div>
+              {userId ? (
+                <div className="flex min-h-screen">
+                  <Sidebar />
+                  <AppShell>{children}</AppShell>
+                </div>
+              ) : (
+                // Visitante no autenticado: sin sidebar (landing, login, formularios, legal)
+                children
+              )}
             </ToastProvider>
           </ThemeProvider>
         </body>
