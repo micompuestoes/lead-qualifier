@@ -592,6 +592,42 @@ def get_recent_leads(limit: int = 100, tenant_id: str = "legacy", offset: int = 
     return [_row_a_dict(r) for r in rows]
 
 
+def get_digest_counts(tenant_id: str, since_iso: str) -> dict:
+    """Conteos para el resumen semanal: nuevos en el periodo, calientes y pendientes."""
+    with engine.connect() as conn:
+        nuevos = conn.execute(
+            text("SELECT COUNT(*) FROM leads WHERE tenant_id=:t AND created_at >= :since"),
+            {"t": tenant_id, "since": since_iso},
+        ).scalar() or 0
+        calientes = conn.execute(
+            text("SELECT COUNT(*) FROM leads WHERE tenant_id=:t AND created_at >= :since AND score >= 8"),
+            {"t": tenant_id, "since": since_iso},
+        ).scalar() or 0
+        pendientes = conn.execute(
+            text("SELECT COUNT(*) FROM leads WHERE tenant_id=:t AND status='PENDIENTE'"),
+            {"t": tenant_id},
+        ).scalar() or 0
+    return {"nuevos": nuevos, "calientes": calientes, "pendientes": pendientes}
+
+
+def get_stale_pending_leads(tenant_id: str, dias: int = 2, min_score: int = 5) -> list:
+    """Leads buenos (score >= min_score) en estado PENDIENTE desde hace más de `dias` días."""
+    from datetime import datetime, timedelta
+    limite = (datetime.utcnow() - timedelta(days=dias)).isoformat()
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT name, email, score, created_at FROM leads
+                WHERE tenant_id = :t AND status = 'PENDIENTE'
+                  AND score >= :ms AND created_at <= :lim
+                ORDER BY score DESC, created_at ASC
+                LIMIT 20
+            """),
+            {"t": tenant_id, "ms": min_score, "lim": limite},
+        ).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
 def update_lead_status(lead_id: str, status: str, tenant_id: str) -> None:
     """Actualiza el estado de un lead, verificando que pertenece al tenant."""
     with engine.begin() as conn:

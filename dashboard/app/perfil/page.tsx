@@ -783,59 +783,56 @@ export default function PerfilPage() {
                       Cancelar suscripción
                     </button>
                   ) : (
-                    /* ── Confirmación inline ── */
-                    <div className="rounded-xl p-4 space-y-3"
-                      style={{ background: 'rgba(180,83,9,0.07)', border: '1.5px solid rgba(180,83,9,0.2)' }}>
-                      <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
-                          style={{ background: 'rgba(180,83,9,0.12)' }}>
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="#b45309">
-                            <path strokeLinecap="round" strokeLinejoin="round"
-                              d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold" style={{ color: '#b45309' }}>
-                            ¿Confirmas la cancelación?
-                          </p>
-                          <p className="text-xs mt-1" style={{ color: c.text2 }}>
-                            Tu plan pasará a Gratuito al final del período actual.
-                            Seguirás con acceso completo hasta entonces.
-                          </p>
-                        </div>
+                    /* ── Oferta de retención antes de cancelar ── */
+                    <div className="rounded-xl p-5"
+                      style={{ background: c.muted, border: `1.5px solid ${c.inputBorder}` }}>
+                      <p className="text-sm font-semibold mb-2" style={{ color: c.text1 }}>
+                        ¿Seguro que quieres irte?
+                      </p>
+                      <p className="text-xs mb-3" style={{ color: c.text2, lineHeight: 1.6 }}>
+                        Si cancelas perderás lo que hace que no se te escape ningún cliente:
+                      </p>
+                      <ul className="mb-4" style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                        {['Leads ilimitados cualificados con IA', 'Avisos de leads calientes y sin contactar', 'Respuestas automáticas a tus clientes'].map(t => (
+                          <li key={t} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: c.text2 }}>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#c8a96e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                            {t}
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="rounded-lg px-3 py-2.5 mb-4" style={{ background: 'rgba(200,169,110,0.1)', border: '1px solid rgba(200,169,110,0.22)' }}>
+                        <p className="text-xs" style={{ color: '#9a7a3a', lineHeight: 1.5 }}>
+                          ¿Es por el precio o te falta algo? Escríbenos a{' '}
+                          <a href="mailto:contacto@inmobia.es" style={{ color: '#9a7a3a', fontWeight: 600 }}>contacto@inmobia.es</a>
+                          {' '}y buscamos una solución antes de que te vayas.
+                        </p>
                       </div>
-                      <div className="flex gap-2">
+                      <p className="text-xs mb-3" style={{ color: c.text3, lineHeight: 1.55 }}>
+                        Si cancelas, tu plan pasará a Gratuito al final del período actual. Mantienes el acceso hasta entonces.
+                      </p>
+                      <div className="flex gap-2 flex-wrap">
+                        <button
+                          onClick={() => setConfirmCancel(false)}
+                          style={{
+                            background: '#c8a96e', color: '#1a1814', border: 'none',
+                            borderRadius: 9, padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                          }}
+                        >
+                          Mantener mi plan
+                        </button>
                         <button
                           onClick={cancelarSuscripcion}
                           disabled={cancelando}
                           style={{
-                            background:   '#b45309',
-                            color:        '#fff',
-                            border:       'none',
-                            borderRadius: '8px',
-                            padding:      '8px 16px',
-                            fontSize:     13,
-                            fontWeight:   600,
-                            cursor:       'pointer',
-                            opacity:      cancelando ? 0.6 : 1,
+                            background: 'transparent', color: c.text2,
+                            border: `1.5px solid ${c.inputBorder}`, borderRadius: 9,
+                            padding: '9px 16px', fontSize: 13, fontWeight: 500,
+                            cursor: cancelando ? 'default' : 'pointer', opacity: cancelando ? 0.6 : 1,
                           }}
                         >
-                          {cancelando ? 'Cancelando…' : 'Sí, cancelar'}
-                        </button>
-                        <button
-                          onClick={() => setConfirmCancel(false)}
-                          style={{
-                            background:   'transparent',
-                            color:        c.text2,
-                            border:       `1.5px solid ${c.inputBorder}`,
-                            borderRadius: '8px',
-                            padding:      '8px 16px',
-                            fontSize:     13,
-                            fontWeight:   500,
-                            cursor:       'pointer',
-                          }}
-                        >
-                          Mantener plan
+                          {cancelando ? 'Cancelando…' : 'Cancelar de todas formas'}
                         </button>
                       </div>
                     </div>

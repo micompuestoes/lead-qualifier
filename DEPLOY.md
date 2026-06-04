@@ -45,7 +45,10 @@ Si alguna clave se ha compartido alguna vez, rótala antes de lanzar:
 - [ ] Crear 2 productos con precio recurrente mensual: **Pro (49 €)** y **Agencia (99 €)**.
 - [ ] Copiar los **Price ID** → `STRIPE_PRICE_PRO` y `STRIPE_PRICE_AGENCIA`.
 - [ ] Crear un **webhook** apuntando a `https://<tu-api>/billing/webhook` con los eventos:
-  `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`.
+  `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`,
+  `invoice.payment_failed` (para avisar de pagos fallidos y reducir bajas involuntarias).
+- [ ] Activar **Smart Retries** en Stripe (Settings → Billing → Subscriptions and emails) para reintentar
+  pagos fallidos automáticamente.
 - [ ] Copiar el **Signing secret** del webhook → `STRIPE_WEBHOOK_SECRET`.
 
 ---

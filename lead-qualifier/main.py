@@ -33,16 +33,19 @@ from pydantic import BaseModel
 
 from database import (
     add_team_member, count_leads_for_tenant, delete_lead, disable_imap,
-    ensure_tenant, get_all_tenants, get_imap_config, get_lead_by_id,
-    get_lead_count_this_month, get_leads_by_email, get_owner_for_member,
-    get_recent_leads, get_stats, get_team_members, get_tenant,
-    get_tenant_by_api_key, get_tenant_by_stripe_customer, get_tenants_with_imap,
-    init_db, remove_team_member, save_imap_config, set_tenant_plan,
-    set_tenant_status, update_imap_last_sync, update_lead_status,
-    update_tenant_profile,
+    ensure_tenant, get_all_tenants, get_digest_counts, get_imap_config,
+    get_lead_by_id, get_lead_count_this_month, get_leads_by_email,
+    get_owner_for_member, get_recent_leads, get_stale_pending_leads, get_stats,
+    get_team_members, get_tenant, get_tenant_by_api_key,
+    get_tenant_by_stripe_customer, get_tenants_with_imap, init_db,
+    remove_team_member, save_imap_config, set_tenant_plan, set_tenant_status,
+    update_imap_last_sync, update_lead_status, update_tenant_profile,
 )
 from email_imap import detectar_servidor_imap, obtener_no_leidos, verificar_conexion
-from email_sender import send_lead_response_email, send_tenant_notification
+from email_sender import (
+    send_lead_response_email, send_payment_failed, send_stale_leads_alert,
+    send_tenant_notification, send_weekly_digest,
+)
 from models import LeadInput, LeadOutput
 from agent import qualify_lead, _make_anthropic_client
 
@@ -263,6 +266,65 @@ def _require_admin(request: Request) -> None:
 
 
 # ─────────────────────────────────────────────
+# Jobs de fidelización (resumen semanal + leads sin contactar)
+# ─────────────────────────────────────────────
+
+def _resumenes_semanales_sync() -> None:
+    """Envía a cada agencia activa un resumen de su actividad de la semana."""
+    from datetime import datetime, timedelta
+    desde = (datetime.utcnow() - timedelta(days=7)).isoformat()
+    dashboard_url = os.getenv("DASHBOARD_URL", "")
+    enviados = 0
+    for t in get_all_tenants():
+        if t.get("status") != "active":
+            continue
+        email = t.get("notify_email") or t.get("email")
+        if not email:
+            continue
+        counts = get_digest_counts(t["id"], desde)
+        # Solo enviamos si hay algo que contar (evita spamear cuentas inactivas)
+        if counts["nuevos"] == 0 and counts["pendientes"] == 0:
+            continue
+        try:
+            send_weekly_digest(email, t.get("name", ""), counts, dashboard_url)
+            enviados += 1
+        except Exception as exc:
+            logger.warning("Resumen semanal falló (tenant %s): %s", t["id"], exc)
+    logger.info("Resúmenes semanales enviados: %d", enviados)
+
+
+def _leads_sin_contactar_sync() -> None:
+    """Avisa a cada agencia de los leads buenos que llevan días en 'Pendiente'."""
+    dashboard_url = os.getenv("DASHBOARD_URL", "")
+    avisos = 0
+    for t in get_all_tenants():
+        if t.get("status") != "active":
+            continue
+        email = t.get("notify_email") or t.get("email")
+        if not email:
+            continue
+        stale = get_stale_pending_leads(t["id"], dias=2, min_score=5)
+        if not stale:
+            continue
+        try:
+            send_stale_leads_alert(email, t.get("name", ""), stale, dashboard_url)
+            avisos += 1
+        except Exception as exc:
+            logger.warning("Aviso de leads sin contactar falló (tenant %s): %s", t["id"], exc)
+    logger.info("Avisos de leads sin contactar enviados: %d", avisos)
+
+
+async def _enviar_resumenes_semanales() -> None:
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, _resumenes_semanales_sync)
+
+
+async def _avisar_leads_sin_contactar() -> None:
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, _leads_sin_contactar_sync)
+
+
+# ─────────────────────────────────────────────
 # Lifecycle: inicializar BD al arrancar
 # ─────────────────────────────────────────────
 async def _sync_imap_todos() -> None:
@@ -341,8 +403,12 @@ async def lifespan(app: FastAPI):
 
     # Arrancar scheduler IMAP (cada 10 minutos)
     _scheduler.add_job(_sync_imap_todos, "interval", minutes=10, id="imap_sync")
+    # Resumen semanal — lunes a las 08:00 UTC
+    _scheduler.add_job(_enviar_resumenes_semanales, "cron", day_of_week="mon", hour=8, id="resumen_semanal")
+    # Aviso de leads sin contactar — cada día a las 09:00 UTC
+    _scheduler.add_job(_avisar_leads_sin_contactar, "cron", hour=9, id="leads_sin_contactar")
     _scheduler.start()
-    logger.info("Scheduler IMAP arrancado (cada 10 min)")
+    logger.info("Scheduler arrancado (IMAP 10 min · resumen semanal · avisos diarios)")
 
     yield
 
@@ -965,6 +1031,20 @@ async def stripe_webhook(request: Request):
                 except Exception as exc:
                     logger.warning("No se pudo desactivar IMAP al degradar %s: %s", tenant["id"], exc)
                 logger.info("Suscripción cancelada: tenant %s → free", tenant["id"])
+
+    elif etype == "invoice.payment_failed":
+        # Pago fallido: avisamos para que actualice la tarjeta (evita baja involuntaria).
+        customer_id = obj.get("customer")
+        if customer_id:
+            tenant = get_tenant_by_stripe_customer(customer_id)
+            if tenant:
+                email = tenant.get("notify_email") or tenant.get("email")
+                if email:
+                    try:
+                        send_payment_failed(email, tenant.get("name", ""), os.getenv("DASHBOARD_URL", ""))
+                        logger.info("Aviso de pago fallido enviado a tenant %s", tenant["id"])
+                    except Exception as exc:
+                        logger.warning("No se pudo avisar de pago fallido (tenant %s): %s", tenant["id"], exc)
 
     return {"ok": True}
 

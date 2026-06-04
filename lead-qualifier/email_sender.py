@@ -232,3 +232,81 @@ Mensaje automático de Inmobia. Puedes ajustar las notificaciones desde tu perfi
         body=body,
         reply_to=lead_email,
     )
+
+
+def send_weekly_digest(tenant_email: str, tenant_name: str, counts: dict, dashboard_url: str = "") -> bool:
+    """Resumen semanal de actividad — recuerda a la agencia el valor de Inmobia."""
+    nuevos     = counts.get("nuevos", 0)
+    calientes  = counts.get("calientes", 0)
+    pendientes = counts.get("pendientes", 0)
+
+    # Estimación de tiempo ahorrado (~5 min por lead cualificado y respondido)
+    minutos = nuevos * 5
+    ahorro = f"{minutos} minutos" if minutos < 60 else f"{round(minutos / 60, 1)} horas"
+
+    saludo = f"Hola {tenant_name}," if tenant_name else "Hola,"
+    dashboard_line = f"\nEntra a tu panel: {dashboard_url}" if dashboard_url else ""
+
+    body = f"""{saludo}
+
+Este es tu resumen de la semana en Inmobia:
+
+  • {nuevos} leads nuevos cualificados con IA
+  • {calientes} leads calientes (listos para cerrar)
+  • {pendientes} leads pendientes de contactar
+
+Inmobia te ha ahorrado aproximadamente {ahorro} de leer y responder mensajes.
+{f"Tienes {pendientes} leads esperando tu llamada — no dejes que se enfríen." if pendientes else "¡Buen trabajo, lo tienes todo al día!"}
+{dashboard_line}
+
+Un saludo,
+El equipo de Inmobia
+"""
+    return send_email(tenant_email, tenant_name, "📊 Tu resumen semanal en Inmobia", body)
+
+
+def send_stale_leads_alert(tenant_email: str, tenant_name: str, leads: list, dashboard_url: str = "") -> bool:
+    """Avisa a la agencia de leads buenos que llevan días sin contactar."""
+    if not leads:
+        return False
+
+    saludo = f"Hola {tenant_name}," if tenant_name else "Hola,"
+    dashboard_line = f"\nContáctalos desde tu panel: {dashboard_url}" if dashboard_url else ""
+    listado = "\n".join(f"  • {l.get('name', 'Lead')} ({l.get('score', '?')}/10)" for l in leads[:8])
+    extra = f"\n  …y {len(leads) - 8} más" if len(leads) > 8 else ""
+
+    body = f"""{saludo}
+
+Tienes {len(leads)} lead(s) de calidad sin contactar desde hace días:
+
+{listado}{extra}
+
+Un lead que no se contacta a tiempo se enfría y se pierde. Llámalos cuanto antes
+para no dejar escapar la operación.
+{dashboard_line}
+
+Un saludo,
+El equipo de Inmobia
+"""
+    return send_email(tenant_email, tenant_name, f"⏰ Tienes {len(leads)} leads sin contactar", body)
+
+
+def send_payment_failed(tenant_email: str, tenant_name: str, dashboard_url: str = "") -> bool:
+    """Avisa de un pago fallido para que el cliente actualice su tarjeta (evita baja involuntaria)."""
+    saludo = f"Hola {tenant_name}," if tenant_name else "Hola,"
+    portal_line = f"\nActualiza tu método de pago aquí: {dashboard_url}/perfil" if dashboard_url else ""
+
+    body = f"""{saludo}
+
+No hemos podido procesar el pago de tu suscripción de Inmobia. Suele deberse a una
+tarjeta caducada o sin fondos.
+
+Para no perder el acceso a tus leads, actualiza tu método de pago en los próximos días.
+Lo reintentaremos automáticamente.{portal_line}
+
+Si necesitas ayuda, responde a este correo y te echamos una mano.
+
+Un saludo,
+El equipo de Inmobia
+"""
+    return send_email(tenant_email, tenant_name, "⚠️ Problema con tu pago en Inmobia", body)
