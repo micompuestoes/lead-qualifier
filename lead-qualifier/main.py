@@ -451,6 +451,9 @@ def _allowed_origins() -> list[str]:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins(),
+    # Permite cualquier despliegue en Vercel (producción y previews) sin tener que
+    # configurar la URL exacta. El dominio propio se añade vía DASHBOARD_URL.
+    allow_origin_regex=r"https://([a-z0-9-]+\.)*vercel\.app",
     allow_credentials=False,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Admin-Key"],
@@ -976,9 +979,11 @@ async def cancel_subscription(tenant_id: str = Depends(get_tenant_id)):
             "current_period_end": cancel_date,
             "message": "Tu suscripción se cancelará al final del período. Seguirás con acceso hasta entonces.",
         }
-    except stripe.StripeError as e:
+    except Exception as e:
+        # Cualquier fallo (Stripe u otro) se devuelve como error manejado (4xx),
+        # no como 500 — así el navegador recibe cabeceras CORS y el mensaje real.
         logger.error("Error cancelando suscripción %s: %s", sub_id, e)
-        raise HTTPException(status_code=400, detail=f"Error al cancelar suscripción: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"No se pudo cancelar la suscripción: {str(e)}")
 
 
 @app.post("/billing/webhook")
