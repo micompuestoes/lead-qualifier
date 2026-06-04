@@ -60,7 +60,7 @@ const VENTAJAS = [
 function BrandPanel({ mode }: { mode: 'sign-in' | 'sign-up' }) {
   return (
     <div style={{
-      position: 'relative', overflow: 'hidden',
+      position: 'relative', overflow: 'hidden', flex: 1,
       display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
       padding: '48px 56px',
       background: 'linear-gradient(150deg, #1c1813 0%, #14110d 55%, #0f0d0a 100%)',
@@ -281,6 +281,8 @@ export default function AuthShell({ mode }: { mode: 'sign-in' | 'sign-up' }) {
 
       {/* Responsive: ocultar panel de marca en pantallas estrechas */}
       <style>{`
+        /* El panel de marca se estira a toda la altura (rellena el lateral oscuro) */
+        .auth-brand { display: flex; }
         @media (max-width: 900px) {
           .auth-grid { grid-template-columns: 1fr !important; }
           .auth-brand { display: none !important; }
