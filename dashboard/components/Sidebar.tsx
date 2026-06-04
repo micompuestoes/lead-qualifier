@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { UserButton, useAuth } from '@clerk/nextjs';
 import { useEffect, useState } from 'react';
 import { useTheme } from './ThemeProvider';
+import NotificationBell from './NotificationBell';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -304,6 +305,11 @@ export default function Sidebar() {
             {perfil.name || 'Inmobia'}
           </span>
         </div>
+
+        {/* Notificaciones (derecha) */}
+        <div style={{ marginLeft: 'auto' }}>
+          <NotificationBell placement="topbar" />
+        </div>
       </header>
 
       {/* ── Velo del cajón (solo móvil) ── */}
@@ -470,6 +476,8 @@ export default function Sidebar() {
         <p style={{ fontSize: 12, color: c.text3, fontWeight: 500, flex: 1, transition: 'color 0.2s' }}>
           Mi cuenta
         </p>
+        {/* Notificaciones */}
+        <NotificationBell placement="sidebar" />
         {/* Theme toggle */}
         <button
           onClick={toggle}
