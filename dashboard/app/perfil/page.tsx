@@ -315,6 +315,16 @@ export default function PerfilPage() {
   const canImap  = perfil?.plan === 'pro' || perfil?.plan === 'agencia';
   const inicial  = (perfil?.name || perfil?.email || 'L').trim().charAt(0).toUpperCase();
 
+  // Título de sección para agrupar las tarjetas
+  const SectionLabel = ({ children }: { children: React.ReactNode }) => (
+    <p style={{
+      fontSize: 11, fontWeight: 700, letterSpacing: '0.11em', textTransform: 'uppercase',
+      color: '#c8a96e', paddingLeft: 4, marginTop: 8,
+    }}>
+      {children}
+    </p>
+  );
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -360,6 +370,8 @@ export default function PerfilPage() {
 
       <div className="space-y-5">
 
+        <SectionLabel>Empresa</SectionLabel>
+
         {/* ── Datos de la empresa ── */}
         <div style={card}>
           <h2 className="text-base font-semibold mb-5" style={{ color: c.text1 }}>
@@ -404,6 +416,8 @@ export default function PerfilPage() {
             </button>
           </form>
         </div>
+
+        <SectionLabel>Captación de leads</SectionLabel>
 
         {/* ── Bandeja de entrada (IMAP) ── */}
         <div style={card}>
@@ -607,6 +621,7 @@ export default function PerfilPage() {
         </div>
 
         {/* ── Equipo — solo plan agencia ── */}
+        {perfil?.plan === 'agencia' && <SectionLabel>Equipo</SectionLabel>}
         {perfil?.plan === 'agencia' && (
           <div style={card}>
             <h2 className="text-base font-semibold mb-1" style={{ color: c.text1 }}>
@@ -654,6 +669,8 @@ export default function PerfilPage() {
             </form>
           </div>
         )}
+
+        <SectionLabel>Cuenta y facturación</SectionLabel>
 
         {/* ── Información de la cuenta ── */}
         <div style={card}>
