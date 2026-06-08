@@ -6,6 +6,7 @@
 
 import { useState } from 'react';
 import { useTheme } from '@/components/ThemeProvider';
+import PhoneInput from '@/components/PhoneInput';
 
 interface FormState {
   name: string;
@@ -273,9 +274,7 @@ export default function FormularioPublico({ params }: { params: { token: string 
             <label style={labelStyle}>
               Teléfono <span style={{ color: c.text3, textTransform: 'none', fontWeight: 400 }}>· opcional</span>
             </label>
-            <input type="tel" name="phone" value={form.phone} onChange={handleChange}
-              onFocus={() => setFocused('phone')} onBlur={() => setFocused(null)}
-              placeholder="+34 600 000 000" style={inputStyle('phone')} />
+            <PhoneInput onChange={val => setForm(p => ({ ...p, phone: val }))} />
           </div>
 
           <div>

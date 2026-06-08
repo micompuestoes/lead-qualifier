@@ -10,6 +10,7 @@ import ScoreBar from '@/components/ScoreBar';
 import { useToast } from '@/components/Toast';
 import { useTheme } from '@/components/ThemeProvider';
 import PageHeader from '@/components/PageHeader';
+import PhoneInput from '@/components/PhoneInput';
 
 interface FormData { name: string; email: string; phone: string; message: string }
 const FORM_VACIO: FormData = { name: '', email: '', phone: '', message: '' };
@@ -334,9 +335,7 @@ export default function NuevoLeadPage() {
           <label htmlFor="phone" className="block text-sm font-semibold mb-1.5" style={{ color: c.text1 }}>
             Teléfono <span className="font-normal" style={{ color: c.text2 }}>(opcional)</span>
           </label>
-          <Input id="phone" name="phone" type="tel" value={form.phone} onChange={handleChange}
-            placeholder="+34 600 000 000" disabled={procesando}
-            inputStyle={inputStyle} focusStyle={focusStyle} />
+          <PhoneInput onChange={val => setForm(p => ({ ...p, phone: val }))} />
         </div>
 
         <div>
