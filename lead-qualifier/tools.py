@@ -422,6 +422,18 @@ def analyze_intent(message: str, name: str) -> dict:
     else:
         quality = "claro"
 
+    # Vaguedad explícita: el contacto está indeciso ("un poco de todo", "lo que sea"…),
+    # aunque haya marcado operación o presupuesto. No es un lead caliente todavía.
+    VAGAS = (
+        "un poco de todo", "de todo un poco", "lo que sea", "cualquier cosa",
+        "me da igual", "no lo tengo claro", "no tengo claro", "todavia no lo se",
+        "aun no lo se", "aun no lo tengo claro", "estoy abierto", "sin preferencia",
+        "indiferente", "lo que haya", "no se que quiero", "no se muy bien",
+        "varias opciones", "abierto a opciones",
+    )
+    if any(v in msg for v in VAGAS):
+        quality = "muy_vago"
+
     # ── Etiqueta legible de la intención ──
     etiquetas_op = {
         "VENTA":       "Quiere vender su inmueble",
