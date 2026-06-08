@@ -17,6 +17,23 @@ interface FormState {
 
 type Paso = 'formulario' | 'enviando' | 'ok' | 'error';
 
+// Extrae un mensaje legible del `detail` del backend (string, objeto o lista de validación 422)
+function mensajeError(detail: unknown, fallback: string): string {
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    const msgs = detail
+      .map(e => (e && typeof e === 'object' && 'msg' in e ? String((e as { msg: unknown }).msg) : ''))
+      .filter(Boolean);
+    return msgs.length ? msgs.join('. ') : fallback;
+  }
+  if (detail && typeof detail === 'object') {
+    const d = detail as { message?: unknown; msg?: unknown };
+    if (typeof d.message === 'string') return d.message;
+    if (typeof d.msg === 'string') return d.msg;
+  }
+  return fallback;
+}
+
 function Logo({ size = 44 }: { size?: number }) {
   return (
     <div style={{
@@ -65,7 +82,7 @@ export default function FormularioPublico({ params }: { params: { token: string 
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail ?? 'Error al enviar el formulario');
+        throw new Error(mensajeError(data.detail, `Error ${res.status} al enviar el formulario`));
       }
       setPaso('ok');
     } catch (err) {

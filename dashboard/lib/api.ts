@@ -39,9 +39,17 @@ async function handleResponse<T>(res: Response): Promise<T> {
     try {
       const data = await res.json();
       const d = data.detail;
-      if (typeof d === 'string')        mensaje = d;
-      else if (d && typeof d === 'object') mensaje = d.message ?? JSON.stringify(d);
-      else                              mensaje = JSON.stringify(data);
+      if (typeof d === 'string') {
+        mensaje = d;
+      } else if (Array.isArray(d)) {
+        // Errores de validación de FastAPI (422): [{ msg, loc, ... }]
+        const msgs = d.map((e: { msg?: string }) => e?.msg).filter(Boolean);
+        mensaje = msgs.length ? msgs.join('. ') : JSON.stringify(d);
+      } else if (d && typeof d === 'object') {
+        mensaje = d.message ?? d.msg ?? JSON.stringify(d);
+      } else {
+        mensaje = JSON.stringify(data);
+      }
     } catch { /* body no es JSON */ }
     throw new Error(mensaje);
   }
