@@ -82,6 +82,20 @@ export default function FormularioPublico({ params }: { params: { token: string 
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState('');
   const [focused, setFocused] = useState<string | null>(null);
+  const [operacion, setOperacion]     = useState('');
+  const [presupuesto, setPresupuesto] = useState('');
+
+  const RANGOS_COMPRA = ['Hasta 100.000 €', '100.000 – 200.000 €', '200.000 – 300.000 €', '300.000 – 500.000 €', 'Más de 500.000 €'];
+  const RANGOS_ALQUILER = ['Hasta 600 €/mes', '600 – 900 €/mes', '900 – 1.200 €/mes', 'Más de 1.200 €/mes'];
+  const rangos = operacion === 'Alquilar' ? RANGOS_ALQUILER : RANGOS_COMPRA;
+
+  function componerMensaje(): string {
+    const extra: string[] = [];
+    if (operacion)   extra.push(`Quiero ${operacion.toLowerCase()}.`);
+    if (presupuesto) extra.push(`Presupuesto aproximado: ${presupuesto}.`);
+    const cab = extra.join(' ');
+    return cab ? `${cab}\n\n${form.message.trim()}` : form.message.trim();
+  }
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
@@ -105,7 +119,7 @@ export default function FormularioPublico({ params }: { params: { token: string 
           name: form.name,
           email: form.email,
           phone: form.phone || null,
-          message: form.message,
+          message: componerMensaje(),
           website: form.website || null,   // honeypot
         }),
       });
@@ -277,14 +291,58 @@ export default function FormularioPublico({ params }: { params: { token: string 
             <PhoneInput onChange={val => setForm(p => ({ ...p, phone: val }))} />
           </div>
 
+          {/* Operación */}
           <div>
-            <label style={labelStyle}>¿Qué estás buscando? *</label>
+            <label style={labelStyle}>
+              ¿Qué quieres hacer? <span style={{ color: c.text3, textTransform: 'none', fontWeight: 400 }}>· opcional</span>
+            </label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {['Comprar', 'Alquilar', 'Vender'].map(op => {
+                const sel = operacion === op;
+                return (
+                  <button key={op} type="button"
+                    onClick={() => { setOperacion(sel ? '' : op); setPresupuesto(''); }}
+                    style={{
+                      flex: 1, padding: '9px 8px', borderRadius: 10, fontSize: 13.5,
+                      fontWeight: sel ? 600 : 500, cursor: 'pointer', transition: 'all 0.15s',
+                      background: sel ? '#c8a96e' : 'transparent',
+                      color: sel ? '#1a1814' : c.text2,
+                      border: sel ? '1.5px solid #c8a96e' : `1.5px solid ${c.inputBorder}`,
+                    }}>
+                    {op}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Presupuesto (al comprar o alquilar) */}
+          {(operacion === 'Comprar' || operacion === 'Alquilar') && (
+            <div>
+              <label style={labelStyle}>
+                Presupuesto aproximado <span style={{ color: c.text3, textTransform: 'none', fontWeight: 400 }}>· opcional</span>
+              </label>
+              <select value={presupuesto} onChange={e => setPresupuesto(e.target.value)}
+                onFocus={() => setFocused('presupuesto')} onBlur={() => setFocused(null)}
+                style={{ ...inputStyle('presupuesto'), appearance: 'auto' as 'auto', cursor: 'pointer' }}>
+                <option value="">Seleccionar… (te ayuda a encontrar lo que encaja)</option>
+                {rangos.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+          )}
+
+          <div>
+            <label style={labelStyle}>
+              {operacion === 'Vender' ? '¿Qué inmueble quieres vender? *' : '¿Qué estás buscando? *'}
+            </label>
             <textarea name="message" required rows={4} value={form.message} onChange={handleChange}
               onFocus={() => setFocused('message')} onBlur={() => setFocused(null)}
-              placeholder="Busco un piso de 3 habitaciones en el centro, con presupuesto de 250.000 €. Quiero comprar, no alquilar."
+              placeholder={operacion === 'Vender'
+                ? 'Cuéntanos del inmueble: zona, tipo (piso, casa…), m², nº de habitaciones, estado…'
+                : 'Cuéntanos los detalles: zona, nº de habitaciones, tipo de inmueble, plazo…'}
               style={{ ...inputStyle('message'), resize: 'none', lineHeight: 1.55 }} />
             <p style={{ fontSize: 12, color: c.text3, marginTop: 6 }}>
-              Cuanto más detallado, mejor podremos ayudarte (zona, presupuesto, plazo…).
+              Cuanto más detallado, mejor podremos ayudarte (zona, habitaciones, plazo…).
             </p>
           </div>
 
