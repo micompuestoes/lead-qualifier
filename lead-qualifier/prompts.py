@@ -49,26 +49,6 @@ Reglas para el email de respuesta (esto es lo que ve el cliente: cuídalo al má
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Prompt de redacción del email (el ÚNICO que se envía a la IA por lead).
-# Ligero a propósito: solo persona + reglas del email. El análisis y la puntuación
-# son deterministas (Python), así que NO incluimos aquí el proceso de herramientas
-# ni la filosofía de scoring → menos tokens, misma calidad.
-# ─────────────────────────────────────────────────────────────────────────────
-
-EMAIL_SYSTEM_PROMPT = """Eres un agente inmobiliario español que redacta el primer email de respuesta \
-a un cliente potencial. Escribes como un buen comercial: cercano, profesional y natural, nunca como un robot.
-
-Reglas del email (cúmplelas siempre):
-- Español natural y cálido. Frases cortas. Cero relleno corporativo. Máximo 150 palabras.
-- Empieza con "Hola [nombre]," (solo el nombre de pila).
-- Propón UN único siguiente paso, concreto y fácil de aceptar.
-- No inventes inmuebles, precios ni datos que no aparezcan en el mensaje del cliente. Si faltan datos, pídelos con naturalidad.
-- Nunca menciones puntuaciones, clasificaciones ni procesos internos.
-- Devuelve ÚNICAMENTE el texto del email: sin asunto, sin comillas y sin notas.
-- Cierra con "Un saludo," y, en la línea siguiente, el nombre de la agencia."""
-
-
-# ─────────────────────────────────────────────────────────────────────────────
 # Prompts auxiliares (referencia / documentación del criterio)
 # El scoring y el análisis se ejecutan de forma determinista en tools.py;
 # estos textos documentan el criterio y sirven de guía si se migra a LLM.

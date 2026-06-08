@@ -15,7 +15,7 @@ from typing import Optional
 import anthropic
 import httpx
 
-from prompts import EMAIL_SYSTEM_PROMPT
+from prompts import SYSTEM_PROMPT
 from tools import analyze_intent, lookup_company, score_lead
 from database import save_lead
 
@@ -95,23 +95,31 @@ def _redactar_email(
     reasoning      = scoring.get("reasoning", "")
     hint           = _siguiente_paso(classification, operation)
 
-    user_prompt = f"""Lead: {name} <{email}>
+    user_prompt = f"""Redacta el email de respuesta para este lead inmobiliario.
+Devuelve ÚNICAMENTE el texto del email: sin asunto, sin comillas y sin notas adicionales.
+
+Lead: {name} <{email}>
 Mensaje recibido: "{message}"
 
-Contexto interno (NO lo menciones en el email):
-- Clasificación: {classification} ({score}/10) · Operación: {operation}
-- Señales: {reasoning}
+Cualificación interna (NO la menciones nunca en el email):
+- Clasificación: {classification} ({score}/10)
+- Operación detectada: {operation}
+- Señales clave: {reasoning}
 
-Empieza con "Hola {primer_nombre}," y propón este siguiente paso: {hint}.
-Cierra con:
+Reglas:
+- Empieza con "Hola {primer_nombre},".
+- Máximo 150 palabras, español natural y cercano, como un buen comercial inmobiliario.
+- Siguiente paso a proponer: {hint}.
+- No inventes inmuebles, precios ni datos que no aparezcan en el mensaje.
+- Cierra exactamente con:
 Un saludo,
 {firma}"""
 
     try:
         resp = client.messages.create(
             model=CLAUDE_MODEL,
-            max_tokens=400,
-            system=EMAIL_SYSTEM_PROMPT,
+            max_tokens=600,
+            system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_prompt}],
         )
         texto = resp.content[0].text if resp.content else ""
