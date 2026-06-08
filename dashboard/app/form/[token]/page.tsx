@@ -17,14 +17,38 @@ interface FormState {
 
 type Paso = 'formulario' | 'enviando' | 'ok' | 'error';
 
-// Extrae un mensaje legible del `detail` del backend (string, objeto o lista de validación 422)
+// Validación en cliente (en español) — evita que el usuario vea errores del servidor
+function validar(f: FormState): string | null {
+  if (f.name.trim().length < 2) return 'Introduce tu nombre (al menos 2 letras).';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) return 'Introduce un email válido.';
+  if (f.message.trim().length < 5) return 'Cuéntanos un poco más sobre lo que buscas (al menos 5 caracteres).';
+  return null;
+}
+
+const CAMPOS: Record<string, string> = {
+  name: 'El nombre', email: 'El email', message: 'El mensaje', phone: 'El teléfono',
+};
+
+// Traduce un error de validación 422 de FastAPI al castellano
+function traducirValidacion(e: { type?: string; loc?: unknown[]; msg?: string; ctx?: { min_length?: number; max_length?: number } }): string {
+  const campo = (Array.isArray(e.loc) && CAMPOS[String(e.loc[e.loc.length - 1])]) || 'Un campo';
+  switch (e.type) {
+    case 'string_too_short': return `${campo} debe tener al menos ${e.ctx?.min_length ?? ''} caracteres.`.replace('  ', ' ');
+    case 'string_too_long':  return `${campo} es demasiado largo.`;
+    case 'missing':          return `${campo} es obligatorio.`;
+    case 'value_error':      return campo === 'El email' ? 'El email no es válido.' : `${campo} no es válido.`;
+    default:
+      if (typeof e.msg === 'string' && /email/i.test(e.msg)) return 'El email no es válido.';
+      return e.msg || 'Hay un dato no válido.';
+  }
+}
+
+// Extrae un mensaje legible (en español) del `detail` del backend
 function mensajeError(detail: unknown, fallback: string): string {
   if (typeof detail === 'string') return detail;
   if (Array.isArray(detail)) {
-    const msgs = detail
-      .map(e => (e && typeof e === 'object' && 'msg' in e ? String((e as { msg: unknown }).msg) : ''))
-      .filter(Boolean);
-    return msgs.length ? msgs.join('. ') : fallback;
+    const msgs = detail.map(e => traducirValidacion(e)).filter(Boolean);
+    return msgs.length ? msgs.join(' ') : fallback;
   }
   if (detail && typeof detail === 'object') {
     const d = detail as { message?: unknown; msg?: unknown };
@@ -55,6 +79,7 @@ export default function FormularioPublico({ params }: { params: { token: string 
   const [form, setForm] = useState<FormState>({ name: '', email: '', phone: '', message: '', website: '' });
   const [paso, setPaso] = useState<Paso>('formulario');
   const [error, setError] = useState('');
+  const [aviso, setAviso] = useState('');
   const [focused, setFocused] = useState<string | null>(null);
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
@@ -65,7 +90,10 @@ export default function FormularioPublico({ params }: { params: { token: string 
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name || !form.email || !form.message) return;
+    // Validación en cliente (en español) antes de enviar
+    const av = validar(form);
+    if (av) { setAviso(av); return; }
+    setAviso('');
     setPaso('enviando');
     setError('');
     try {
@@ -260,6 +288,18 @@ export default function FormularioPublico({ params }: { params: { token: string 
               Cuanto más detallado, mejor podremos ayudarte (zona, presupuesto, plazo…).
             </p>
           </div>
+
+          {aviso && (
+            <div style={{
+              display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', borderRadius: 10,
+              background: 'rgba(180,83,9,0.07)', border: '1px solid rgba(180,83,9,0.2)',
+            }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#b45309" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
+                <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <span style={{ fontSize: 13, color: '#b45309', lineHeight: 1.45 }}>{aviso}</span>
+            </div>
+          )}
 
           <button type="submit" disabled={!completo}
             style={{
