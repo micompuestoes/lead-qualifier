@@ -105,8 +105,22 @@ Los guards `require_plan` / `require_admin` viven en `deps.py`.
 
 ## Pruebas
 
-`tests/test_agent.py` es un script de humo que ejecuta el agente completo sobre
-un lead de ejemplo (necesita `ANTHROPIC_API_KEY` válida):
+**Suite unitaria del scoring** ([`tests/test_tools.py`](tests/test_tools.py)) —
+cubre la extracción de señales y la rúbrica de `score_lead`. Es determinista, no
+gasta API y solo necesita `pytest`:
+
+```bash
+pip install pytest
+pytest            # desde lead-qualifier/
+```
+
+Se ejecuta automáticamente en cada push/PR vía GitHub Actions
+([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)), junto al typecheck
+del dashboard.
+
+**Script de humo del agente completo** ([`tests/test_agent.py`](tests/test_agent.py)) —
+ejecuta el pipeline entero (incluida la llamada a Claude) sobre un lead de
+ejemplo. Necesita `ANTHROPIC_API_KEY` válida y se ejecuta a mano:
 
 ```bash
 python tests/test_agent.py
