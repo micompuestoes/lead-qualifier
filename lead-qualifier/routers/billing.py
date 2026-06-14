@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from core.database import (
-    add_notification, disable_imap, ensure_tenant, get_tenant,
+    add_notification, disable_imap, ensure_tenant, get_agent_ids, get_tenant,
     get_tenant_by_stripe_customer, set_tenant_plan,
 )
 from deps import get_tenant_id
@@ -34,6 +34,42 @@ def _get_price_id(plan: str) -> str:
     if not price_id:
         raise HTTPException(status_code=503, detail=f"Price ID para '{plan}' no configurado en variables de entorno")
     return price_id
+
+
+def _seat_count(tenant_id: str) -> int:
+    """Asientos facturables = nº de agentes (dueño + miembros del equipo)."""
+    return max(1, len(get_agent_ids(tenant_id)))
+
+
+def sync_agency_seats(tenant_id: str) -> None:
+    """
+    Ajusta la cantidad (asientos) de la suscripción de Stripe al nº de agentes.
+    Pensado para llamar al añadir/quitar miembros. Solo actúa en agencias de pago
+    con Stripe configurado; cualquier fallo se loguea sin romper la operación.
+
+    NOTA: requiere que STRIPE_PRICE_AGENCIA sea un precio recurrente POR UNIDAD
+    (por asiento). La cantidad se cobra prorrateada.
+    """
+    if not _stripe_configured():
+        return
+    tenant = get_tenant(tenant_id)
+    if not tenant or tenant.get("plan") != "agencia":
+        return
+    sub_id = tenant.get("stripe_subscription_id")
+    if not sub_id:
+        return
+    try:
+        sub = stripe.Subscription.retrieve(sub_id)
+        items = sub.get("items", {}).get("data", [])
+        if not items:
+            return
+        seats = _seat_count(tenant_id)
+        stripe.SubscriptionItem.modify(
+            items[0]["id"], quantity=seats, proration_behavior="create_prorations",
+        )
+        logger.info("Asientos de la agencia %s sincronizados a %d", tenant_id, seats)
+    except Exception as exc:
+        logger.warning("No se pudieron sincronizar asientos de %s: %s", tenant_id, exc)
 
 
 @router.post("/billing/checkout")
@@ -60,10 +96,13 @@ async def create_checkout(
         customer_id = customer.id
         set_tenant_plan(tenant_id, tenant.get("plan", "free"), None, customer_id)
 
+    # Agencia se factura por asiento (nº de agentes); Pro es un único usuario.
+    cantidad = _seat_count(tenant_id) if data.plan == "agencia" else 1
+
     session = stripe.checkout.Session.create(
         customer=customer_id,
         payment_method_types=["card"],
-        line_items=[{"price": price_id, "quantity": 1}],
+        line_items=[{"price": price_id, "quantity": cantidad}],
         mode="subscription",
         success_url=f"{dashboard_url}/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
         cancel_url=f"{dashboard_url}/pricing",

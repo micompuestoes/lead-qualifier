@@ -117,6 +117,9 @@ def init_db() -> None:
         # Reparto de leads entre agentes
         "ALTER TABLE leads ADD COLUMN assigned_to TEXT",
         "ALTER TABLE team_members ADD COLUMN member_name TEXT",
+        # Contacto del agente para avisarle directamente de sus leads
+        "ALTER TABLE team_members ADD COLUMN member_email TEXT",
+        "ALTER TABLE team_members ADD COLUMN member_whatsapp TEXT",
     ]:
         try:
             with engine.begin() as conn:
@@ -129,10 +132,12 @@ def init_db() -> None:
     with engine.begin() as conn:
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS team_members (
-                owner_id    TEXT NOT NULL,
-                member_id   TEXT NOT NULL,
-                member_name TEXT,
-                added_at    TEXT NOT NULL,
+                owner_id        TEXT NOT NULL,
+                member_id       TEXT NOT NULL,
+                member_name     TEXT,
+                member_email    TEXT,
+                member_whatsapp TEXT,
+                added_at        TEXT NOT NULL,
                 PRIMARY KEY (owner_id, member_id)
             )
         """))
@@ -396,16 +401,21 @@ def disable_imap(tenant_id: str) -> None:
     logger.info("IMAP desconectado para tenant %s", tenant_id)
 
 
-def add_team_member(owner_id: str, member_id: str, member_name: str = "") -> None:
+def add_team_member(owner_id: str, member_id: str, member_name: str = "",
+                    member_email: str = "", member_whatsapp: str = "") -> None:
     """Añade un usuario de Clerk como miembro del equipo del tenant owner."""
     with engine.begin() as conn:
         conn.execute(
             text("""
-                INSERT INTO team_members (owner_id, member_id, member_name, added_at)
-                VALUES (:owner, :member, :name, :ts)
-                ON CONFLICT DO NOTHING
+                INSERT INTO team_members (owner_id, member_id, member_name, member_email, member_whatsapp, added_at)
+                VALUES (:owner, :member, :name, :email, :wa, :ts)
+                ON CONFLICT (owner_id, member_id) DO UPDATE SET
+                    member_name     = excluded.member_name,
+                    member_email    = excluded.member_email,
+                    member_whatsapp = excluded.member_whatsapp
             """),
             {"owner": owner_id, "member": member_id, "name": member_name or None,
+             "email": member_email or None, "wa": member_whatsapp or None,
              "ts": datetime.now(timezone.utc).isoformat()},
         )
 
@@ -420,13 +430,47 @@ def remove_team_member(owner_id: str, member_id: str) -> None:
 
 
 def get_team_members(owner_id: str) -> list:
-    """Devuelve los miembros del equipo del tenant (id de Clerk + nombre)."""
+    """Devuelve los miembros del equipo del tenant (id, nombre y contacto)."""
     with engine.connect() as conn:
         rows = conn.execute(
-            text("SELECT member_id, member_name, added_at FROM team_members WHERE owner_id=:owner ORDER BY added_at"),
+            text("""
+                SELECT member_id, member_name, member_email, member_whatsapp, added_at
+                FROM team_members WHERE owner_id=:owner ORDER BY added_at
+            """),
             {"owner": owner_id},
         ).fetchall()
-    return [{"member_id": r[0], "member_name": r[1] or "", "added_at": r[2]} for r in rows]
+    return [{
+        "member_id": r[0], "member_name": r[1] or "",
+        "member_email": r[2] or "", "member_whatsapp": r[3] or "",
+        "added_at": r[4],
+    } for r in rows]
+
+
+def get_agent_contact(tenant_id: str, agent_id: Optional[str]) -> dict:
+    """
+    Devuelve el contacto al que avisar de un lead asignado a `agent_id`:
+    el del propio agente si es un miembro con datos, o el del dueño como respaldo.
+    Claves: name, email, whatsapp.
+    """
+    owner = get_tenant(tenant_id) or {}
+    contacto_owner = {
+        "name":     owner.get("name", ""),
+        "email":    owner.get("notify_email") or owner.get("email", ""),
+        "whatsapp": owner.get("whatsapp_number", "") if owner.get("whatsapp_enabled") else "",
+    }
+
+    # Sin agente, o el agente es el propio dueño → contacto del dueño
+    if not agent_id or agent_id == tenant_id:
+        return contacto_owner
+
+    for m in get_team_members(tenant_id):
+        if m["member_id"] == agent_id:
+            return {
+                "name":     m["member_name"] or contacto_owner["name"],
+                "email":    m["member_email"] or contacto_owner["email"],
+                "whatsapp": m["member_whatsapp"],  # del miembro; si no tiene, no se le avisa por WA
+            }
+    return contacto_owner
 
 
 def get_owner_for_member(member_id: str) -> Optional[str]:
@@ -626,13 +670,15 @@ def get_all_tenants() -> list:
     return [dict(r._mapping) for r in rows]
 
 
-def count_leads_for_tenant(tenant_id: str) -> int:
-    """Cuenta los leads totales de un tenant (para el panel de admin)."""
+def count_leads_for_tenant(tenant_id: str, agent_id: Optional[str] = None) -> int:
+    """Cuenta los leads del tenant. Con agent_id, solo los asignados a ese agente."""
+    sql = "SELECT COUNT(*) FROM leads WHERE tenant_id = :tid"
+    params = {"tid": tenant_id}
+    if agent_id is not None:
+        sql += " AND assigned_to = :aid"
+        params["aid"] = agent_id
     with engine.connect() as conn:
-        result = conn.execute(
-            text("SELECT COUNT(*) FROM leads WHERE tenant_id = :tid"),
-            {"tid": tenant_id},
-        ).scalar()
+        result = conn.execute(text(sql), params).scalar()
     return result or 0
 
 
@@ -699,33 +745,45 @@ def save_lead(
     logger.info("Lead %s guardado (tenant: %s, clasificacion: %s)", lead_id, tenant_id, classification)
 
 
-def get_lead_by_id(lead_id: str, tenant_id: str) -> Optional[dict]:
-    """Recupera un lead por ID, restringido al tenant."""
+def get_lead_by_id(lead_id: str, tenant_id: str, agent_id: Optional[str] = None) -> Optional[dict]:
+    """Recupera un lead por ID, restringido al tenant. Con agent_id, solo si es suyo."""
+    sql = "SELECT * FROM leads WHERE id = :id AND tenant_id = :tid"
+    params = {"id": lead_id, "tid": tenant_id}
+    if agent_id is not None:
+        sql += " AND assigned_to = :aid"
+        params["aid"] = agent_id
     with engine.connect() as conn:
-        row = conn.execute(
-            text("SELECT * FROM leads WHERE id = :id AND tenant_id = :tid"),
-            {"id": lead_id, "tid": tenant_id},
-        ).fetchone()
+        row = conn.execute(text(sql), params).fetchone()
     return _row_a_dict(row) if row else None
 
 
-def get_leads_by_email(email: str, tenant_id: str) -> list:
-    """Recupera todos los leads de un email para este tenant."""
+def get_leads_by_email(email: str, tenant_id: str, agent_id: Optional[str] = None) -> list:
+    """Recupera los leads de un email para este tenant. Con agent_id, solo los suyos."""
+    sql = "SELECT * FROM leads WHERE email = :email AND tenant_id = :tid"
+    params = {"email": email, "tid": tenant_id}
+    if agent_id is not None:
+        sql += " AND assigned_to = :aid"
+        params["aid"] = agent_id
+    sql += " ORDER BY created_at DESC"
     with engine.connect() as conn:
-        rows = conn.execute(
-            text("SELECT * FROM leads WHERE email = :email AND tenant_id = :tid ORDER BY created_at DESC"),
-            {"email": email, "tid": tenant_id},
-        ).fetchall()
+        rows = conn.execute(text(sql), params).fetchall()
     return [_row_a_dict(r) for r in rows]
 
 
-def get_recent_leads(limit: int = 100, tenant_id: str = "legacy", offset: int = 0) -> list:
-    """Devuelve los leads del tenant ordenados por fecha desc, con paginación (limit/offset)."""
+def get_recent_leads(limit: int = 100, tenant_id: str = "legacy", offset: int = 0,
+                     agent_id: Optional[str] = None) -> list:
+    """
+    Leads del tenant por fecha desc, con paginación. Con agent_id, solo los
+    asignados a ese agente ("mis leads").
+    """
+    sql = "SELECT * FROM leads WHERE tenant_id = :tid"
+    params = {"limit": limit, "tid": tenant_id, "offset": offset}
+    if agent_id is not None:
+        sql += " AND assigned_to = :aid"
+        params["aid"] = agent_id
+    sql += " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
     with engine.connect() as conn:
-        rows = conn.execute(
-            text("SELECT * FROM leads WHERE tenant_id = :tid ORDER BY created_at DESC LIMIT :limit OFFSET :offset"),
-            {"limit": limit, "tid": tenant_id, "offset": offset},
-        ).fetchall()
+        rows = conn.execute(text(sql), params).fetchall()
     return [_row_a_dict(r) for r in rows]
 
 

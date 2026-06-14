@@ -15,7 +15,7 @@ from core.database import (
     get_agent_ids, get_lead_by_id, get_lead_count_this_month, get_leads_by_email,
     get_recent_leads, get_tenant, update_lead_status,
 )
-from deps import get_anthropic_client, get_tenant_id, require_plan
+from deps import Caller, get_anthropic_client, get_caller, get_tenant_id, require_plan
 from models import LeadInput, LeadOutput
 from notifications import notificar_tenant
 from services.email_sender import send_lead_response_email
@@ -113,26 +113,34 @@ async def qualify_lead_endpoint(
 async def list_leads(
     limit: int = 100,
     offset: int = 0,
-    tenant_id: str = Depends(get_tenant_id),
+    caller: Caller = Depends(get_caller),
 ):
-    """Lista los leads del tenant, ordenados por fecha descendente, con paginación."""
-    ensure_tenant(tenant_id)
+    """
+    Lista los leads, ordenados por fecha desc, con paginación.
+    El dueño ve todos; un agente del equipo solo ve los suyos ("mis leads").
+    """
+    ensure_tenant(caller.tenant_id)
     if limit > 500:
         limit = 500
     if offset < 0:
         offset = 0
-    leads = get_recent_leads(limit, tenant_id=tenant_id, offset=offset)
-    total = count_leads_for_tenant(tenant_id)
-    return {"leads": [_serializar_lead(l) for l in leads], "total": total}
+    agente = caller.agent_filter
+    leads = get_recent_leads(limit, tenant_id=caller.tenant_id, offset=offset, agent_id=agente)
+    total = count_leads_for_tenant(caller.tenant_id, agent_id=agente)
+    return {
+        "leads": [_serializar_lead(l) for l in leads],
+        "total": total,
+        "scope": "mine" if agente else "all",
+    }
 
 
 @router.get("/leads/{lead_id}")
 async def get_lead(
     lead_id: str,
-    tenant_id: str = Depends(get_tenant_id),
+    caller: Caller = Depends(get_caller),
 ):
-    """Recupera un lead completo por ID (solo si pertenece al tenant)."""
-    lead = get_lead_by_id(lead_id, tenant_id=tenant_id)
+    """Recupera un lead por ID (un agente solo accede a los suyos)."""
+    lead = get_lead_by_id(lead_id, tenant_id=caller.tenant_id, agent_id=caller.agent_filter)
     if not lead:
         raise HTTPException(status_code=404, detail=f"Lead {lead_id} no encontrado")
     return _serializar_lead(lead)
@@ -142,17 +150,17 @@ async def get_lead(
 async def patch_lead_status(
     lead_id: str,
     body: ActualizarEstadoInput,
-    tenant_id: str = Depends(get_tenant_id),
+    caller: Caller = Depends(get_caller),
 ):
-    """Actualiza el estado de un lead del tenant."""
-    lead = get_lead_by_id(lead_id, tenant_id=tenant_id)
+    """Actualiza el estado de un lead (un agente solo de los suyos)."""
+    lead = get_lead_by_id(lead_id, tenant_id=caller.tenant_id, agent_id=caller.agent_filter)
     if not lead:
         raise HTTPException(status_code=404, detail=f"Lead {lead_id} no encontrado")
 
-    update_lead_status(lead_id, body.status, tenant_id=tenant_id)
-    logger.info("Lead %s → estado %s (tenant: %s)", lead_id, body.status, tenant_id)
+    update_lead_status(lead_id, body.status, tenant_id=caller.tenant_id)
+    logger.info("Lead %s → estado %s (tenant: %s)", lead_id, body.status, caller.tenant_id)
 
-    actualizado = get_lead_by_id(lead_id, tenant_id=tenant_id)
+    actualizado = get_lead_by_id(lead_id, tenant_id=caller.tenant_id)
     return _serializar_lead(actualizado)
 
 
@@ -160,42 +168,44 @@ async def patch_lead_status(
 async def patch_lead_assign(
     lead_id: str,
     body: AsignarLeadInput,
-    tenant_id: str = Depends(get_tenant_id),
+    caller: Caller = Depends(get_caller),
 ):
-    """Asigna o reasigna un lead a un agente del equipo. Solo plan agencia."""
-    require_plan(tenant_id, "agencia")
+    """Asigna o reasigna un lead a un agente. Solo el dueño y solo en plan agencia."""
+    require_plan(caller.tenant_id, "agencia")
+    if not caller.is_owner:
+        raise HTTPException(status_code=403, detail="Solo el responsable de la cuenta puede reasignar leads")
 
-    lead = get_lead_by_id(lead_id, tenant_id=tenant_id)
+    lead = get_lead_by_id(lead_id, tenant_id=caller.tenant_id)
     if not lead:
         raise HTTPException(status_code=404, detail=f"Lead {lead_id} no encontrado")
 
     # Validar que el agente pertenece al equipo (o None para desasignar)
-    if body.agent_id is not None and body.agent_id not in get_agent_ids(tenant_id):
+    if body.agent_id is not None and body.agent_id not in get_agent_ids(caller.tenant_id):
         raise HTTPException(status_code=400, detail="El agente no pertenece a tu equipo")
 
-    assign_lead(lead_id, tenant_id=tenant_id, agent_id=body.agent_id)
-    return _serializar_lead(get_lead_by_id(lead_id, tenant_id=tenant_id))
+    assign_lead(lead_id, tenant_id=caller.tenant_id, agent_id=body.agent_id)
+    return _serializar_lead(get_lead_by_id(lead_id, tenant_id=caller.tenant_id))
 
 
 @router.delete("/leads/{lead_id}", status_code=204)
 async def delete_lead_endpoint(
     lead_id: str,
-    tenant_id: str = Depends(get_tenant_id),
+    caller: Caller = Depends(get_caller),
 ):
-    """Elimina un lead del tenant."""
-    lead = get_lead_by_id(lead_id, tenant_id=tenant_id)
+    """Elimina un lead (un agente solo los suyos)."""
+    lead = get_lead_by_id(lead_id, tenant_id=caller.tenant_id, agent_id=caller.agent_filter)
     if not lead:
         raise HTTPException(status_code=404, detail=f"Lead {lead_id} no encontrado")
 
-    delete_lead(lead_id, tenant_id=tenant_id)
-    logger.info("Lead %s eliminado (tenant: %s)", lead_id, tenant_id)
+    delete_lead(lead_id, tenant_id=caller.tenant_id)
+    logger.info("Lead %s eliminado (tenant: %s)", lead_id, caller.tenant_id)
 
 
 @router.get("/leads/by-email/{email}")
 async def leads_by_email(
     email: str,
-    tenant_id: str = Depends(get_tenant_id),
+    caller: Caller = Depends(get_caller),
 ):
-    """Historial de leads de un email concreto para el tenant."""
-    leads = get_leads_by_email(email, tenant_id=tenant_id)
+    """Historial de leads de un email (un agente solo los suyos)."""
+    leads = get_leads_by_email(email, tenant_id=caller.tenant_id, agent_id=caller.agent_filter)
     return {"email": email, "total": len(leads), "leads": [_serializar_lead(l) for l in leads]}

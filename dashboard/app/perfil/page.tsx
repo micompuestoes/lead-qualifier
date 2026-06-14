@@ -21,6 +21,8 @@ interface Perfil {
 interface TeamMember {
   member_id: string;
   member_name?: string;
+  member_email?: string;
+  member_whatsapp?: string;
   added_at: string;
 }
 
@@ -57,6 +59,8 @@ export default function PerfilPage() {
   const [equipo, setEquipo]               = useState<TeamMember[]>([]);
   const [nuevoMiembro, setNuevoMiembro]   = useState('');
   const [nuevoNombre, setNuevoNombre]     = useState('');
+  const [nuevoEmail, setNuevoEmail]       = useState('');
+  const [nuevoWhatsapp, setNuevoWhatsapp] = useState('');
   const [agregandoMiembro, setAgregandoMiembro] = useState(false);
 
   const [imap, setImap]                   = useState<ImapStatus>({ configured: false });
@@ -261,12 +265,22 @@ export default function PerfilPage() {
       const res = await fetch(`${apiBase}/me/team`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body:    JSON.stringify({ member_id: nuevoMiembro.trim(), member_name: nuevoNombre.trim() }),
+        body:    JSON.stringify({
+          member_id: nuevoMiembro.trim(),
+          member_name: nuevoNombre.trim(),
+          member_email: nuevoEmail.trim(),
+          member_whatsapp: nuevoWhatsapp.trim(),
+        }),
       });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail ?? 'Error'); }
-      setEquipo(prev => [...prev, { member_id: nuevoMiembro.trim(), member_name: nuevoNombre.trim(), added_at: new Date().toISOString() }]);
-      setNuevoMiembro('');
-      setNuevoNombre('');
+      const data = await res.json();
+      setEquipo(prev => [...prev, {
+        member_id: nuevoMiembro.trim(), member_name: nuevoNombre.trim(),
+        member_email: data.member_email ?? nuevoEmail.trim(),
+        member_whatsapp: data.member_whatsapp ?? '',
+        added_at: new Date().toISOString(),
+      }]);
+      setNuevoMiembro(''); setNuevoNombre(''); setNuevoEmail(''); setNuevoWhatsapp('');
       addToast('Miembro añadido correctamente', 'success');
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Error al añadir miembro', 'error');
@@ -706,8 +720,10 @@ export default function PerfilPage() {
               Miembros del equipo
             </h2>
             <p className="text-sm mb-5" style={{ color: c.text2 }}>
-              Añade el ID de Clerk de tus agentes para que accedan al mismo dashboard.
-              Pueden copiarlo desde su propia página de perfil → Cuenta → ID de usuario.
+              Añade a tus agentes para que accedan al dashboard. Cada uno verá solo
+              <strong style={{ color: c.text1 }}> sus leads</strong>, y recibirá el aviso
+              directo cuando le toque uno caliente. Su ID de Clerk lo copian desde su
+              propio perfil → Cuenta → ID de usuario.
             </p>
 
             {equipo.length > 0 && (
@@ -720,6 +736,11 @@ export default function PerfilPage() {
                       {m.member_name && (
                         <span className="text-sm font-medium block truncate" style={{ color: c.text1 }}>
                           {m.member_name}
+                        </span>
+                      )}
+                      {(m.member_email || m.member_whatsapp) && (
+                        <span className="text-xs truncate block" style={{ color: c.text2 }}>
+                          {[m.member_email, m.member_whatsapp].filter(Boolean).join(' · ')}
                         </span>
                       )}
                       <span className="text-xs truncate block" style={{ fontFamily: 'monospace', color: c.text3 }}>
@@ -747,6 +768,24 @@ export default function PerfilPage() {
                 placeholder="Nombre del agente (p. ej. Laura Pérez)"
                 style={{ ...inputStyleFor('member-name'), width: '100%' }}
               />
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  value={nuevoEmail}
+                  onChange={e => setNuevoEmail(e.target.value)}
+                  onFocus={() => setFocusedInput('member-email')} onBlur={() => setFocusedInput(null)}
+                  placeholder="Email del agente (avisos)"
+                  style={{ ...inputStyleFor('member-email'), flex: 1, fontSize: 13 }}
+                />
+                <input
+                  type="tel"
+                  value={nuevoWhatsapp}
+                  onChange={e => setNuevoWhatsapp(e.target.value)}
+                  onFocus={() => setFocusedInput('member-wa')} onBlur={() => setFocusedInput(null)}
+                  placeholder="WhatsApp (+34…)"
+                  style={{ ...inputStyleFor('member-wa'), flex: 1, fontSize: 13 }}
+                />
+              </div>
               <div className="flex gap-2">
                 <input
                   type="text"

@@ -217,6 +217,7 @@ def qualify_lead(
         "reasoning": reasoning,
         "generated_email": generated_email,
         "recommended_actions": recommended_actions,
+        "assigned_to": assigned_to,
         "processed_at": datetime.now(timezone.utc).isoformat(),
     }
 

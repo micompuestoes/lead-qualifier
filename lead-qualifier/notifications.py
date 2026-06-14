@@ -1,15 +1,17 @@
 """
-Aviso por email a la agencia cuando entra un lead que merece la pena.
+Aviso de un buen lead a quien debe atenderlo.
 
-Solo se notifica a partir de NOTIFY_MIN_SCORE: los leads FRÍO quedan en el
-dashboard pero no generan correo, para no saturar a la agencia.
+Si el lead está asignado a un agente del equipo, se avisa DIRECTAMENTE a ese
+agente (a su email y/o WhatsApp); si no, al contacto general de la cuenta.
+Solo a partir de NOTIFY_MIN_SCORE: los leads FRÍO quedan en el dashboard pero
+no generan aviso, para no saturar.
 """
 
 import logging
 import os
 
 from config import NOTIFY_MIN_SCORE, WHATSAPP_MIN_SCORE
-from core.database import get_tenant
+from core.database import get_agent_contact, get_tenant
 from models import LeadInput
 from services.email_sender import send_tenant_notification
 from services.whatsapp import send_hot_lead_alert
@@ -18,13 +20,15 @@ logger = logging.getLogger(__name__)
 
 
 def notificar_tenant(tenant_id: str, lead: LeadInput, result: dict) -> None:
-    """Avisa a la agencia de un buen lead: por email (score >= NOTIFY_MIN_SCORE)
-    y, si lo tiene activado, por WhatsApp para los CALIENTE (score >= WHATSAPP_MIN_SCORE)."""
+    """
+    Avisa del lead al agente asignado (o al contacto general si no hay agente):
+    por email desde NOTIFY_MIN_SCORE y por WhatsApp para los CALIENTE.
+    """
     try:
         score = result.get("score") or 0
         if score < NOTIFY_MIN_SCORE:
             logger.info(
-                "Lead %s con score %s < %s — no se envía aviso al tenant",
+                "Lead %s con score %s < %s — no se envía aviso",
                 lead.email, score, NOTIFY_MIN_SCORE,
             )
             return
@@ -32,13 +36,15 @@ def notificar_tenant(tenant_id: str, lead: LeadInput, result: dict) -> None:
         tenant = get_tenant(tenant_id)
         if not tenant:
             return
+
+        # ¿A quién avisamos? Al agente asignado, con respaldo en el dueño.
+        contacto = get_agent_contact(tenant_id, result.get("assigned_to"))
         dashboard_url = os.getenv("DASHBOARD_URL", "")
 
-        notify_email = tenant.get("notify_email") or tenant.get("email", "")
-        if notify_email:
+        if contacto["email"]:
             send_tenant_notification(
-                tenant_email=notify_email,
-                tenant_name=tenant.get("name", ""),
+                tenant_email=contacto["email"],
+                tenant_name=contacto["name"] or tenant.get("name", ""),
                 lead_name=lead.name,
                 lead_email=lead.email,
                 lead_phone=lead.phone,
@@ -48,22 +54,22 @@ def notificar_tenant(tenant_id: str, lead: LeadInput, result: dict) -> None:
                 dashboard_url=dashboard_url,
             )
 
-        # WhatsApp: solo leads CALIENTE y solo si el agente lo ha activado.
-        _avisar_whatsapp(tenant, lead, result, score, dashboard_url)
+        _avisar_whatsapp(contacto, lead, result, score, dashboard_url)
 
     except Exception as e:
         logger.warning("No se pudo enviar notificación al tenant %s: %s", tenant_id, str(e))
 
 
-def _avisar_whatsapp(tenant: dict, lead: LeadInput, result: dict, score: int, dashboard_url: str) -> None:
-    """Envía el aviso de WhatsApp si el tenant lo tiene activado y el lead es caliente."""
+def _avisar_whatsapp(contacto: dict, lead: LeadInput, result: dict, score: int, dashboard_url: str) -> None:
+    """Avisa por WhatsApp al contacto si el lead es CALIENTE y hay número."""
     if score < WHATSAPP_MIN_SCORE:
         return
-    if not tenant.get("whatsapp_enabled") or not tenant.get("whatsapp_number"):
+    numero = contacto.get("whatsapp")
+    if not numero:
         return
     try:
         send_hot_lead_alert(
-            to_phone=tenant["whatsapp_number"],
+            to_phone=numero,
             lead_name=lead.name,
             lead_phone=lead.phone,
             score=score,
@@ -71,4 +77,4 @@ def _avisar_whatsapp(tenant: dict, lead: LeadInput, result: dict, score: int, da
             dashboard_url=dashboard_url,
         )
     except Exception as exc:
-        logger.warning("Fallo al avisar por WhatsApp (tenant %s): %s", tenant.get("id"), exc)
+        logger.warning("Fallo al avisar por WhatsApp a %s: %s", numero, exc)
