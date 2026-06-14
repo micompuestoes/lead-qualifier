@@ -20,6 +20,7 @@ interface Perfil {
 
 interface TeamMember {
   member_id: string;
+  member_name?: string;
   added_at: string;
 }
 
@@ -55,6 +56,7 @@ export default function PerfilPage() {
 
   const [equipo, setEquipo]               = useState<TeamMember[]>([]);
   const [nuevoMiembro, setNuevoMiembro]   = useState('');
+  const [nuevoNombre, setNuevoNombre]     = useState('');
   const [agregandoMiembro, setAgregandoMiembro] = useState(false);
 
   const [imap, setImap]                   = useState<ImapStatus>({ configured: false });
@@ -259,11 +261,12 @@ export default function PerfilPage() {
       const res = await fetch(`${apiBase}/me/team`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body:    JSON.stringify({ member_id: nuevoMiembro.trim() }),
+        body:    JSON.stringify({ member_id: nuevoMiembro.trim(), member_name: nuevoNombre.trim() }),
       });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail ?? 'Error'); }
-      setEquipo(prev => [...prev, { member_id: nuevoMiembro.trim(), added_at: new Date().toISOString() }]);
+      setEquipo(prev => [...prev, { member_id: nuevoMiembro.trim(), member_name: nuevoNombre.trim(), added_at: new Date().toISOString() }]);
       setNuevoMiembro('');
+      setNuevoNombre('');
       addToast('Miembro añadido correctamente', 'success');
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Error al añadir miembro', 'error');
@@ -713,8 +716,15 @@ export default function PerfilPage() {
                   <li key={m.member_id}
                     className="flex items-center justify-between px-4 py-2.5 rounded-xl"
                     style={{ background: c.muted, border: `1px solid ${c.divider}` }}>
-                    <span className="text-sm truncate" style={{ fontFamily: 'monospace', color: c.text4 }}>
-                      {m.member_id}
+                    <span className="min-w-0">
+                      {m.member_name && (
+                        <span className="text-sm font-medium block truncate" style={{ color: c.text1 }}>
+                          {m.member_name}
+                        </span>
+                      )}
+                      <span className="text-xs truncate block" style={{ fontFamily: 'monospace', color: c.text3 }}>
+                        {m.member_id}
+                      </span>
                     </span>
                     <button
                       onClick={() => eliminarMiembro(m.member_id)}
@@ -728,19 +738,29 @@ export default function PerfilPage() {
               </ul>
             )}
 
-            <form onSubmit={agregarMiembro} className="flex gap-2">
+            <form onSubmit={agregarMiembro} className="space-y-2">
               <input
                 type="text"
-                value={nuevoMiembro}
-                onChange={e => setNuevoMiembro(e.target.value)}
-                onFocus={() => setFocusedInput('member')} onBlur={() => setFocusedInput(null)}
-                placeholder="user_xxxxxxxxxxxxxxxxxxxxxxxx"
-                style={{ ...inputStyleFor('member'), flex: 1, fontFamily: 'monospace', fontSize: 12 }}
+                value={nuevoNombre}
+                onChange={e => setNuevoNombre(e.target.value)}
+                onFocus={() => setFocusedInput('member-name')} onBlur={() => setFocusedInput(null)}
+                placeholder="Nombre del agente (p. ej. Laura Pérez)"
+                style={{ ...inputStyleFor('member-name'), width: '100%' }}
               />
-              <button type="submit" disabled={agregandoMiembro || !nuevoMiembro.trim()}
-                style={{ ...btnPrimary, opacity: (agregandoMiembro || !nuevoMiembro.trim()) ? 0.6 : 1, whiteSpace: 'nowrap' }}>
-                {agregandoMiembro ? 'Añadiendo…' : 'Añadir'}
-              </button>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={nuevoMiembro}
+                  onChange={e => setNuevoMiembro(e.target.value)}
+                  onFocus={() => setFocusedInput('member')} onBlur={() => setFocusedInput(null)}
+                  placeholder="user_xxxxxxxxxxxxxxxxxxxxxxxx"
+                  style={{ ...inputStyleFor('member'), flex: 1, fontFamily: 'monospace', fontSize: 12 }}
+                />
+                <button type="submit" disabled={agregandoMiembro || !nuevoMiembro.trim()}
+                  style={{ ...btnPrimary, opacity: (agregandoMiembro || !nuevoMiembro.trim()) ? 0.6 : 1, whiteSpace: 'nowrap' }}>
+                  {agregandoMiembro ? 'Añadiendo…' : 'Añadir'}
+                </button>
+              </div>
             </form>
           </div>
         )}

@@ -99,6 +99,18 @@ export async function actualizarEstado(
   return handleResponse<Lead>(res);
 }
 
+export async function asignarLead(
+  id: string,
+  agentId: string | null,
+  getToken: GetToken
+): Promise<Lead> {
+  const res = await apiFetch(`/leads/${id}/assign`, getToken, {
+    method: 'PATCH',
+    body: JSON.stringify({ agent_id: agentId }),
+  });
+  return handleResponse<Lead>(res).then(normalizarLead);
+}
+
 export async function eliminarLead(id: string, getToken: GetToken): Promise<void> {
   const res = await apiFetch(`/leads/${id}`, getToken, { method: 'DELETE' });
   if (!res.ok) {

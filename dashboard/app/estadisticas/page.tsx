@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import Link from 'next/link';
 import { obtenerLeads } from '@/lib/api';
-import type { Lead } from '@/types/lead';
+import type { Lead, AgenteRanking } from '@/types/lead';
 import { useTheme } from '@/components/ThemeProvider';
 import PageHeader from '@/components/PageHeader';
 
@@ -312,6 +312,7 @@ export default function EstadisticasPage() {
   const { c } = useTheme();
   const [stats, setStats]       = useState<Stats | null>(null);
   const [leads, setLeads]       = useState<Lead[]>([]);
+  const [agentes, setAgentes]   = useState<AgenteRanking[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError]       = useState<string | null>(null);
 
@@ -327,6 +328,11 @@ export default function EstadisticasPage() {
         setStats(await res.json());
         // Leads para el calendario de actividad (no crítico para el render)
         obtenerLeads(getToken).then(setLeads).catch(() => {});
+        // Ranking de agentes (no crítico)
+        fetch(`${BASE}/stats/agents`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+          .then(r => (r.ok ? r.json() : null))
+          .then(d => { if (d) setAgentes(d.agents ?? []); })
+          .catch(() => {});
       } catch {
         setError('general');
       } finally {
@@ -517,6 +523,53 @@ export default function EstadisticasPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Ranking de agentes (solo agencias con equipo) ── */}
+      {agentes.length > 1 && (
+        <div style={{ ...cardStyle, marginBottom: 24 }}>
+          <p style={sectionLabel}>Rendimiento por agente</p>
+
+          {/* Cabecera */}
+          <div style={{
+            display: 'grid', gridTemplateColumns: '1.7fr repeat(4, 1fr)', gap: 8,
+            padding: '0 10px 10px', borderBottom: `1px solid ${c.divider}`,
+          }}>
+            <span style={{ fontSize: 11, color: c.text2 }}>Agente</span>
+            {['Leads', 'Calientes', 'Cerrados', 'Score'].map(h => (
+              <span key={h} style={{ fontSize: 11, color: c.text2, textAlign: 'right' }}>{h}</span>
+            ))}
+          </div>
+
+          {/* Filas */}
+          {agentes.map((a, i) => {
+            const medalla = ['#d4af37', '#aab1b8', '#cd7f32'][i];   // oro / plata / bronce
+            return (
+              <div key={a.agent_id} style={{
+                display: 'grid', gridTemplateColumns: '1.7fr repeat(4, 1fr)', gap: 8,
+                padding: '12px 10px', alignItems: 'center',
+                borderBottom: i < agentes.length - 1 ? `1px solid ${c.divider}` : 'none',
+              }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                  <span style={{
+                    width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 11, fontWeight: 700,
+                    background: medalla ? `${medalla}26` : 'rgba(200,169,110,0.10)',
+                    color: medalla ?? c.text2,
+                  }}>{i + 1}</span>
+                  <span style={{ fontSize: 13.5, color: c.text1, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {a.name}
+                  </span>
+                </span>
+                <span style={{ fontSize: 14, color: c.text1, textAlign: 'right', fontWeight: 600 }}>{a.total}</span>
+                <span style={{ fontSize: 14, color: '#c8796e', textAlign: 'right' }}>{a.calientes}</span>
+                <span style={{ fontSize: 14, color: '#2d7a3a', textAlign: 'right', fontWeight: 700 }}>{a.cerrados}</span>
+                <span style={{ fontSize: 14, color: c.text2, textAlign: 'right' }}>{a.score_avg || '—'}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* ── Calendario de actividad ── */}
       <CalendarHeatmap leads={leads} c={c} />

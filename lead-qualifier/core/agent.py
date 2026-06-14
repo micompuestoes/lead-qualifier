@@ -17,7 +17,7 @@ import httpx
 
 from prompts import SYSTEM_PROMPT
 from core.tools import analyze_intent, lookup_company, score_lead
-from core.database import save_lead
+from core.database import pick_next_agent, save_lead
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +182,14 @@ def qualify_lead(
         anthropic_client, name, primer_nombre, firma, email, message, intent, scoring,
     )
 
-    # ── 5: persistir ──
+    # ── 5: reparto automático entre el equipo (None si es cuenta individual) ──
+    try:
+        assigned_to = pick_next_agent(tenant_id)
+    except Exception as exc:
+        logger.warning("No se pudo asignar el lead %s a un agente: %s", lead_id, exc)
+        assigned_to = None
+
+    # ── 6: persistir ──
     try:
         save_lead(
             lead_id=lead_id,
@@ -198,6 +205,7 @@ def qualify_lead(
             recommended_actions=recommended_actions,
             intent_analysis=intent,
             company_info=company,
+            assigned_to=assigned_to,
         )
     except Exception as exc:
         logger.error("Error guardando lead %s en BD: %s", lead_id, exc)

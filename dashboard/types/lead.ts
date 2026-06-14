@@ -32,8 +32,27 @@ export interface Lead {
   generated_email: string | null;
   recommended_actions: string[] | null; // puede venir como JSON string desde la BD
   status: EstadoLead;
+  assigned_to?: string | null;           // Clerk user_id del agente asignado
   created_at: string;
   processed_at: string | null;
+}
+
+// Miembro del equipo (GET /me/team)
+export interface AgenteEquipo {
+  member_id: string;
+  member_name: string;
+  added_at: string;
+}
+
+// Fila del ranking de agentes (GET /stats/agents)
+export interface AgenteRanking {
+  agent_id: string;
+  name: string;
+  total: number;
+  calientes: number;
+  cerrados: number;
+  pendientes: number;
+  score_avg: number;
 }
 
 // Payload para crear un nuevo lead

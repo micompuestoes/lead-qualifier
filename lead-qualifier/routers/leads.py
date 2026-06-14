@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Literal
+from typing import Literal, Optional
 
 import anthropic
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,11 +11,11 @@ from pydantic import BaseModel
 from config import FREE_LEAD_LIMIT
 from core.agent import qualify_lead
 from core.database import (
-    count_leads_for_tenant, delete_lead, ensure_tenant, get_lead_by_id,
-    get_lead_count_this_month, get_leads_by_email, get_recent_leads,
-    get_tenant, update_lead_status,
+    assign_lead, count_leads_for_tenant, delete_lead, ensure_tenant,
+    get_agent_ids, get_lead_by_id, get_lead_count_this_month, get_leads_by_email,
+    get_recent_leads, get_tenant, update_lead_status,
 )
-from deps import get_anthropic_client, get_tenant_id
+from deps import get_anthropic_client, get_tenant_id, require_plan
 from models import LeadInput, LeadOutput
 from notifications import notificar_tenant
 from services.email_sender import send_lead_response_email
@@ -29,6 +29,10 @@ EstadoLiteral = Literal["PENDIENTE", "CONTACTADO", "CERRADO", "DESCARTADO"]
 
 class ActualizarEstadoInput(BaseModel):
     status: EstadoLiteral
+
+
+class AsignarLeadInput(BaseModel):
+    agent_id: Optional[str] = None  # None → dejar sin asignar
 
 
 def _serializar_lead(lead: dict) -> dict:
@@ -150,6 +154,27 @@ async def patch_lead_status(
 
     actualizado = get_lead_by_id(lead_id, tenant_id=tenant_id)
     return _serializar_lead(actualizado)
+
+
+@router.patch("/leads/{lead_id}/assign")
+async def patch_lead_assign(
+    lead_id: str,
+    body: AsignarLeadInput,
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Asigna o reasigna un lead a un agente del equipo. Solo plan agencia."""
+    require_plan(tenant_id, "agencia")
+
+    lead = get_lead_by_id(lead_id, tenant_id=tenant_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail=f"Lead {lead_id} no encontrado")
+
+    # Validar que el agente pertenece al equipo (o None para desasignar)
+    if body.agent_id is not None and body.agent_id not in get_agent_ids(tenant_id):
+        raise HTTPException(status_code=400, detail="El agente no pertenece a tu equipo")
+
+    assign_lead(lead_id, tenant_id=tenant_id, agent_id=body.agent_id)
+    return _serializar_lead(get_lead_by_id(lead_id, tenant_id=tenant_id))
 
 
 @router.delete("/leads/{lead_id}", status_code=204)

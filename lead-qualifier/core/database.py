@@ -114,6 +114,9 @@ def init_db() -> None:
         # Avisos por WhatsApp al agente
         "ALTER TABLE tenants ADD COLUMN whatsapp_number TEXT",
         "ALTER TABLE tenants ADD COLUMN whatsapp_enabled INTEGER DEFAULT 0",
+        # Reparto de leads entre agentes
+        "ALTER TABLE leads ADD COLUMN assigned_to TEXT",
+        "ALTER TABLE team_members ADD COLUMN member_name TEXT",
     ]:
         try:
             with engine.begin() as conn:
@@ -126,9 +129,10 @@ def init_db() -> None:
     with engine.begin() as conn:
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS team_members (
-                owner_id   TEXT NOT NULL,
-                member_id  TEXT NOT NULL,
-                added_at   TEXT NOT NULL,
+                owner_id    TEXT NOT NULL,
+                member_id   TEXT NOT NULL,
+                member_name TEXT,
+                added_at    TEXT NOT NULL,
                 PRIMARY KEY (owner_id, member_id)
             )
         """))
@@ -392,16 +396,17 @@ def disable_imap(tenant_id: str) -> None:
     logger.info("IMAP desconectado para tenant %s", tenant_id)
 
 
-def add_team_member(owner_id: str, member_id: str) -> None:
+def add_team_member(owner_id: str, member_id: str, member_name: str = "") -> None:
     """Añade un usuario de Clerk como miembro del equipo del tenant owner."""
     with engine.begin() as conn:
         conn.execute(
             text("""
-                INSERT INTO team_members (owner_id, member_id, added_at)
-                VALUES (:owner, :member, :ts)
+                INSERT INTO team_members (owner_id, member_id, member_name, added_at)
+                VALUES (:owner, :member, :name, :ts)
                 ON CONFLICT DO NOTHING
             """),
-            {"owner": owner_id, "member": member_id, "ts": datetime.now(timezone.utc).isoformat()},
+            {"owner": owner_id, "member": member_id, "name": member_name or None,
+             "ts": datetime.now(timezone.utc).isoformat()},
         )
 
 
@@ -415,13 +420,13 @@ def remove_team_member(owner_id: str, member_id: str) -> None:
 
 
 def get_team_members(owner_id: str) -> list:
-    """Devuelve los IDs de Clerk de los miembros del equipo del tenant."""
+    """Devuelve los miembros del equipo del tenant (id de Clerk + nombre)."""
     with engine.connect() as conn:
         rows = conn.execute(
-            text("SELECT member_id, added_at FROM team_members WHERE owner_id=:owner ORDER BY added_at"),
+            text("SELECT member_id, member_name, added_at FROM team_members WHERE owner_id=:owner ORDER BY added_at"),
             {"owner": owner_id},
         ).fetchall()
-    return [{"member_id": r[0], "added_at": r[1]} for r in rows]
+    return [{"member_id": r[0], "member_name": r[1] or "", "added_at": r[2]} for r in rows]
 
 
 def get_owner_for_member(member_id: str) -> Optional[str]:
@@ -432,6 +437,104 @@ def get_owner_for_member(member_id: str) -> Optional[str]:
             {"member": member_id},
         ).fetchone()
     return row[0] if row else None
+
+
+# ─────────────────────────────────────────────
+# Reparto de leads entre agentes (plan agencia)
+# ─────────────────────────────────────────────
+
+def _agentes_con_nombre(tenant_id: str) -> list:
+    """Lista de (agent_id, nombre) del equipo: el dueño primero, luego los miembros."""
+    owner = get_tenant(tenant_id)
+    nombre_owner = (owner.get("name") if owner else "") or "Cuenta principal"
+    agentes = [(tenant_id, nombre_owner)]
+    for m in get_team_members(tenant_id):
+        agentes.append((m["member_id"], m["member_name"] or m["member_id"][:12]))
+    return agentes
+
+
+def get_agent_ids(tenant_id: str) -> list:
+    """IDs de los agentes del tenant (dueño + miembros), en orden estable."""
+    return [aid for aid, _ in _agentes_con_nombre(tenant_id)]
+
+
+def pick_next_agent(tenant_id: str) -> Optional[str]:
+    """
+    Elige el siguiente agente para un lead nuevo (round-robin balanceado por carga).
+    Devuelve None si el tenant no tiene equipo (no hay a quién repartir).
+    """
+    from core.assignment import choose_next_agent
+
+    agentes = get_agent_ids(tenant_id)
+    if len(agentes) <= 1:
+        return None  # cuenta individual: sin equipo no se reparte
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT assigned_to, COUNT(*) FROM leads
+                WHERE tenant_id = :tid AND assigned_to IS NOT NULL
+                GROUP BY assigned_to
+            """),
+            {"tid": tenant_id},
+        ).fetchall()
+    counts = {r[0]: r[1] for r in rows}
+    return choose_next_agent(agentes, counts)
+
+
+def assign_lead(lead_id: str, tenant_id: str, agent_id: Optional[str]) -> None:
+    """Asigna (o reasigna) un lead a un agente del tenant. agent_id=None lo deja sin asignar."""
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE leads SET assigned_to = :aid WHERE id = :id AND tenant_id = :tid"),
+            {"aid": agent_id, "id": lead_id, "tid": tenant_id},
+        )
+    logger.info("Lead %s asignado a %s (tenant: %s)", lead_id, agent_id, tenant_id)
+
+
+def get_agent_leaderboard(tenant_id: str) -> dict:
+    """
+    Ranking de rendimiento por agente: total de leads, calientes, cerrados,
+    pendientes y score medio. Ordenado por operaciones cerradas.
+    """
+    agentes = _agentes_con_nombre(tenant_id)
+
+    with engine.connect() as conn:
+        filas = conn.execute(
+            text("""
+                SELECT assigned_to,
+                       COUNT(*)                                            AS total,
+                       SUM(CASE WHEN score >= 8     THEN 1 ELSE 0 END)     AS calientes,
+                       SUM(CASE WHEN status = 'CERRADO' THEN 1 ELSE 0 END) AS cerrados,
+                       SUM(CASE WHEN status = 'PENDIENTE' THEN 1 ELSE 0 END) AS pendientes,
+                       AVG(score)                                          AS score_avg
+                FROM leads
+                WHERE tenant_id = :tid AND assigned_to IS NOT NULL
+                GROUP BY assigned_to
+            """),
+            {"tid": tenant_id},
+        ).fetchall()
+        sin_asignar = conn.execute(
+            text("SELECT COUNT(*) FROM leads WHERE tenant_id = :tid AND assigned_to IS NULL"),
+            {"tid": tenant_id},
+        ).scalar() or 0
+
+    por_agente = {r[0]: r for r in filas}
+    ranking = []
+    for aid, nombre in agentes:
+        r = por_agente.get(aid)
+        ranking.append({
+            "agent_id":   aid,
+            "name":       nombre,
+            "total":      r[1] if r else 0,
+            "calientes":  r[2] if r else 0,
+            "cerrados":   r[3] if r else 0,
+            "pendientes": r[4] if r else 0,
+            "score_avg":  round(float(r[5]), 1) if r and r[5] is not None else 0,
+        })
+
+    ranking.sort(key=lambda a: (-a["cerrados"], -a["total"], a["name"]))
+    return {"agents": ranking, "sin_asignar": sin_asignar}
 
 
 def get_stats(tenant_id: str) -> dict:
@@ -551,6 +654,7 @@ def save_lead(
     recommended_actions: list,
     intent_analysis: dict,
     company_info: dict,
+    assigned_to: Optional[str] = None,
 ) -> None:
     """Guarda un lead procesado completo."""
     now = datetime.now(timezone.utc).isoformat()
@@ -563,13 +667,13 @@ def save_lead(
                     classification, score, reasoning,
                     generated_email, recommended_actions,
                     intent_analysis, company_info,
-                    status, created_at, processed_at
+                    status, assigned_to, created_at, processed_at
                 ) VALUES (
                     :id, :tenant_id, :name, :email, :phone, :message,
                     :classification, :score, :reasoning,
                     :generated_email, :recommended_actions,
                     :intent_analysis, :company_info,
-                    'PENDIENTE', :created_at, :processed_at
+                    'PENDIENTE', :assigned_to, :created_at, :processed_at
                 )
             """),
             {
@@ -586,6 +690,7 @@ def save_lead(
                 "recommended_actions": json.dumps(recommended_actions, ensure_ascii=False),
                 "intent_analysis":    json.dumps(intent_analysis,    ensure_ascii=False),
                 "company_info":       json.dumps(company_info,       ensure_ascii=False),
+                "assigned_to":  assigned_to,
                 "created_at":   now,
                 "processed_at": now,
             },

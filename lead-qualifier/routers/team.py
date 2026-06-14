@@ -15,6 +15,7 @@ router = APIRouter(tags=["equipo"])
 
 class TeamMemberInput(BaseModel):
     member_id: str
+    member_name: str = ""
 
 
 @router.get("/me/team")
@@ -38,9 +39,9 @@ async def agregar_miembro(
     existing_owner = get_owner_for_member(body.member_id)
     if existing_owner and existing_owner != tenant_id:
         raise HTTPException(status_code=409, detail="Este usuario ya pertenece a otro equipo")
-    add_team_member(tenant_id, body.member_id)
+    add_team_member(tenant_id, body.member_id, body.member_name.strip())
     logger.info("Miembro %s añadido al equipo de %s", body.member_id, tenant_id)
-    return {"ok": True, "member_id": body.member_id}
+    return {"ok": True, "member_id": body.member_id, "member_name": body.member_name.strip()}
 
 
 @router.delete("/me/team/{member_id}", status_code=204)

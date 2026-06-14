@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@clerk/nextjs';
 
-import { obtenerLead, actualizarEstado, eliminarLead } from '@/lib/api';
+import { obtenerLead, actualizarEstado, eliminarLead, asignarLead, apiFetch } from '@/lib/api';
 import { formatearFecha, generarAsunto, parsearReasoning } from '@/lib/utils';
 import type { Lead, EstadoLead } from '@/types/lead';
 import { useTheme } from '@/components/ThemeProvider';
@@ -73,12 +73,19 @@ export default function LeadDetallePage() {
   const [eliminando, setEliminando]               = useState(false);
   const [confirmarEliminar, setConfirmarEliminar] = useState(false);
 
+  // Reparto entre agentes (solo plan agencia)
+  const [agentes, setAgentes]   = useState<{ id: string; name: string }[]>([]);
+  const [esAgencia, setEsAgencia] = useState(false);
+  const [asignado, setAsignado] = useState<string>('');   // '' = sin asignar
+  const [asignando, setAsignando] = useState(false);
+
   useEffect(() => {
     async function cargar() {
       try {
         const data = await obtenerLead(id, getToken);
         setLead(data);
         setStatusLocal((data.status ?? 'PENDIENTE') as EstadoLead);
+        setAsignado(data.assigned_to ?? '');
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Error al cargar el lead');
       } finally {
@@ -87,6 +94,46 @@ export default function LeadDetallePage() {
     }
     cargar();
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Carga el equipo para poder reasignar (si no es agencia, /me/team da 403 y se oculta)
+  useEffect(() => {
+    async function cargarAgentes() {
+      try {
+        const [resTeam, resMe] = await Promise.all([
+          apiFetch('/me/team', getToken),
+          apiFetch('/me', getToken),
+        ]);
+        if (!resTeam.ok) return;
+        const team = await resTeam.json();
+        const me = resMe.ok ? await resMe.json() : null;
+        const lista: { id: string; name: string }[] = [];
+        if (me?.id) lista.push({ id: me.id, name: me.name || 'Cuenta principal' });
+        for (const m of (team.members ?? []) as { member_id: string; member_name?: string }[]) {
+          lista.push({ id: m.member_id, name: m.member_name || m.member_id.slice(0, 12) });
+        }
+        setAgentes(lista);
+        setEsAgencia(true);
+      } catch { /* sin equipo: no se muestra el reparto */ }
+    }
+    cargarAgentes();
+  }, [getToken]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function cambiarAgente(agentId: string) {
+    if (asignando) return;
+    const prev = asignado;
+    setAsignado(agentId);          // optimistic
+    setAsignando(true);
+    try {
+      const upd = await asignarLead(id, agentId || null, getToken);
+      setLead(l => (l ? { ...l, assigned_to: upd.assigned_to ?? null } : l));
+      addToast(agentId ? 'Lead asignado' : 'Lead sin asignar', 'success');
+    } catch (e) {
+      setAsignado(prev);
+      addToast(e instanceof Error ? e.message : 'No se pudo reasignar', 'error');
+    } finally {
+      setAsignando(false);
+    }
+  }
 
   async function cambiarEstado(nuevo: EstadoLead) {
     if (nuevo === statusLocal || actualizando || !lead) return;
@@ -329,6 +376,31 @@ export default function LeadDetallePage() {
               })}
             </div>
           </div>
+
+          {/* Agente asignado (solo agencia) */}
+          {esAgencia && (
+            <div style={{ ...card, padding: 20 }} className="animate-reveal-in" data-delay="100">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <SectionLabel>Agente asignado</SectionLabel>
+                {asignando && <span style={{ fontSize: 11, color: '#c8a96e' }}>Guardando…</span>}
+              </div>
+              <select
+                value={asignado}
+                onChange={e => cambiarAgente(e.target.value)}
+                disabled={asignando}
+                style={{
+                  width: '100%', padding: '10px 12px', borderRadius: 10, fontSize: 13,
+                  border: `1.5px solid ${c.inputBorder}`, background: c.input, color: c.text1,
+                  cursor: asignando ? 'default' : 'pointer', outline: 'none',
+                }}
+              >
+                <option value="">Sin asignar</option>
+                {agentes.map(a => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Razonamiento IA */}
           {puntos.length > 0 && (
