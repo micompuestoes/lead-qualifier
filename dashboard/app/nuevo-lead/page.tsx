@@ -100,6 +100,22 @@ export default function NuevoLeadPage() {
   const [pasoActivo, setPasoActivo]   = useState(0);
   const [scoreVisible, setScoreVisible] = useState(0);
   const [mostrarConfeti, setMostrarConfeti] = useState(false);
+  const [operacion, setOperacion]           = useState('');
+  const [presupuesto, setPresupuesto]       = useState('');
+
+  const RANGOS_COMPRA   = ['Hasta 100.000 €', '100.000 – 200.000 €', '200.000 – 300.000 €', '300.000 – 500.000 €', 'Más de 500.000 €'];
+  const RANGOS_ALQUILER = ['Hasta 600 €/mes', '600 – 900 €/mes', '900 – 1.200 €/mes', 'Más de 1.200 €/mes'];
+  const rangos = operacion === 'Alquilar' ? RANGOS_ALQUILER : RANGOS_COMPRA;
+
+  // Prepende la operación y el presupuesto al mensaje, igual que el formulario
+  // público, para que el agente de IA reciba esas señales y cualifique mejor.
+  function componerMensaje(): string {
+    const extra: string[] = [];
+    if (operacion)   extra.push(`Quiere ${operacion.toLowerCase()}.`);
+    if (presupuesto) extra.push(`Presupuesto aproximado: ${presupuesto}.`);
+    const cab = extra.join(' ');
+    return cab ? `${cab}\n\n${form.message.trim()}` : form.message.trim();
+  }
 
   useEffect(() => {
     if (!procesando) { setPasoActivo(0); return; }
@@ -138,7 +154,7 @@ export default function NuevoLeadPage() {
       setProcesando(true); setError(null);
       const res = await cualificarLead({
         name: form.name.trim(), email: form.email.trim(),
-        phone: form.phone.trim() || undefined, message: form.message.trim(),
+        phone: form.phone.trim() || undefined, message: componerMensaje(),
       }, getToken);
       setResultado(res);
       addToast(`Lead cualificado — score ${res.score}/10`, res.score >= 7 ? 'info' : 'success');
@@ -148,7 +164,7 @@ export default function NuevoLeadPage() {
     } finally { setProcesando(false); }
   }
 
-  function resetear() { setForm(FORM_VACIO); setResultado(null); setError(null); setScoreVisible(0); }
+  function resetear() { setForm(FORM_VACIO); setResultado(null); setError(null); setScoreVisible(0); setOperacion(''); setPresupuesto(''); }
 
   // Estilos derivados del tema
   const inputStyle: React.CSSProperties = {
@@ -338,12 +354,56 @@ export default function NuevoLeadPage() {
           <PhoneInput onChange={val => setForm(p => ({ ...p, phone: val }))} />
         </div>
 
+        {/* Operación — guía la cualificación, igual que en el formulario público */}
+        <div>
+          <label className="block text-sm font-semibold mb-1.5" style={{ color: c.text1 }}>
+            ¿Qué quiere hacer? <span className="font-normal" style={{ color: c.text2 }}>(opcional)</span>
+          </label>
+          <div className="flex gap-2">
+            {['Comprar', 'Alquilar', 'Vender'].map(op => {
+              const sel = operacion === op;
+              return (
+                <button key={op} type="button" disabled={procesando}
+                  onClick={() => { setOperacion(sel ? '' : op); setPresupuesto(''); }}
+                  className="flex-1 py-2.5 rounded-xl text-sm transition-all"
+                  style={{
+                    fontWeight: sel ? 600 : 500,
+                    background: sel ? '#c8a96e' : 'transparent',
+                    color: sel ? '#1a1814' : c.text2,
+                    border: sel ? '1.5px solid #c8a96e' : `1.5px solid ${c.inputBorder}`,
+                    cursor: procesando ? 'not-allowed' : 'pointer',
+                    opacity: procesando ? 0.6 : 1,
+                  }}>
+                  {op}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Presupuesto — solo al comprar o alquilar */}
+        {(operacion === 'Comprar' || operacion === 'Alquilar') && (
+          <div>
+            <label className="block text-sm font-semibold mb-1.5" style={{ color: c.text1 }}>
+              Presupuesto aproximado <span className="font-normal" style={{ color: c.text2 }}>(opcional)</span>
+            </label>
+            <select value={presupuesto} onChange={e => setPresupuesto(e.target.value)} disabled={procesando}
+              className="w-full px-4 py-2.5 rounded-xl text-sm transition-all outline-none disabled:cursor-not-allowed"
+              style={{ ...inputStyle, cursor: procesando ? 'not-allowed' : 'pointer', opacity: procesando ? 0.6 : 1 }}>
+              <option value="">Seleccionar…</option>
+              {rangos.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+        )}
+
         <div>
           <label htmlFor="message" className="block text-sm font-semibold mb-1.5" style={{ color: c.text1 }}>
-            Mensaje del lead <span style={{ color: '#c8a96e' }}>*</span>
+            {operacion === 'Vender' ? '¿Qué inmueble quiere vender?' : 'Mensaje del lead'} <span style={{ color: '#c8a96e' }}>*</span>
           </label>
           <Textarea id="message" name="message" value={form.message} onChange={handleChange}
-            placeholder="Somos una empresa de 10 personas y buscamos automatizar nuestro proceso de ventas…"
+            placeholder={operacion === 'Vender'
+              ? 'Detalles del inmueble: zona, tipo (piso, casa…), m², nº de habitaciones, estado…'
+              : 'Cuéntanos qué busca: zona, nº de habitaciones, tipo de inmueble, plazo…'}
             disabled={procesando} inputStyle={inputStyle} focusStyle={focusStyle} />
         </div>
 
