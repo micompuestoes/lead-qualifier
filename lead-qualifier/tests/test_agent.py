@@ -13,8 +13,8 @@ load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env", override=True)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
 
-from agent import qualify_lead, _make_anthropic_client
-from database import init_db
+from core.agent import qualify_lead, _make_anthropic_client
+from core.database import init_db
 
 init_db()
 client = _make_anthropic_client(os.getenv("ANTHROPIC_API_KEY"))

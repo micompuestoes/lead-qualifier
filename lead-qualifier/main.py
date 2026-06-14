@@ -31,7 +31,7 @@ from fastapi.responses import JSONResponse
 from jose import JWTError, jwt
 from pydantic import BaseModel
 
-from database import (
+from core.database import (
     add_notification, add_team_member, count_leads_for_tenant,
     count_unread_notifications, delete_lead, disable_imap, ensure_tenant,
     get_all_tenants, get_digest_counts, get_imap_config, get_lead_by_id,
@@ -43,13 +43,13 @@ from database import (
     set_tenant_plan, set_tenant_status, update_imap_last_sync,
     update_lead_status, update_tenant_profile,
 )
-from email_imap import detectar_servidor_imap, obtener_no_leidos, verificar_conexion
-from email_sender import (
+from services.email_imap import detectar_servidor_imap, obtener_no_leidos, verificar_conexion
+from services.email_sender import (
     send_lead_response_email, send_payment_failed, send_stale_leads_alert,
     send_tenant_notification, send_weekly_digest,
 )
 from models import LeadInput, LeadOutput
-from agent import qualify_lead, _make_anthropic_client
+from core.agent import qualify_lead, _make_anthropic_client
 
 # ─────────────────────────────────────────────
 # Logging
@@ -154,7 +154,16 @@ def _get_price_id(plan: str) -> str:
 # ─────────────────────────────────────────────
 
 def _fernet() -> Fernet:
-    """Deriva una clave Fernet del ADMIN_SECRET_KEY (ya obligatorio en prod)."""
+    """
+    Clave Fernet para cifrar contraseñas IMAP.
+    Usa FERNET_KEY si está definida (recomendado en producción).
+    Si no, deriva una del ADMIN_SECRET_KEY por compatibilidad con instalaciones antiguas.
+    IMPORTANTE: si cambias ADMIN_SECRET_KEY, define FERNET_KEY con el valor antiguo
+    antes de rotar, o las contraseñas IMAP almacenadas quedarán ilegibles.
+    """
+    fernet_key = os.getenv("FERNET_KEY", "").strip()
+    if fernet_key:
+        return Fernet(fernet_key.encode())
     secret = os.getenv("ADMIN_SECRET_KEY", "dev-insecure-key-change-in-prod")
     key = base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest())
     return Fernet(key)
@@ -273,8 +282,8 @@ def _require_admin(request: Request) -> None:
 
 def _resumenes_semanales_sync() -> None:
     """Envía a cada agencia activa un resumen de su actividad de la semana."""
-    from datetime import datetime, timedelta
-    desde = (datetime.utcnow() - timedelta(days=7)).isoformat()
+    from datetime import datetime, timedelta, timezone
+    desde = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
     dashboard_url = os.getenv("DASHBOARD_URL", "")
     enviados = 0
     for t in get_all_tenants():
@@ -388,12 +397,14 @@ async def lifespan(app: FastAPI):
         logger.error("ANTHROPIC_API_KEY no definida en .env")
         raise RuntimeError("ANTHROPIC_API_KEY es obligatoria")
 
+    # Crear el cliente de Anthropic una sola vez y reutilizarlo en todos los requests
+    app.state.anthropic = _make_anthropic_client(os.getenv("ANTHROPIC_API_KEY"))
+    logger.info("Cliente de Anthropic inicializado")
+
     if not os.getenv("CLERK_JWKS_URL"):
         logger.warning("CLERK_JWKS_URL no definida — modo dev sin autenticación")
     else:
         logger.info("Auth: Clerk JWT activo")
-
-    logger.info("API key de Anthropic detectada")
 
     # Stripe
     stripe_key = os.getenv("STRIPE_SECRET_KEY")
@@ -463,7 +474,7 @@ app.add_middleware(
 
 
 def get_anthropic_client() -> anthropic.Anthropic:
-    return _make_anthropic_client(os.getenv("ANTHROPIC_API_KEY"))
+    return app.state.anthropic
 
 
 def _notificar_tenant(tenant_id: str, lead: LeadInput, result: dict) -> None:
@@ -631,7 +642,8 @@ async def list_leads(
     if offset < 0:
         offset = 0
     leads = get_recent_leads(limit, tenant_id=tenant_id, offset=offset)
-    return {"leads": [_serializar_lead(l) for l in leads], "total": len(leads)}
+    total = count_leads_for_tenant(tenant_id)
+    return {"leads": [_serializar_lead(l) for l in leads], "total": total}
 
 
 @app.get("/leads/{lead_id}")
@@ -851,7 +863,7 @@ async def public_intake(api_key: str, lead: PublicLeadInput, request: Request):
     # Si el tenant está en free y ha superado su cuota mensual, NO perdemos el lead:
     # lo guardamos sin cualificar (sin gastar IA) para que mejore su plan y lo desbloquee.
     if tenant.get("plan", "free") == "free" and get_lead_count_this_month(tenant_id) >= FREE_LEAD_LIMIT:
-        from database import save_lead
+        from core.database import save_lead
         import uuid as _uuid
         save_lead(
             lead_id=str(_uuid.uuid4()), tenant_id=tenant_id,
@@ -1329,5 +1341,5 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.exception("Error en %s: %s", request.url, str(exc))
     return JSONResponse(
         status_code=500,
-        content={"detail": "Error interno del servidor", "error": str(exc)},
+        content={"detail": "Error interno del servidor"},
     )

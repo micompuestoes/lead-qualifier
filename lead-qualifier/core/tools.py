@@ -1,15 +1,13 @@
 """
-Definición e implementación de las herramientas (tools) que usa el agente Claude.
-Cada tool tiene: definición JSON para la API + función Python que la ejecuta.
+Pipeline determinista de cualificación de leads inmobiliarios.
 
-Dominio: cualificación de leads INMOBILIARIOS para el mercado español.
+Funciones: analyze_intent, lookup_company, score_lead.
+La redacción del email se hace en agent.py con una única llamada a Claude.
 """
 
-import json
 import logging
 import re
 import unicodedata
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -41,166 +39,6 @@ def _normalizar(texto: str) -> str:
     )
     return sin_acentos
 
-
-# ─────────────────────────────────────────────
-# Definiciones JSON de las tools para Claude
-# ─────────────────────────────────────────────
-
-TOOLS_DEFINITION = [
-    {
-        "name": "analyze_intent",
-        "description": (
-            "Analiza el mensaje del contacto inmobiliario y extrae: operación (compra/alquiler/venta/"
-            "inversión/tasación/información), tipo de inmueble, zona, presupuesto, plazo, financiación "
-            "y urgencia. Llama esta tool PRIMERO antes de cualquier otra."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "message": {
-                    "type": "string",
-                    "description": "El mensaje original enviado por el lead",
-                },
-                "name": {
-                    "type": "string",
-                    "description": "Nombre del lead para personalizar el análisis",
-                },
-            },
-            "required": ["message", "name"],
-        },
-    },
-    {
-        "name": "lookup_company",
-        "description": (
-            "Determina el perfil del contacto a partir del email: si es un particular (correo personal, "
-            "lo normal en vivienda), un profesional o inversor del sector inmobiliario (correo corporativo "
-            "relacionado), o una empresa. NO penaliza los correos personales."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "email": {
-                    "type": "string",
-                    "description": "Email del lead para inferir su perfil",
-                },
-            },
-            "required": ["email"],
-        },
-    },
-    {
-        "name": "score_lead",
-        "description": (
-            "Calcula la puntuación (1-10) y clasificación (CALIENTE/TIBIO/FRÍO) del lead inmobiliario "
-            "usando el análisis de intención y el perfil del contacto. "
-            "Llama esta tool después de analyze_intent y lookup_company."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "intent_analysis": {
-                    "type": "object",
-                    "description": "Resultado de analyze_intent",
-                },
-                "company_info": {
-                    "type": "object",
-                    "description": "Resultado de lookup_company",
-                },
-                "message": {
-                    "type": "string",
-                    "description": "Mensaje original del lead",
-                },
-            },
-            "required": ["intent_analysis", "company_info", "message"],
-        },
-    },
-    {
-        "name": "generate_email",
-        "description": (
-            "Genera un email de respuesta personalizado en español para el lead, "
-            "adaptado a su clasificación y perfil. Máximo 150 palabras."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "lead_data": {
-                    "type": "object",
-                    "description": "Datos del lead: name, email, phone, message",
-                },
-                "score": {
-                    "type": "integer",
-                    "description": "Puntuación del lead (1-10)",
-                },
-                "classification": {
-                    "type": "string",
-                    "description": "Clasificación: CALIENTE, TIBIO o FRÍO",
-                },
-                "company_info": {
-                    "type": "object",
-                    "description": "Información de la empresa del lead",
-                },
-                "reasoning": {
-                    "type": "string",
-                    "description": "Razonamiento de la puntuación para contextualizar el email",
-                },
-            },
-            "required": ["lead_data", "score", "classification", "company_info", "reasoning"],
-        },
-    },
-    {
-        "name": "save_to_db",
-        "description": (
-            "Guarda el lead y todos los resultados del análisis en la base de datos SQLite. "
-            "Llama esta tool SIEMPRE como último paso."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "lead_id": {
-                    "type": "string",
-                    "description": "UUID único del lead",
-                },
-                "lead_data": {
-                    "type": "object",
-                    "description": "Datos originales del lead",
-                },
-                "classification": {
-                    "type": "string",
-                    "description": "Clasificación final: CALIENTE, TIBIO o FRÍO",
-                },
-                "score": {
-                    "type": "integer",
-                    "description": "Puntuación final (1-10)",
-                },
-                "reasoning": {
-                    "type": "string",
-                    "description": "Razonamiento de la clasificación",
-                },
-                "generated_email": {
-                    "type": "string",
-                    "description": "Email generado para el lead",
-                },
-                "recommended_actions": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Lista de acciones recomendadas",
-                },
-                "intent_analysis": {
-                    "type": "object",
-                    "description": "Resultado del análisis de intención",
-                },
-                "company_info": {
-                    "type": "object",
-                    "description": "Información de la empresa inferida",
-                },
-            },
-            "required": [
-                "lead_id", "lead_data", "classification", "score",
-                "reasoning", "generated_email", "recommended_actions",
-                "intent_analysis", "company_info",
-            ],
-        },
-    },
-]
 
 
 # ─────────────────────────────────────────────
@@ -513,7 +351,7 @@ def lookup_company(email: str) -> dict:
     return result
 
 
-def score_lead(intent_analysis: dict, company_info: dict, message: str) -> dict:
+def score_lead(intent_analysis: dict, company_info: dict) -> dict:
     """
     Puntúa y clasifica el lead inmobiliario.
     Rúbrica determinista pensada para el mercado español de vivienda:
@@ -536,7 +374,6 @@ def score_lead(intent_analysis: dict, company_info: dict, message: str) -> dict:
 
     # ── Factor 1: Operación (lo que más pesa) ──
     # Vendedores e inversores son intrínsecamente valiosos (inventario / recurrencia).
-    intencion_fuerte = operation in ("VENTA", "TASACION", "INVERSION")
     if operation in ("VENTA", "TASACION"):
         score += 3
         reasons.append("quiere vender/tasar su inmueble (aporta inventario a la agencia)")
@@ -652,107 +489,3 @@ def score_lead(intent_analysis: dict, company_info: dict, message: str) -> dict:
     return result
 
 
-def generate_email(
-    lead_data: dict,
-    score: int,
-    classification: str,
-    company_info: dict,
-    reasoning: str,
-) -> str:
-    """
-    Genera el email de respuesta.
-    La generación real del texto la hace Claude en el agentic loop —
-    aquí definimos la estructura para que Claude sepa qué construir.
-    Devuelve el texto completo del email.
-    """
-    # Esta función es invocada por Claude para que él mismo genere el email.
-    # El texto real lo escribe Claude en su respuesta al tool_use.
-    # Aquí devolvemos un placeholder que Claude sustituirá.
-    # (Ver agent.py — cuando Claude llama generate_email, el resultado
-    #  se sobreescribe con el texto que Claude genere internamente.)
-    logger.info(
-        "✉️  Generando email para %s (score %d, %s)",
-        lead_data.get("name"), score, classification
-    )
-    # El texto real lo redacta Claude; aquí solo devolvemos contexto para guiarlo.
-    nombre_completo = lead_data.get("name", "")
-    name = nombre_completo.split()[0] if nombre_completo.strip() else "cliente"
-
-    placeholder = (
-        f"[EMAIL PENDIENTE DE GENERACIÓN]\n"
-        f"Destinatario: {name}\n"
-        f"Perfil: {company_info.get('profile', 'particular')}\n"
-        f"Clasificación: {classification} ({score}/10)\n"
-        f"Contexto para personalizar: {reasoning}"
-    )
-    return placeholder
-
-
-def save_to_db(
-    lead_id: str,
-    lead_data: dict,
-    classification: str,
-    score: int,
-    reasoning: str,
-    generated_email: str,
-    recommended_actions: list,
-    intent_analysis: dict,
-    company_info: dict,
-    tenant_id: str = "legacy",
-) -> dict:
-    """
-    Guarda el lead completo en la base de datos.
-    tenant_id se inyecta desde execute_tool — Claude no lo ve ni lo controla.
-    """
-    logger.info("💾 Guardando lead %s en base de datos (tenant: %s)", lead_id, tenant_id)
-
-    from database import save_lead
-
-    save_lead(
-        lead_id=lead_id,
-        tenant_id=tenant_id,
-        name=lead_data.get("name", ""),
-        email=lead_data.get("email", ""),
-        phone=lead_data.get("phone"),
-        message=lead_data.get("message", ""),
-        classification=classification,
-        score=score,
-        reasoning=reasoning,
-        generated_email=generated_email,
-        recommended_actions=recommended_actions,
-        intent_analysis=intent_analysis,
-        company_info=company_info,
-    )
-
-    return {"success": True, "lead_id": lead_id, "saved_at": "utcnow"}
-
-
-# ─────────────────────────────────────────────
-# Dispatcher: ejecuta la tool por nombre
-# ─────────────────────────────────────────────
-
-def execute_tool(tool_name: str, tool_input: dict, tenant_id: str = "legacy") -> Any:
-    """
-    Recibe el nombre de la tool y sus argumentos y ejecuta la función correspondiente.
-    tenant_id se pasa internamente a save_to_db para el aislamiento multi-tenant.
-    """
-    logger.info("⚙️  Ejecutando tool: %s", tool_name)
-
-    if tool_name == "analyze_intent":
-        return analyze_intent(**tool_input)
-
-    elif tool_name == "lookup_company":
-        return lookup_company(**tool_input)
-
-    elif tool_name == "score_lead":
-        return score_lead(**tool_input)
-
-    elif tool_name == "generate_email":
-        return generate_email(**tool_input)
-
-    elif tool_name == "save_to_db":
-        # Inyectamos tenant_id aquí — Claude no lo controla, solo el backend lo decide
-        return save_to_db(**tool_input, tenant_id=tenant_id)
-
-    else:
-        raise ValueError(f"Tool desconocida: {tool_name}")

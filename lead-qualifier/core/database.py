@@ -11,7 +11,7 @@ import json
 import logging
 import os
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -188,7 +188,7 @@ def ensure_tenant(tenant_id: str, email: str = "", name: str = "") -> None:
                     "name": name or email.split("@")[0],
                     "api_key": api_key,
                     "notify_email": email,   # por defecto, notificar al email de registro
-                    "created_at": datetime.utcnow().isoformat(),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
                 },
             )
             logger.info("Tenant creado: %s (%s) api_key=%s...", tenant_id, email, api_key[:12])
@@ -222,7 +222,7 @@ def set_tenant_status(tenant_id: str, status: str) -> None:
     Al cancelar se registra la fecha. Al reactivar se limpia.
     Los leads del tenant NO se borran — permanecen en la BD.
     """
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     cancelled_at = now if status == "cancelled" else None
 
     with engine.begin() as conn:
@@ -284,8 +284,8 @@ def get_tenant_by_stripe_customer(customer_id: str) -> Optional[dict]:
 
 def get_lead_count_this_month(tenant_id: str) -> int:
     """Cuenta los leads creados este mes por el tenant (para límite del plan free)."""
-    from datetime import datetime
-    inicio_mes = datetime.utcnow().replace(
+    from datetime import datetime, timezone
+    inicio_mes = datetime.now(timezone.utc).replace(
         day=1, hour=0, minute=0, second=0, microsecond=0
     ).isoformat()
     with engine.connect() as conn:
@@ -356,7 +356,7 @@ def update_imap_last_sync(tenant_id: str) -> None:
     with engine.begin() as conn:
         conn.execute(
             text("UPDATE tenants SET imap_last_sync=:ts WHERE id=:id"),
-            {"ts": datetime.utcnow().isoformat(), "id": tenant_id},
+            {"ts": datetime.now(timezone.utc).isoformat(), "id": tenant_id},
         )
 
 
@@ -384,7 +384,7 @@ def add_team_member(owner_id: str, member_id: str) -> None:
                 VALUES (:owner, :member, :ts)
                 ON CONFLICT DO NOTHING
             """),
-            {"owner": owner_id, "member": member_id, "ts": datetime.utcnow().isoformat()},
+            {"owner": owner_id, "member": member_id, "ts": datetime.now(timezone.utc).isoformat()},
         )
 
 
@@ -460,15 +460,15 @@ def get_stats(tenant_id: str) -> dict:
 
         # Distribución por rango de score
         calientes = conn.execute(
-            text("SELECT COUNT(*) FROM leads WHERE tenant_id=:tid AND score >= 7"),
+            text("SELECT COUNT(*) FROM leads WHERE tenant_id=:tid AND score >= 8"),
             {"tid": tenant_id},
         ).scalar() or 0
         tibios = conn.execute(
-            text("SELECT COUNT(*) FROM leads WHERE tenant_id=:tid AND score >= 4 AND score < 7"),
+            text("SELECT COUNT(*) FROM leads WHERE tenant_id=:tid AND score >= 5 AND score < 8"),
             {"tid": tenant_id},
         ).scalar() or 0
         frios = conn.execute(
-            text("SELECT COUNT(*) FROM leads WHERE tenant_id=:tid AND score < 4 AND score IS NOT NULL"),
+            text("SELECT COUNT(*) FROM leads WHERE tenant_id=:tid AND score < 5 AND score IS NOT NULL"),
             {"tid": tenant_id},
         ).scalar() or 0
 
@@ -527,16 +527,16 @@ def save_lead(
     email: str,
     phone: Optional[str],
     message: str,
-    classification: str,
-    score: int,
+    classification: Optional[str],
+    score: Optional[int],
     reasoning: str,
-    generated_email: str,
+    generated_email: Optional[str],
     recommended_actions: list,
     intent_analysis: dict,
     company_info: dict,
 ) -> None:
     """Guarda un lead procesado completo."""
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
 
     with engine.begin() as conn:
         conn.execute(
@@ -622,7 +622,7 @@ def add_notification(tenant_id: str, tipo: str, title: str, body: str = "") -> N
             """),
             {
                 "id": str(uuid.uuid4()), "t": tenant_id, "ty": tipo,
-                "ti": title, "b": body, "c": datetime.utcnow().isoformat(),
+                "ti": title, "b": body, "c": datetime.now(timezone.utc).isoformat(),
             },
         )
 
@@ -676,8 +676,8 @@ def get_digest_counts(tenant_id: str, since_iso: str) -> dict:
 
 def get_stale_pending_leads(tenant_id: str, dias: int = 2, min_score: int = 5) -> list:
     """Leads buenos (score >= min_score) en estado PENDIENTE desde hace más de `dias` días."""
-    from datetime import datetime, timedelta
-    limite = (datetime.utcnow() - timedelta(days=dias)).isoformat()
+    from datetime import datetime, timezone, timedelta
+    limite = (datetime.now(timezone.utc) - timedelta(days=dias)).isoformat()
     with engine.connect() as conn:
         rows = conn.execute(
             text("""

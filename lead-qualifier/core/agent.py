@@ -16,13 +16,13 @@ import anthropic
 import httpx
 
 from prompts import SYSTEM_PROMPT
-from tools import analyze_intent, lookup_company, score_lead
-from database import save_lead
+from core.tools import analyze_intent, lookup_company, score_lead
+from core.database import save_lead
 
 logger = logging.getLogger(__name__)
 
 # Modelo para la redacción del email — fácil de cambiar aquí.
-CLAUDE_MODEL = "claude-sonnet-4-20250514"
+CLAUDE_MODEL = "claude-sonnet-4-6"
 
 
 def _make_anthropic_client(api_key: str) -> anthropic.Anthropic:
@@ -170,7 +170,7 @@ def qualify_lead(
     # ── 1-3: análisis determinista ──
     intent  = analyze_intent(message, name)
     company = lookup_company(email)
-    scoring = score_lead(intent, company, message)
+    scoring = score_lead(intent, company)
 
     classification      = scoring.get("classification", "TIBIO")
     score               = scoring.get("score", 5)
