@@ -12,6 +12,10 @@ FREE_LEAD_LIMIT = 10
 # Los FRÍO (score < 5) quedan en el dashboard pero no generan email de aviso.
 NOTIFY_MIN_SCORE = 5
 
+# El aviso por WhatsApp es más intrusivo (suena en el móvil del agente), así que
+# se reserva para leads CALIENTE (score >= 8): los que hay que atender ya.
+WHATSAPP_MIN_SCORE = 8
+
 # Rate limiting del formulario público (sliding window en memoria).
 # Por IP (anti-spam individual) y por api_key (cap de coste por agencia).
 RATE_IP_PER_MIN = 5

@@ -111,6 +111,9 @@ def init_db() -> None:
         "ALTER TABLE tenants ADD COLUMN imap_password_enc TEXT",
         "ALTER TABLE tenants ADD COLUMN imap_enabled INTEGER DEFAULT 0",
         "ALTER TABLE tenants ADD COLUMN imap_last_sync TEXT",
+        # Avisos por WhatsApp al agente
+        "ALTER TABLE tenants ADD COLUMN whatsapp_number TEXT",
+        "ALTER TABLE tenants ADD COLUMN whatsapp_enabled INTEGER DEFAULT 0",
     ]:
         try:
             with engine.begin() as conn:
@@ -249,6 +252,20 @@ def update_tenant_profile(tenant_id: str, name: str, notify_email: str) -> None:
             {"name": name, "notify_email": notify_email, "id": tenant_id},
         )
     logger.info("Perfil actualizado para tenant %s: name=%s, notify=%s", tenant_id, name, notify_email)
+
+
+def update_whatsapp_config(tenant_id: str, number: Optional[str], enabled: bool) -> None:
+    """Guarda el número de WhatsApp del agente y si quiere recibir avisos de leads."""
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                UPDATE tenants
+                SET whatsapp_number = :number, whatsapp_enabled = :enabled
+                WHERE id = :id
+            """),
+            {"number": number or None, "enabled": 1 if enabled else 0, "id": tenant_id},
+        )
+    logger.info("WhatsApp actualizado para tenant %s: enabled=%s", tenant_id, enabled)
 
 
 def set_tenant_plan(

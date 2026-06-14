@@ -14,6 +14,8 @@ interface Perfil {
   api_key: string;
   plan: string;
   created_at: string;
+  whatsapp_number?: string;
+  whatsapp_enabled?: boolean;
 }
 
 interface TeamMember {
@@ -47,6 +49,9 @@ export default function PerfilPage() {
   const [cargando, setCargando]   = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [form, setForm]           = useState({ name: '', notify_email: '' });
+
+  const [waForm, setWaForm]       = useState({ number: '', enabled: false });
+  const [waGuardando, setWaGuardando] = useState(false);
 
   const [equipo, setEquipo]               = useState<TeamMember[]>([]);
   const [nuevoMiembro, setNuevoMiembro]   = useState('');
@@ -147,6 +152,7 @@ export default function PerfilPage() {
         const data = await resPerfil.json();
         setPerfil(data);
         setForm({ name: data.name ?? '', notify_email: data.notify_email ?? '' });
+        setWaForm({ number: data.whatsapp_number ?? '', enabled: !!data.whatsapp_enabled });
         if (resImap.ok) setImap(await resImap.json());
         if (resTeam.ok) { const t = await resTeam.json(); setEquipo(t.members ?? []); }
       } catch {
@@ -178,6 +184,27 @@ export default function PerfilPage() {
       addToast('Error al guardar', 'error');
     } finally {
       setGuardando(false);
+    }
+  }
+
+  async function guardarWhatsapp(e: React.FormEvent) {
+    e.preventDefault();
+    setWaGuardando(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${apiBase}/me/whatsapp`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body:    JSON.stringify(waForm),
+      });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail ?? 'Error al guardar'); }
+      const data = await res.json();
+      setWaForm({ number: data.whatsapp_number ?? '', enabled: !!data.whatsapp_enabled });
+      addToast(data.whatsapp_enabled ? 'Avisos por WhatsApp activados' : 'Preferencias de WhatsApp guardadas', 'success');
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Error al guardar', 'error');
+    } finally {
+      setWaGuardando(false);
     }
   }
 
@@ -552,6 +579,54 @@ export default function PerfilPage() {
               Conectar mi bandeja de entrada
             </button>
           )}
+        </div>
+
+        {/* ── Avisos por WhatsApp ── */}
+        <div style={card}>
+          <div className="flex items-center gap-2 mb-1">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#25D366" aria-hidden="true">
+              <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2zm0 1.67c2.2 0 4.27.86 5.83 2.42a8.2 8.2 0 0 1 2.42 5.82c0 4.54-3.7 8.24-8.25 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.18 8.18 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24zm-2.9 4.43c-.18 0-.47.07-.72.34-.25.27-.95.93-.95 2.27s.97 2.63 1.11 2.81c.14.18 1.92 2.93 4.66 4.11.65.28 1.16.45 1.56.58.65.21 1.25.18 1.72.11.52-.08 1.62-.66 1.85-1.3.23-.64.23-1.18.16-1.3-.07-.11-.25-.18-.52-.32-.27-.14-1.62-.8-1.87-.89-.25-.09-.43-.14-.62.14-.18.27-.71.89-.87 1.07-.16.18-.32.2-.59.07-.27-.14-1.15-.42-2.19-1.35-.81-.72-1.36-1.62-1.52-1.89-.16-.27-.02-.42.12-.55.12-.12.27-.32.41-.48.14-.16.18-.27.27-.46.09-.18.05-.34-.02-.48-.07-.14-.62-1.49-.85-2.04-.22-.53-.45-.46-.62-.47l-.53-.01z"/>
+            </svg>
+            <h2 className="text-base font-semibold" style={{ color: c.text1 }}>
+              Avisos por WhatsApp
+            </h2>
+          </div>
+          <p className="text-sm mb-5" style={{ color: c.text2 }}>
+            Recibe un WhatsApp al instante cuando entre un lead <strong style={{ color: c.text1 }}>caliente</strong>.
+            El primero en responder se lleva la operación.
+          </p>
+
+          <form onSubmit={guardarWhatsapp} className="space-y-4">
+            <div>
+              <label style={labelStyle}>Tu número de WhatsApp</label>
+              <input
+                type="tel"
+                value={waForm.number}
+                onChange={e => setWaForm(p => ({ ...p, number: e.target.value }))}
+                onFocus={() => setFocusedInput('wa-number')}
+                onBlur={() => setFocusedInput(null)}
+                placeholder="+34 600 11 22 33"
+                style={inputStyleFor('wa-number')}
+              />
+            </div>
+
+            <label className="flex items-center gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={waForm.enabled}
+                onChange={e => setWaForm(p => ({ ...p, enabled: e.target.checked }))}
+                style={{ width: 18, height: 18, accentColor: '#25D366', cursor: 'pointer' }}
+              />
+              <span className="text-sm" style={{ color: c.text1 }}>
+                Avisarme por WhatsApp de los leads calientes
+              </span>
+            </label>
+
+            <button type="submit" disabled={waGuardando}
+              style={{ ...btnPrimary, opacity: waGuardando ? 0.6 : 1 }}>
+              {waGuardando ? 'Guardando…' : 'Guardar preferencias'}
+            </button>
+          </form>
         </div>
 
         {/* ── Formulario público / API Key ── */}
