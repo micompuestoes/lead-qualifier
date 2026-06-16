@@ -58,6 +58,11 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 // ── Funciones de API (reciben getToken como primer argumento) ─────────────────
 
+export interface LeadCounts { total: number; calientes: number; tibios: number; frios: number }
+export interface LeadsPagina { leads: Lead[]; total: number; counts: LeadCounts; scope: 'mine' | 'all' }
+
+const COUNTS_VACIO: LeadCounts = { total: 0, calientes: 0, tibios: 0, frios: 0 };
+
 export async function obtenerLeads(
   getToken: GetToken,
   opts?: { limit?: number; offset?: number },
@@ -69,6 +74,26 @@ export async function obtenerLeads(
   const res = await apiFetch(path, getToken, { cache: 'no-store' } as RequestInit);
   const data = await handleResponse<{ leads: Lead[] }>(res);
   return normalizarLeads(data.leads);
+}
+
+// Igual que obtenerLeads pero devuelve también los totales REALES por temperatura
+// y el ámbito (mine/all), para que las métricas no mientan con la paginación.
+export async function obtenerLeadsPagina(
+  getToken: GetToken,
+  opts?: { limit?: number; offset?: number },
+): Promise<LeadsPagina> {
+  const qs = new URLSearchParams();
+  if (opts?.limit  != null) qs.set('limit',  String(opts.limit));
+  if (opts?.offset != null) qs.set('offset', String(opts.offset));
+  const path = '/leads' + (qs.toString() ? `?${qs.toString()}` : '');
+  const res = await apiFetch(path, getToken, { cache: 'no-store' } as RequestInit);
+  const data = await handleResponse<{ leads: Lead[]; total?: number; counts?: LeadCounts; scope?: 'mine' | 'all' }>(res);
+  return {
+    leads: normalizarLeads(data.leads),
+    total: data.total ?? data.leads.length,
+    counts: data.counts ?? COUNTS_VACIO,
+    scope: data.scope ?? 'all',
+  };
 }
 
 export async function obtenerLead(id: string, getToken: GetToken): Promise<Lead> {

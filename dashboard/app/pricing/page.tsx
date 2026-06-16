@@ -4,62 +4,12 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { useTheme } from '@/components/ThemeProvider';
+import { PLANS } from '@/lib/plans';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
-interface Plan {
-  id: string;
-  nombre: string;
-  precio: number;
-  descripcion: string;
-  destacado?: boolean;
-  features: string[];
-  limitacion?: string;
-}
-
-const PLANES: Plan[] = [
-  {
-    id: 'free',
-    nombre: 'Free',
-    precio: 0,
-    descripcion: 'Para probar la plataforma',
-    features: [
-      '10 leads / mes',
-      'Cualificación con IA',
-      'Formulario público',
-      'Dashboard básico',
-    ],
-    limitacion: 'Límite de 10 leads al mes',
-  },
-  {
-    id: 'pro',
-    nombre: 'Pro',
-    precio: 49,
-    descripcion: 'Para agencias activas',
-    destacado: true,
-    features: [
-      'Leads ilimitados',
-      'Cualificación con IA',
-      'Formulario público',
-      'Notificaciones por email',
-      'Dashboard completo',
-      'Soporte por email',
-    ],
-  },
-  {
-    id: 'agencia',
-    nombre: 'Agencia',
-    precio: 99,
-    descripcion: 'Para agencias que quieren más',
-    features: [
-      'Todo lo de Pro',
-      'Generador de anuncios IA',
-      'Múltiples usuarios',
-      'Estadísticas avanzadas',
-      'Soporte prioritario',
-    ],
-  },
-];
+// Fuente única de planes (compartida con la landing) — ver lib/plans.ts
+const PLANES = PLANS;
 
 const ORDEN_PLAN: Record<string, number> = { free: 0, pro: 1, agencia: 2 };
 

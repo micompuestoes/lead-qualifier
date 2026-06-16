@@ -7,6 +7,7 @@ import { obtenerLeads } from '@/lib/api';
 import type { Lead, AgenteRanking } from '@/types/lead';
 import { useTheme } from '@/components/ThemeProvider';
 import PageHeader from '@/components/PageHeader';
+import { TEMP } from '@/lib/temperature';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
@@ -482,9 +483,9 @@ export default function EstadisticasPage() {
           <p style={sectionLabel}>Temperatura de leads</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {[
-              { Icon: IconFlame,       label: 'Calientes', sub: 'Score 7 – 10', value: stats.calientes, color: '#c8796e' },
-              { Icon: IconThermometer, label: 'Tibios',    sub: 'Score 4 – 6',  value: stats.tibios,    color: '#c8a96e' },
-              { Icon: IconSnowflake,   label: 'Fríos',     sub: 'Score 0 – 3',  value: stats.frios,     color: '#6ea8c8' },
+              { Icon: IconFlame,       label: TEMP.calientes.label, sub: TEMP.calientes.rango, value: stats.calientes, color: TEMP.calientes.color },
+              { Icon: IconThermometer, label: TEMP.tibios.label,    sub: TEMP.tibios.rango,    value: stats.tibios,    color: TEMP.tibios.color },
+              { Icon: IconSnowflake,   label: TEMP.frios.label,     sub: TEMP.frios.rango,     value: stats.frios,     color: TEMP.frios.color },
             ].map(item => {
               const pct = totalTemp > 0 ? Math.round((item.value / totalTemp) * 100) : 0;
               return (

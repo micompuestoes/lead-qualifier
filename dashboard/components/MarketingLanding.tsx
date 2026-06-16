@@ -4,6 +4,7 @@
 // Diseño autónomo (no depende del tema del dashboard).
 
 import Link from 'next/link';
+import { PLANS } from '@/lib/plans';
 
 const GOLD = '#c8a96e';
 const INK  = '#1a1814';
@@ -62,12 +63,6 @@ const PASOS = [
   { n: '01', t: 'Comparte tu formulario', d: 'Pega tu enlace en la web o conecta tu correo.' },
   { n: '02', t: 'La IA cualifica el lead', d: 'Lo puntúa, clasifica y redacta la respuesta.' },
   { n: '03', t: 'Tú cierras la venta', d: 'Llamas primero a quien de verdad va a comprar.' },
-];
-
-const PLANES = [
-  { nombre: 'Free', precio: '0€', desc: '10 leads/mes para probar', destacado: false, feats: ['Cualificación con IA', 'Formulario público', 'Dashboard'] },
-  { nombre: 'Pro', precio: '49€', desc: 'Para inmobiliarias activas', destacado: true, feats: ['Leads ilimitados', 'Conecta tu correo', 'Avisos por email', 'Exportar a CSV'] },
-  { nombre: 'Agencia', precio: '99€', desc: 'Para equipos', destacado: false, feats: ['Todo lo de Pro', 'Anuncios con IA', 'Estadísticas', 'Varios usuarios'] },
 ];
 
 export default function MarketingLanding() {
@@ -211,7 +206,7 @@ export default function MarketingLanding() {
           </h2>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 18, maxWidth: 880, margin: '0 auto' }}>
-          {PLANES.map(plan => (
+          {PLANS.map(plan => (
             <div key={plan.nombre} style={{
               background: '#fff', borderRadius: 18, padding: 28,
               border: plan.destacado ? `2px solid ${GOLD}` : '1.5px solid rgba(200,169,110,0.2)',
@@ -226,13 +221,15 @@ export default function MarketingLanding() {
                 }}>Más popular</span>
               )}
               <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 3 }}>{plan.nombre}</h3>
-              <p style={{ fontSize: 13, color: '#8a8278', marginBottom: 14 }}>{plan.desc}</p>
+              <p style={{ fontSize: 13, color: '#8a8278', marginBottom: 14 }}>{plan.descripcion}</p>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 20 }}>
-                <span style={{ fontSize: 40, fontWeight: 700, letterSpacing: '-0.02em' }}>{plan.precio}</span>
-                {plan.precio !== '0€' && <span style={{ fontSize: 14, color: '#8a8278' }}>/mes</span>}
+                <span style={{ fontSize: 40, fontWeight: 700, letterSpacing: '-0.02em' }}>
+                  {plan.precio === 0 ? 'Gratis' : `${plan.precio}€`}
+                </span>
+                {plan.precio > 0 && <span style={{ fontSize: 14, color: '#8a8278' }}>/mes</span>}
               </div>
               <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px', display: 'flex', flexDirection: 'column', gap: 11 }}>
-                {plan.feats.map(f => (
+                {plan.features.map(f => (
                   <li key={f} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 14 }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={GOLD} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="20 6 9 17 4 12" />

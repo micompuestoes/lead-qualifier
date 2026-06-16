@@ -3,8 +3,9 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@clerk/nextjs';
-import { obtenerLeads } from '@/lib/api';
+import { obtenerLeads, obtenerLeadsPagina, type LeadCounts } from '@/lib/api';
 import type { Lead, Clasificacion, EstadoLead } from '@/types/lead';
+import { TEMP } from '@/lib/temperature';
 import LeadCard from '@/components/LeadCard';
 import { LeadCardSkeleton } from '@/components/Skeleton';
 import { useTheme } from '@/components/ThemeProvider';
@@ -73,6 +74,8 @@ export default function LeadsPage() {
   const [offset, setOffset]             = useState(0);
   const [hayMas, setHayMas]             = useState(false);
   const [cargandoMas, setCargandoMas]   = useState(false);
+  const [counts, setCounts]             = useState<LeadCounts>({ total: 0, calientes: 0, tibios: 0, frios: 0 });
+  const [scope, setScope]               = useState<'mine' | 'all'>('all');
 
   useEffect(() => {
     try {
@@ -106,11 +109,13 @@ export default function LeadsPage() {
   async function cargarLeads() {
     try {
       setCargando(true); setError(null);
-      const data = await obtenerLeads(getToken, { limit: PAGE_SIZE, offset: 0 });
-      setLeads(data);
-      setOffset(data.length);
-      setHayMas(data.length === PAGE_SIZE);
-      idsConocidos.current = new Set(data.map(l => l.id));
+      const data = await obtenerLeadsPagina(getToken, { limit: PAGE_SIZE, offset: 0 });
+      setLeads(data.leads);
+      setCounts(data.counts);
+      setScope(data.scope);
+      setOffset(data.leads.length);
+      setHayMas(data.leads.length === PAGE_SIZE);
+      idsConocidos.current = new Set(data.leads.map(l => l.id));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al cargar leads');
     } finally { setCargando(false); }
@@ -174,10 +179,8 @@ export default function LeadsPage() {
 
   // ── Datos derivados ──────────────────────────────────────────────────────────
 
-  const calientes = leads.filter(l => l.classification === 'CALIENTE').length;
-  const tibios    = leads.filter(l => l.classification === 'TIBIO').length;
-  const frios     = leads.filter(l => l.classification === 'FRÍO').length;
-  const total     = leads.length;
+  // Totales REALES del backend (no solo lo paginado en pantalla)
+  const { total, calientes, tibios, frios } = counts;
   const hayFiltros = filtroClasif !== 'TODAS' || filtroEstado !== 'TODOS' || busqueda !== '';
 
   const leadsFiltrados = leads.filter(l => {
@@ -215,7 +218,7 @@ export default function LeadsPage() {
 
       {/* Cabecera */}
       <PageHeader
-        title="Leads"
+        title={scope === 'mine' ? 'Mis leads' : 'Leads'}
         description={
           total === 0 ? (
             <p style={{ fontSize: 14, color: c.text2 }}>Sin leads todavía</p>
@@ -299,22 +302,22 @@ export default function LeadsPage() {
       {/* ── Métricas (filtro de clasificación) ── */}
       <div className="r-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
         <MetricaCard
-          label="Calientes" valor={calientes} total={total}
-          color="#b45309" barColor="rgba(180,83,9,0.7)" c={c}
+          label={TEMP.calientes.label} valor={calientes} total={total}
+          color={TEMP.calientes.color} barColor={TEMP.calientes.accent} c={c}
           isActive={filtroClasif === 'CALIENTE'}
           isDimmed={filtroClasif !== 'TODAS' && filtroClasif !== 'CALIENTE'}
           onClick={() => toggleClasif('CALIENTE')}
         />
         <MetricaCard
-          label="Tibios" valor={tibios} total={total}
-          color="#9a7a3a" barColor="#c8a96e" c={c}
+          label={TEMP.tibios.label} valor={tibios} total={total}
+          color={TEMP.tibios.color} barColor={TEMP.tibios.accent} c={c}
           isActive={filtroClasif === 'TIBIO'}
           isDimmed={filtroClasif !== 'TODAS' && filtroClasif !== 'TIBIO'}
           onClick={() => toggleClasif('TIBIO')}
         />
         <MetricaCard
-          label="Fríos" valor={frios} total={total}
-          color="#3a7a9a" barColor="rgba(110,168,200,0.8)" c={c}
+          label={TEMP.frios.label} valor={frios} total={total}
+          color={TEMP.frios.color} barColor={TEMP.frios.accent} c={c}
           isActive={filtroClasif === 'FRÍO'}
           isDimmed={filtroClasif !== 'TODAS' && filtroClasif !== 'FRÍO'}
           onClick={() => toggleClasif('FRÍO')}

@@ -11,8 +11,8 @@ from pydantic import BaseModel
 from config import FREE_LEAD_LIMIT
 from core.agent import qualify_lead
 from core.database import (
-    assign_lead, count_leads_for_tenant, delete_lead, ensure_tenant,
-    get_agent_ids, get_lead_by_id, get_lead_count_this_month, get_leads_by_email,
+    assign_lead, delete_lead, ensure_tenant, get_agent_ids, get_lead_by_id,
+    get_lead_count_this_month, get_lead_counts, get_leads_by_email,
     get_recent_leads, get_tenant, update_lead_status,
 )
 from deps import Caller, get_anthropic_client, get_caller, get_tenant_id, require_plan
@@ -126,10 +126,11 @@ async def list_leads(
         offset = 0
     agente = caller.agent_filter
     leads = get_recent_leads(limit, tenant_id=caller.tenant_id, offset=offset, agent_id=agente)
-    total = count_leads_for_tenant(caller.tenant_id, agent_id=agente)
+    counts = get_lead_counts(caller.tenant_id, agent_id=agente)
     return {
         "leads": [_serializar_lead(l) for l in leads],
-        "total": total,
+        "total": counts["total"],
+        "counts": counts,
         "scope": "mine" if agente else "all",
     }
 

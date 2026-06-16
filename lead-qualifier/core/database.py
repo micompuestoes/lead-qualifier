@@ -682,6 +682,25 @@ def count_leads_for_tenant(tenant_id: str, agent_id: Optional[str] = None) -> in
     return result or 0
 
 
+def get_lead_counts(tenant_id: str, agent_id: Optional[str] = None) -> dict:
+    """
+    Conteo total y por temperatura (mismos cortes que las estadísticas:
+    CALIENTE >= 8, TIBIO 5-7, FRÍO < 5). Respeta la visibilidad por agente.
+    Sirve para que el dashboard muestre cifras REALES, no solo lo paginado.
+    """
+    where = "FROM leads WHERE tenant_id = :tid"
+    params = {"tid": tenant_id}
+    if agent_id is not None:
+        where += " AND assigned_to = :aid"
+        params["aid"] = agent_id
+    with engine.connect() as conn:
+        total = conn.execute(text(f"SELECT COUNT(*) {where}"), params).scalar() or 0
+        cal = conn.execute(text(f"SELECT COUNT(*) {where} AND score >= 8"), params).scalar() or 0
+        tib = conn.execute(text(f"SELECT COUNT(*) {where} AND score >= 5 AND score < 8"), params).scalar() or 0
+        fri = conn.execute(text(f"SELECT COUNT(*) {where} AND score < 5 AND score IS NOT NULL"), params).scalar() or 0
+    return {"total": total, "calientes": cal, "tibios": tib, "frios": fri}
+
+
 # ─────────────────────────────────────────────
 # Operaciones CRUD de Leads
 # ─────────────────────────────────────────────
