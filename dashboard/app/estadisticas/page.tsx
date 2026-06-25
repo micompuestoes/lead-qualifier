@@ -530,6 +530,8 @@ export default function EstadisticasPage() {
         <div style={{ ...cardStyle, marginBottom: 24 }}>
           <p style={sectionLabel}>Rendimiento por agente</p>
 
+          <div className="r-scroll-x">
+           <div className="r-table">
           {/* Cabecera */}
           <div style={{
             display: 'grid', gridTemplateColumns: '1.7fr repeat(4, 1fr)', gap: 8,
@@ -569,6 +571,8 @@ export default function EstadisticasPage() {
               </div>
             );
           })}
+           </div>
+          </div>
         </div>
       )}
 

@@ -182,9 +182,26 @@ export default function LeadCard({ lead, index = 0, onStatusChange }: Props) {
   const { c }   = useTheme();
   const delayMs = index * 55;
 
+  const irAlLead = () => router.push(`/leads/${lead.id}`);
+  const resaltar = (e: React.SyntheticEvent<HTMLElement>) => {
+    const el = e.currentTarget;
+    el.style.borderColor = 'rgba(200,169,110,0.55)';
+    el.style.boxShadow   = '0 6px 24px rgba(200,169,110,0.13)';
+    el.style.transform   = 'translateY(-2px)';
+  };
+  const normal = (e: React.SyntheticEvent<HTMLElement>) => {
+    const el = e.currentTarget;
+    el.style.borderColor = '';
+    el.style.boxShadow   = '0 1px 4px rgba(26,24,20,0.04)';
+    el.style.transform   = 'translateY(0)';
+  };
+
   return (
     <div
       className="animate-fade-up rounded-xl p-5"
+      role="button"
+      tabIndex={0}
+      aria-label={`Ver lead de ${lead.name}`}
       style={{
         background:     c.card,
         border:         c.cardBorder,
@@ -195,19 +212,14 @@ export default function LeadCard({ lead, index = 0, onStatusChange }: Props) {
         flexDirection:  'column',
         cursor:         'pointer',
       }}
-      onClick={() => router.push(`/leads/${lead.id}`)}
-      onMouseEnter={e => {
-        const el = e.currentTarget as HTMLElement;
-        el.style.borderColor = 'rgba(200,169,110,0.55)';
-        el.style.boxShadow   = '0 6px 24px rgba(200,169,110,0.13)';
-        el.style.transform   = 'translateY(-2px)';
+      onClick={irAlLead}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); irAlLead(); }
       }}
-      onMouseLeave={e => {
-        const el = e.currentTarget as HTMLElement;
-        el.style.borderColor = '';
-        el.style.boxShadow   = '0 1px 4px rgba(26,24,20,0.04)';
-        el.style.transform   = 'translateY(0)';
-      }}
+      onMouseEnter={resaltar}
+      onFocus={resaltar}
+      onMouseLeave={normal}
+      onBlur={normal}
     >
       {/* Avatar + nombre + badge */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>

@@ -768,14 +768,14 @@ export default function PerfilPage() {
                 placeholder="Nombre del agente (p. ej. Laura Pérez)"
                 style={{ ...inputStyleFor('member-name'), width: '100%' }}
               />
-              <div className="flex gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input
                   type="email"
                   value={nuevoEmail}
                   onChange={e => setNuevoEmail(e.target.value)}
                   onFocus={() => setFocusedInput('member-email')} onBlur={() => setFocusedInput(null)}
                   placeholder="Email del agente (avisos)"
-                  style={{ ...inputStyleFor('member-email'), flex: 1, fontSize: 13 }}
+                  style={{ ...inputStyleFor('member-email'), fontSize: 13 }}
                 />
                 <input
                   type="tel"
@@ -783,7 +783,7 @@ export default function PerfilPage() {
                   onChange={e => setNuevoWhatsapp(e.target.value)}
                   onFocus={() => setFocusedInput('member-wa')} onBlur={() => setFocusedInput(null)}
                   placeholder="WhatsApp (+34…)"
-                  style={{ ...inputStyleFor('member-wa'), flex: 1, fontSize: 13 }}
+                  style={{ ...inputStyleFor('member-wa'), fontSize: 13 }}
                 />
               </div>
               <div className="flex gap-2">

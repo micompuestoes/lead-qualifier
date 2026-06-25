@@ -487,6 +487,13 @@ function MetricaCard({ label, valor, total, color, barColor, c, isActive, isDimm
   return (
     <div
       onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-pressed={isActive}
+      aria-label={`Filtrar por ${label.toLowerCase()}`}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); }
+      }}
       style={{
         background:  isActive ? `${color}0d` : c.card,
         border:      isActive ? `1.5px solid ${color}` : c.cardBorder,
