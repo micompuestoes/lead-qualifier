@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 import runtime
 from core.agent import qualify_lead
 from core.database import (
-    get_all_tenants, get_digest_counts, get_stale_pending_leads,
+    get_all_tenants, get_digest_counts, get_stale_pending_leads, get_tenant,
     get_tenants_with_imap, update_imap_last_sync,
 )
 from models import LeadInput
@@ -118,9 +118,13 @@ async def _sync_imap_tenant(t: dict) -> None:
         logger.info("IMAP tenant %s — %d email(s) nuevos", t["id"], len(emails))
 
     client = runtime.anthropic_client
+    tenant_full = get_tenant(t["id"]) or {}
     for datos in emails:
         try:
             lead_input = LeadInput(**datos)
+            # auto_send=False: la respuesta a un email de la bandeja NO se envía
+            # automáticamente (saldría desde otro remitente); queda como borrador
+            # listo para revisar y enviar desde el dashboard con un clic.
             result = qualify_lead(
                 name=lead_input.name,
                 email=lead_input.email,
@@ -129,6 +133,8 @@ async def _sync_imap_tenant(t: dict) -> None:
                 anthropic_client=client,
                 tenant_id=t["id"],
                 agency_name=t.get("name"),
+                brand_voice=tenant_full.get("brand_voice") or None,
+                auto_send=False,
             )
             notificar_tenant(t["id"], lead_input, result)
             logger.info(

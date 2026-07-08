@@ -16,6 +16,8 @@ interface Perfil {
   created_at: string;
   whatsapp_number?: string;
   whatsapp_enabled?: boolean;
+  auto_send_email?: boolean;
+  brand_voice?: string;
 }
 
 interface TeamMember {
@@ -55,6 +57,9 @@ export default function PerfilPage() {
 
   const [waForm, setWaForm]       = useState({ number: '', enabled: false });
   const [waGuardando, setWaGuardando] = useState(false);
+
+  const [aiForm, setAiForm]       = useState({ auto_send: true, brand_voice: '' });
+  const [aiGuardando, setAiGuardando] = useState(false);
 
   const [equipo, setEquipo]               = useState<TeamMember[]>([]);
   const [nuevoMiembro, setNuevoMiembro]   = useState('');
@@ -159,6 +164,7 @@ export default function PerfilPage() {
         setPerfil(data);
         setForm({ name: data.name ?? '', notify_email: data.notify_email ?? '' });
         setWaForm({ number: data.whatsapp_number ?? '', enabled: !!data.whatsapp_enabled });
+        setAiForm({ auto_send: data.auto_send_email !== false, brand_voice: data.brand_voice ?? '' });
         if (resImap.ok) setImap(await resImap.json());
         if (resTeam.ok) { const t = await resTeam.json(); setEquipo(t.members ?? []); }
       } catch {
@@ -190,6 +196,29 @@ export default function PerfilPage() {
       addToast('Error al guardar', 'error');
     } finally {
       setGuardando(false);
+    }
+  }
+
+  async function guardarAi(e: React.FormEvent) {
+    e.preventDefault();
+    setAiGuardando(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${apiBase}/me/ai-settings`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body:    JSON.stringify(aiForm),
+      });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail ?? 'Error al guardar'); }
+      const data = await res.json();
+      setAiForm({ auto_send: !!data.auto_send_email, brand_voice: data.brand_voice ?? '' });
+      addToast(data.auto_send_email
+        ? 'Respuestas automáticas activadas'
+        : 'Modo revisión activado: los emails quedarán como borrador', 'success');
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Error al guardar', 'error');
+    } finally {
+      setAiGuardando(false);
     }
   }
 
@@ -457,6 +486,75 @@ export default function PerfilPage() {
               style={{ ...btnPrimary, opacity: guardando ? 0.6 : 1 }}
             >
               {guardando ? 'Guardando…' : 'Guardar cambios'}
+            </button>
+          </form>
+        </div>
+
+        {/* ── Respuestas con IA ── */}
+        <div style={card}>
+          <h2 className="text-base font-semibold mb-1" style={{ color: c.text1 }}>
+            Respuestas con IA
+          </h2>
+          <p className="text-sm mb-5" style={{ color: c.text2 }}>
+            Controla cómo responde la IA a tus leads: envíalo todo en automático
+            o revisa cada email antes de que salga con tu nombre.
+          </p>
+
+          <form onSubmit={guardarAi} className="space-y-4">
+            {/* Modo de envío */}
+            <div className="space-y-2">
+              {[
+                { valor: true,  titulo: 'Enviar automáticamente',
+                  desc: 'El lead recibe la respuesta al instante. Máxima velocidad.' },
+                { valor: false, titulo: 'Revisar antes de enviar',
+                  desc: 'Cada email queda como borrador editable. Máximo control.' },
+              ].map(op => {
+                const activo = aiForm.auto_send === op.valor;
+                return (
+                  <label key={String(op.valor)} className="flex items-start gap-3 rounded-xl px-4 py-3 cursor-pointer transition-all"
+                    style={{
+                      border: activo ? '1.5px solid #c8a96e' : `1.5px solid ${c.inputBorder}`,
+                      background: activo ? 'rgba(200,169,110,0.07)' : 'transparent',
+                    }}>
+                    <input
+                      type="radio"
+                      name="modo-envio"
+                      checked={activo}
+                      onChange={() => setAiForm(p => ({ ...p, auto_send: op.valor }))}
+                      style={{ marginTop: 3, accentColor: '#c8a96e' }}
+                    />
+                    <span>
+                      <span className="text-sm font-semibold block" style={{ color: c.text1 }}>{op.titulo}</span>
+                      <span className="text-xs" style={{ color: c.text2 }}>{op.desc}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+
+            {/* Voz de marca */}
+            <div>
+              <label style={labelStyle}>
+                Voz de marca
+                <span style={{ color: c.text3, textTransform: 'none', fontWeight: 400, marginLeft: 6 }}>
+                  · opcional, la IA la respeta al redactar
+                </span>
+              </label>
+              <textarea
+                value={aiForm.brand_voice}
+                onChange={e => setAiForm(p => ({ ...p, brand_voice: e.target.value }))}
+                onFocus={() => setFocusedInput('brand-voice')}
+                onBlur={() => setFocusedInput(null)}
+                rows={3}
+                maxLength={500}
+                placeholder="P. ej.: tono cercano pero profesional, tutea al cliente, menciona que llevamos 20 años en el barrio…"
+                style={{ ...inputStyleFor('brand-voice'), resize: 'vertical', lineHeight: 1.55, fontFamily: 'inherit' }}
+              />
+            </div>
+
+            <button type="submit" disabled={aiGuardando}
+              style={{ ...btnPrimary, opacity: aiGuardando ? 0.6 : 1 }}>
+              {aiGuardando ? 'Guardando…' : 'Guardar preferencias'}
             </button>
           </form>
         </div>

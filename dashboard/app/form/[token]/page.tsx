@@ -84,6 +84,7 @@ export default function FormularioPublico({ params }: { params: { token: string 
   const [focused, setFocused] = useState<string | null>(null);
   const [operacion, setOperacion]     = useState('');
   const [presupuesto, setPresupuesto] = useState('');
+  const [acepto, setAcepto]           = useState(false);   // consentimiento RGPD
 
   const RANGOS_COMPRA = ['Hasta 100.000 €', '100.000 – 200.000 €', '200.000 – 300.000 €', '300.000 – 500.000 €', 'Más de 500.000 €'];
   const RANGOS_ALQUILER = ['Hasta 600 €/mes', '600 – 900 €/mes', '900 – 1.200 €/mes', 'Más de 1.200 €/mes'];
@@ -108,6 +109,7 @@ export default function FormularioPublico({ params }: { params: { token: string 
     // Validación en cliente (en español) antes de enviar
     const av = validar(form);
     if (av) { setAviso(av); return; }
+    if (!acepto) { setAviso('Debes aceptar la política de privacidad para enviar tu consulta.'); return; }
     setAviso('');
     setPaso('enviando');
     setError('');
@@ -239,7 +241,7 @@ export default function FormularioPublico({ params }: { params: { token: string 
   }
 
   // ── Formulario ──
-  const completo = form.name && form.email && form.message;
+  const completo = Boolean(form.name && form.email && form.message && acepto);
   return (
     <div style={pageStyle}>
       <div style={cardStyle} className="animate-fade-up">
@@ -357,6 +359,24 @@ export default function FormularioPublico({ params }: { params: { token: string 
               <span style={{ fontSize: 13, color: '#b45309', lineHeight: 1.45 }}>{aviso}</span>
             </div>
           )}
+
+          {/* Consentimiento RGPD */}
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, cursor: 'pointer', userSelect: 'none' }}>
+            <input
+              type="checkbox"
+              checked={acepto}
+              onChange={e => setAcepto(e.target.checked)}
+              required
+              style={{ marginTop: 2, width: 15, height: 15, accentColor: '#c8a96e', cursor: 'pointer', flexShrink: 0 }}
+            />
+            <span style={{ fontSize: 12.5, lineHeight: 1.5, color: c.text2 }}>
+              He leído y acepto la{' '}
+              <a href="/privacidad" target="_blank" rel="noopener noreferrer" style={{ color: '#9a7a3a', fontWeight: 600 }}>
+                política de privacidad
+              </a>
+              . Mis datos se usarán únicamente para responder a mi consulta. *
+            </span>
+          </label>
 
           <button type="submit" disabled={!completo}
             style={{

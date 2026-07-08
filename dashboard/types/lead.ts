@@ -16,6 +16,7 @@ export interface LeadQualificado {
   reasoning: string;
   generated_email: string;
   recommended_actions: string[];
+  email_sent?: boolean | null;   // false → quedó como borrador (modo revisión)
   processed_at: string;
 }
 
@@ -33,6 +34,8 @@ export interface Lead {
   recommended_actions: string[] | null; // puede venir como JSON string desde la BD
   status: EstadoLead;
   assigned_to?: string | null;           // Clerk user_id del agente asignado
+  email_sent?: number | boolean | null;  // 0/false → borrador pendiente de enviar
+  score_feedback?: number | null;        // 1 = acierto, -1 = fallo, null = sin valorar
   created_at: string;
   processed_at: string | null;
 }

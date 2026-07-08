@@ -5,7 +5,7 @@ import logging
 from typing import Literal, Optional
 
 import anthropic
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 
 from config import FREE_LEAD_LIMIT
@@ -13,7 +13,8 @@ from core.agent import qualify_lead
 from core.database import (
     assign_lead, delete_lead, ensure_tenant, get_agent_ids, get_lead_by_id,
     get_lead_count_this_month, get_lead_counts, get_leads_by_email,
-    get_recent_leads, get_tenant, update_lead_status,
+    get_recent_leads, get_tenant, mark_lead_email_sent, set_lead_feedback,
+    update_lead_status,
 )
 from deps import Caller, get_anthropic_client, get_caller, get_tenant_id, require_plan
 from models import LeadInput, LeadOutput
@@ -35,6 +36,15 @@ class AsignarLeadInput(BaseModel):
     agent_id: Optional[str] = None  # None → dejar sin asignar
 
 
+class EnviarEmailInput(BaseModel):
+    # None → enviar el borrador guardado tal cual; con texto → versión editada
+    email_body: Optional[str] = None
+
+
+class FeedbackInput(BaseModel):
+    feedback: Optional[Literal["up", "down"]] = None  # None → borrar valoración
+
+
 def _serializar_lead(lead: dict) -> dict:
     """Normaliza un lead para enviarlo al dashboard."""
     lead = dict(lead)
@@ -51,6 +61,7 @@ def _serializar_lead(lead: dict) -> dict:
 @router.post("/qualify-lead", response_model=LeadOutput, status_code=200)
 async def qualify_lead_endpoint(
     lead: LeadInput,
+    background_tasks: BackgroundTasks,
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Procesa un lead entrante con el agente de IA."""
@@ -73,6 +84,11 @@ async def qualify_lead_endpoint(
                 },
             )
 
+    # Ajustes de respuesta del tenant: envío automático (o borrador) y voz de marca
+    av = tenant.get("auto_send_email") if tenant else None
+    auto_send = True if av is None else bool(av)
+    brand_voice = (tenant.get("brand_voice") or None) if tenant else None
+
     try:
         client = get_anthropic_client()
         result = qualify_lead(
@@ -83,20 +99,21 @@ async def qualify_lead_endpoint(
             anthropic_client=client,
             tenant_id=tenant_id,
             agency_name=tenant.get("name") if tenant else None,
+            brand_voice=brand_voice,
+            auto_send=auto_send,
         )
 
-        email_sent = send_lead_response_email(
-            lead_email=lead.email,
-            lead_name=lead.name,
-            generated_email_body=result["generated_email"],
-            reply_to=(tenant.get("notify_email") or tenant.get("email")) if tenant else None,
-            from_name=tenant.get("name") if tenant else None,
-        )
-        if email_sent:
-            logger.info("Email de respuesta enviado a %s", lead.email)
-
-        # Notificar a la inmobiliaria/empresa si el lead es bueno
-        notificar_tenant(tenant_id, lead, result)
+        # Envío y avisos en segundo plano: la respuesta HTTP no espera al SMTP.
+        if auto_send:
+            background_tasks.add_task(
+                send_lead_response_email,
+                lead_email=lead.email,
+                lead_name=lead.name,
+                generated_email_body=result["generated_email"],
+                reply_to=(tenant.get("notify_email") or tenant.get("email")) if tenant else None,
+                from_name=tenant.get("name") if tenant else None,
+            )
+        background_tasks.add_task(notificar_tenant, tenant_id, lead, result)
 
         return LeadOutput(**result)
 
@@ -185,6 +202,60 @@ async def patch_lead_assign(
         raise HTTPException(status_code=400, detail="El agente no pertenece a tu equipo")
 
     assign_lead(lead_id, tenant_id=caller.tenant_id, agent_id=body.agent_id)
+    return _serializar_lead(get_lead_by_id(lead_id, tenant_id=caller.tenant_id))
+
+
+@router.post("/leads/{lead_id}/send-email")
+async def send_lead_email(
+    lead_id: str,
+    body: EnviarEmailInput,
+    caller: Caller = Depends(get_caller),
+):
+    """
+    Envía (o reenvía) el email de respuesta al lead, opcionalmente editado.
+    Es el paso final del modo "revisar antes de enviar": el borrador generado
+    por la IA se aprueba desde el dashboard.
+    """
+    lead = get_lead_by_id(lead_id, tenant_id=caller.tenant_id, agent_id=caller.agent_filter)
+    if not lead:
+        raise HTTPException(status_code=404, detail=f"Lead {lead_id} no encontrado")
+
+    texto = (body.email_body or "").strip() or (lead.get("generated_email") or "").strip()
+    if not texto:
+        raise HTTPException(status_code=400, detail="No hay ningún email que enviar para este lead")
+
+    tenant = get_tenant(caller.tenant_id)
+    enviado = send_lead_response_email(
+        lead_email=lead["email"],
+        lead_name=lead["name"],
+        generated_email_body=texto,
+        reply_to=(tenant.get("notify_email") or tenant.get("email")) if tenant else None,
+        from_name=tenant.get("name") if tenant else None,
+    )
+    if not enviado:
+        raise HTTPException(
+            status_code=502,
+            detail="No se pudo enviar el email. Revisa la configuración de correo del servidor.",
+        )
+
+    mark_lead_email_sent(lead_id, caller.tenant_id, body=texto)
+    logger.info("Email del lead %s enviado manualmente (tenant: %s)", lead_id, caller.tenant_id)
+    return _serializar_lead(get_lead_by_id(lead_id, tenant_id=caller.tenant_id))
+
+
+@router.patch("/leads/{lead_id}/feedback")
+async def patch_lead_feedback(
+    lead_id: str,
+    body: FeedbackInput,
+    caller: Caller = Depends(get_caller),
+):
+    """Guarda la valoración del agente sobre la clasificación de la IA (👍/👎)."""
+    lead = get_lead_by_id(lead_id, tenant_id=caller.tenant_id, agent_id=caller.agent_filter)
+    if not lead:
+        raise HTTPException(status_code=404, detail=f"Lead {lead_id} no encontrado")
+
+    valor = {"up": 1, "down": -1}.get(body.feedback) if body.feedback else None
+    set_lead_feedback(lead_id, caller.tenant_id, valor)
     return _serializar_lead(get_lead_by_id(lead_id, tenant_id=caller.tenant_id))
 
 

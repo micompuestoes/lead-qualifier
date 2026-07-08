@@ -87,6 +87,7 @@ def _redactar_email(
     message: str,
     intent: dict,
     scoring: dict,
+    brand_voice: Optional[str] = None,
 ) -> str:
     """Genera el email de respuesta con una única llamada a Claude."""
     classification = scoring.get("classification", "TIBIO")
@@ -94,6 +95,11 @@ def _redactar_email(
     operation      = intent.get("operation", "INFORMACION")
     reasoning      = scoring.get("reasoning", "")
     hint           = _siguiente_paso(classification, operation)
+
+    # Voz de marca del tenant: preferencias de estilo que se respetan al redactar.
+    estilo = ""
+    if brand_voice and brand_voice.strip():
+        estilo = f"\n- Sigue estas preferencias de estilo de la agencia: {brand_voice.strip()}"
 
     user_prompt = f"""Redacta el email de respuesta para este lead inmobiliario.
 Devuelve ÚNICAMENTE el texto del email: sin asunto, sin comillas y sin notas adicionales.
@@ -109,7 +115,7 @@ Cualificación interna (NO la menciones nunca en el email):
 Reglas:
 - Empieza con "Hola {primer_nombre},".
 - Máximo 150 palabras, español natural y cercano, como un buen comercial inmobiliario.
-- Siguiente paso a proponer: {hint}.
+- Siguiente paso a proponer: {hint}.{estilo}
 - No inventes inmuebles, precios ni datos que no aparezcan en el mensaje.
 - Cierra exactamente con:
 Un saludo,
@@ -142,6 +148,8 @@ def qualify_lead(
     anthropic_client: anthropic.Anthropic,
     tenant_id: str = "legacy",
     agency_name: Optional[str] = None,
+    brand_voice: Optional[str] = None,
+    auto_send: bool = True,
 ) -> dict:
     """
     Cualifica un lead inmobiliario completo y lo guarda en la base de datos.
@@ -154,6 +162,9 @@ def qualify_lead(
       5. guardar en BD
 
     agency_name: nombre comercial de la agencia para firmar el email.
+    brand_voice: preferencias de estilo del tenant que la IA respeta al redactar.
+    auto_send:   False → el email queda como BORRADOR (email_sent=0) para que el
+                 agente lo revise/edite antes de enviarlo desde el dashboard.
     """
     lead_id       = str(uuid.uuid4())
     firma         = (agency_name or "").strip() or "el equipo"
@@ -180,6 +191,7 @@ def qualify_lead(
     # ── 4: email (única llamada a la IA) ──
     generated_email = _redactar_email(
         anthropic_client, name, primer_nombre, firma, email, message, intent, scoring,
+        brand_voice=brand_voice,
     )
 
     # ── 5: reparto automático entre el equipo (None si es cuenta individual) ──
@@ -206,6 +218,7 @@ def qualify_lead(
             intent_analysis=intent,
             company_info=company,
             assigned_to=assigned_to,
+            email_sent=1 if auto_send else 0,
         )
     except Exception as exc:
         logger.error("Error guardando lead %s en BD: %s", lead_id, exc)
@@ -218,6 +231,7 @@ def qualify_lead(
         "generated_email": generated_email,
         "recommended_actions": recommended_actions,
         "assigned_to": assigned_to,
+        "email_sent": bool(auto_send),
         "processed_at": datetime.now(timezone.utc).isoformat(),
     }
 

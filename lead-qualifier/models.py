@@ -55,6 +55,8 @@ class LeadOutput(BaseModel):
     reasoning: str
     generated_email: str
     recommended_actions: List[str]
+    # False → el email quedó como borrador (el tenant revisa antes de enviar)
+    email_sent: Optional[bool] = None
     processed_at: datetime
 
 

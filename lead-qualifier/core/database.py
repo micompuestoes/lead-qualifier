@@ -120,6 +120,13 @@ def init_db() -> None:
         # Contacto del agente para avisarle directamente de sus leads
         "ALTER TABLE team_members ADD COLUMN member_email TEXT",
         "ALTER TABLE team_members ADD COLUMN member_whatsapp TEXT",
+        # Respuestas con IA: envío automático o revisión previa + voz de marca
+        "ALTER TABLE tenants ADD COLUMN auto_send_email INTEGER DEFAULT 1",
+        "ALTER TABLE tenants ADD COLUMN brand_voice TEXT",
+        # Estado del email al lead (NULL = legado/enviado, 0 = borrador, 1 = enviado)
+        "ALTER TABLE leads ADD COLUMN email_sent INTEGER",
+        # Feedback del agente sobre la clasificación (1 = acierto, -1 = fallo)
+        "ALTER TABLE leads ADD COLUMN score_feedback INTEGER",
     ]:
         try:
             with engine.begin() as conn:
@@ -261,6 +268,20 @@ def update_tenant_profile(tenant_id: str, name: str, notify_email: str) -> None:
             {"name": name, "notify_email": notify_email, "id": tenant_id},
         )
     logger.info("Perfil actualizado para tenant %s: name=%s, notify=%s", tenant_id, name, notify_email)
+
+
+def update_ai_settings(tenant_id: str, auto_send: bool, brand_voice: str) -> None:
+    """Guarda si el email al lead se envía solo o queda en borrador, y la voz de marca."""
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                UPDATE tenants
+                SET auto_send_email = :auto, brand_voice = :voz
+                WHERE id = :id
+            """),
+            {"auto": 1 if auto_send else 0, "voz": brand_voice or None, "id": tenant_id},
+        )
+    logger.info("Ajustes de IA actualizados para tenant %s (auto_send=%s)", tenant_id, auto_send)
 
 
 def update_whatsapp_config(tenant_id: str, number: Optional[str], enabled: bool) -> None:
@@ -720,6 +741,7 @@ def save_lead(
     intent_analysis: dict,
     company_info: dict,
     assigned_to: Optional[str] = None,
+    email_sent: Optional[int] = None,
 ) -> None:
     """Guarda un lead procesado completo."""
     now = datetime.now(timezone.utc).isoformat()
@@ -732,13 +754,13 @@ def save_lead(
                     classification, score, reasoning,
                     generated_email, recommended_actions,
                     intent_analysis, company_info,
-                    status, assigned_to, created_at, processed_at
+                    status, assigned_to, email_sent, created_at, processed_at
                 ) VALUES (
                     :id, :tenant_id, :name, :email, :phone, :message,
                     :classification, :score, :reasoning,
                     :generated_email, :recommended_actions,
                     :intent_analysis, :company_info,
-                    'PENDIENTE', :assigned_to, :created_at, :processed_at
+                    'PENDIENTE', :assigned_to, :email_sent, :created_at, :processed_at
                 )
             """),
             {
@@ -756,6 +778,7 @@ def save_lead(
                 "intent_analysis":    json.dumps(intent_analysis,    ensure_ascii=False),
                 "company_info":       json.dumps(company_info,       ensure_ascii=False),
                 "assigned_to":  assigned_to,
+                "email_sent":   email_sent,
                 "created_at":   now,
                 "processed_at": now,
             },
@@ -889,6 +912,31 @@ def get_stale_pending_leads(tenant_id: str, dias: int = 2, min_score: int = 5) -
             {"t": tenant_id, "ms": min_score, "lim": limite},
         ).fetchall()
     return [dict(r._mapping) for r in rows]
+
+
+def mark_lead_email_sent(lead_id: str, tenant_id: str, body: Optional[str] = None) -> None:
+    """
+    Marca el email del lead como enviado. Si `body` viene informado, guarda esa
+    versión (posiblemente editada por el agente) como el email definitivo.
+    """
+    sql = "UPDATE leads SET email_sent = 1"
+    params: dict = {"id": lead_id, "tid": tenant_id}
+    if body is not None:
+        sql += ", generated_email = :body"
+        params["body"] = body
+    sql += " WHERE id = :id AND tenant_id = :tid"
+    with engine.begin() as conn:
+        conn.execute(text(sql), params)
+    logger.info("Email del lead %s marcado como enviado (tenant: %s)", lead_id, tenant_id)
+
+
+def set_lead_feedback(lead_id: str, tenant_id: str, feedback: Optional[int]) -> None:
+    """Guarda el feedback del agente sobre la clasificación (1 acierto, -1 fallo, None borra)."""
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE leads SET score_feedback = :fb WHERE id = :id AND tenant_id = :tid"),
+            {"fb": feedback, "id": lead_id, "tid": tenant_id},
+        )
 
 
 def update_lead_status(lead_id: str, status: str, tenant_id: str) -> None:

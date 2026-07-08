@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@clerk/nextjs';
 
-import { obtenerLead, actualizarEstado, eliminarLead, asignarLead, apiFetch } from '@/lib/api';
+import { obtenerLead, actualizarEstado, eliminarLead, asignarLead, apiFetch, enviarEmailLead, feedbackLead } from '@/lib/api';
 import { formatearFecha, generarAsunto, parsearReasoning } from '@/lib/utils';
 import type { Lead, EstadoLead } from '@/types/lead';
 import { useTheme } from '@/components/ThemeProvider';
@@ -79,6 +79,13 @@ export default function LeadDetallePage() {
   const [asignado, setAsignado] = useState<string>('');   // '' = sin asignar
   const [asignando, setAsignando] = useState(false);
 
+  // Borrador de respuesta (modo "revisar antes de enviar")
+  const [borrador, setBorrador]         = useState('');
+  const [enviandoEmail, setEnviandoEmail] = useState(false);
+
+  // Valoración de la clasificación (👍/👎)
+  const [guardandoFeedback, setGuardandoFeedback] = useState(false);
+
   useEffect(() => {
     async function cargar() {
       try {
@@ -86,6 +93,7 @@ export default function LeadDetallePage() {
         setLead(data);
         setStatusLocal((data.status ?? 'PENDIENTE') as EstadoLead);
         setAsignado(data.assigned_to ?? '');
+        setBorrador(data.generated_email ?? '');
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Error al cargar el lead');
       } finally {
@@ -152,6 +160,37 @@ export default function LeadDetallePage() {
     }
   }
 
+  async function enviarBorrador() {
+    if (enviandoEmail || !borrador.trim()) return;
+    setEnviandoEmail(true);
+    try {
+      const upd = await enviarEmailLead(id, borrador.trim(), getToken);
+      setLead(upd);
+      setBorrador(upd.generated_email ?? borrador);
+      addToast('Email enviado al lead', 'success');
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : 'No se pudo enviar el email', 'error');
+    } finally {
+      setEnviandoEmail(false);
+    }
+  }
+
+  async function valorarClasificacion(fb: 'up' | 'down') {
+    if (!lead || guardandoFeedback) return;
+    const actual = lead.score_feedback === 1 ? 'up' : lead.score_feedback === -1 ? 'down' : null;
+    const nuevo  = actual === fb ? null : fb;   // repetir clic → borrar valoración
+    setGuardandoFeedback(true);
+    try {
+      const upd = await feedbackLead(id, nuevo, getToken);
+      setLead(upd);
+      if (nuevo) addToast('Gracias — tu valoración nos ayuda a afinar la IA', 'success');
+    } catch {
+      addToast('No se pudo guardar la valoración', 'error');
+    } finally {
+      setGuardandoFeedback(false);
+    }
+  }
+
   async function handleEliminar() {
     if (eliminando) return;
     try {
@@ -195,6 +234,9 @@ export default function LeadDetallePage() {
   const asunto = generarAsunto(lead.name, lead.classification);
   const puntos = lead.reasoning ? parsearReasoning(lead.reasoning) : [];
   const meta   = ESTADO_META[statusLocal];
+  // Borrador pendiente: email generado pero aún no enviado (modo revisión / IMAP)
+  const esBorrador = lead.email_sent === 0 || lead.email_sent === false;
+  const fbActual   = lead.score_feedback === 1 ? 'up' : lead.score_feedback === -1 ? 'down' : null;
 
   const card = { background: c.card, border: c.cardBorder, borderRadius: 16 };
 
@@ -262,6 +304,37 @@ export default function LeadDetallePage() {
             )}
           </div>
           <ScoreBar score={lead.score} />
+
+          {/* Valoración de la clasificación — feedback para afinar la IA */}
+          {lead.score !== null && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+              <span style={{ fontSize: 12, color: c.text3 }}>¿Acertó la clasificación?</span>
+              {(['up', 'down'] as const).map(fb => {
+                const activo = fbActual === fb;
+                const col = fb === 'up' ? '#2d7a3a' : '#b45309';
+                return (
+                  <button key={fb} onClick={() => valorarClasificacion(fb)} disabled={guardandoFeedback}
+                    aria-label={fb === 'up' ? 'La clasificación es correcta' : 'La clasificación es incorrecta'}
+                    aria-pressed={activo}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      width: 28, height: 28, borderRadius: 8,
+                      background: activo ? `${col}14` : 'transparent',
+                      border: activo ? `1.5px solid ${col}55` : `1.5px solid ${c.inputBorder}`,
+                      color: activo ? col : c.text3,
+                      cursor: guardandoFeedback ? 'default' : 'pointer',
+                      opacity: guardandoFeedback ? 0.6 : 1, transition: 'all 0.15s',
+                    }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                      style={{ transform: fb === 'down' ? 'rotate(180deg)' : 'none' }}>
+                      <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+                    </svg>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Fechas */}
@@ -296,9 +369,80 @@ export default function LeadDetallePage() {
             </p>
           </div>
 
-          {/* Email generado */}
+          {/* Email generado / borrador pendiente de revisar */}
           <div className="animate-reveal-in" style={{ animationDelay: '120ms' }}>
-            {lead.generated_email ? (
+            {lead.generated_email && esBorrador ? (
+              <div style={{ ...card, overflow: 'hidden' }}>
+                {/* Cabecera del borrador */}
+                <div style={{
+                  padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 9,
+                  background: 'rgba(200,169,110,0.1)', borderBottom: '1px solid rgba(200,169,110,0.25)',
+                }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9a7a3a"
+                    strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+                  </svg>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#9a7a3a' }}>
+                    Borrador de respuesta — aún no enviado
+                  </span>
+                  <span style={{
+                    marginLeft: 'auto', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
+                    textTransform: 'uppercase', padding: '3px 9px', borderRadius: 99,
+                    background: 'rgba(200,169,110,0.18)', color: '#9a7a3a',
+                  }}>
+                    Borrador
+                  </span>
+                </div>
+                {/* Cuerpo editable */}
+                <div style={{ padding: 16 }}>
+                  <textarea
+                    value={borrador}
+                    onChange={e => setBorrador(e.target.value)}
+                    rows={11}
+                    disabled={enviandoEmail}
+                    aria-label="Borrador del email de respuesta"
+                    style={{
+                      width: '100%', padding: '12px 14px', borderRadius: 10,
+                      fontSize: 13.5, lineHeight: 1.65, fontFamily: 'inherit',
+                      background: c.input, color: c.text1, resize: 'vertical',
+                      border: `1.5px solid ${c.inputBorder}`, outline: 'none',
+                    }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
+                    <button onClick={enviarBorrador} disabled={enviandoEmail || !borrador.trim()}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 8,
+                        padding: '10px 20px', borderRadius: 11, fontSize: 13.5, fontWeight: 600,
+                        background: '#c8a96e', color: '#1a1814', border: 'none',
+                        cursor: (enviandoEmail || !borrador.trim()) ? 'not-allowed' : 'pointer',
+                        opacity: (enviandoEmail || !borrador.trim()) ? 0.6 : 1,
+                        boxShadow: '0 2px 12px rgba(200,169,110,0.35)',
+                      }}>
+                      {enviandoEmail ? (
+                        <>
+                          <span className="animate-spin" style={{
+                            width: 13, height: 13, borderRadius: '50%',
+                            border: '2px solid rgba(26,24,20,0.25)', borderTopColor: '#1a1814',
+                          }} />
+                          Enviando…
+                        </>
+                      ) : (
+                        <>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                          </svg>
+                          Enviar a {lead.email}
+                        </>
+                      )}
+                    </button>
+                    <span style={{ fontSize: 12, color: c.text3 }}>
+                      Puedes editarlo antes de enviar. Se firmará con el nombre de tu agencia.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : lead.generated_email ? (
               <EmailUI email={lead.generated_email} leadEmail={lead.email} asunto={asunto} />
             ) : (
               <div style={{

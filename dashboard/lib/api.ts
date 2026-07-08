@@ -124,6 +124,32 @@ export async function actualizarEstado(
   return handleResponse<Lead>(res);
 }
 
+// Envía el email de respuesta al lead (borrador aprobado, opcionalmente editado)
+export async function enviarEmailLead(
+  id: string,
+  emailBody: string | null,
+  getToken: GetToken
+): Promise<Lead> {
+  const res = await apiFetch(`/leads/${id}/send-email`, getToken, {
+    method: 'POST',
+    body: JSON.stringify({ email_body: emailBody }),
+  });
+  return handleResponse<Lead>(res).then(normalizarLead);
+}
+
+// Valoración del agente sobre la clasificación de la IA (👍/👎, null borra)
+export async function feedbackLead(
+  id: string,
+  feedback: 'up' | 'down' | null,
+  getToken: GetToken
+): Promise<Lead> {
+  const res = await apiFetch(`/leads/${id}/feedback`, getToken, {
+    method: 'PATCH',
+    body: JSON.stringify({ feedback }),
+  });
+  return handleResponse<Lead>(res).then(normalizarLead);
+}
+
 export async function asignarLead(
   id: string,
   agentId: string | null,

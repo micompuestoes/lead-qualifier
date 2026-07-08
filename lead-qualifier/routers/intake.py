@@ -13,7 +13,7 @@ import uuid
 from typing import Optional
 
 import anthropic
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 
 from config import (
     FREE_LEAD_LIMIT, RATE_IP_PER_HOUR, RATE_IP_PER_MIN,
@@ -39,7 +39,7 @@ class PublicLeadInput(LeadInput):
 
 
 @router.post("/intake/{api_key}", status_code=200)
-async def public_intake(api_key: str, lead: PublicLeadInput, request: Request):
+async def public_intake(api_key: str, lead: PublicLeadInput, request: Request, background_tasks: BackgroundTasks):
     """Recibe un lead desde un formulario externo identificado por api_key."""
     # ── Honeypot: si el campo trampa viene relleno, es un bot ──
     if lead.website:
@@ -76,12 +76,17 @@ async def public_intake(api_key: str, lead: PublicLeadInput, request: Request):
             classification=None, score=None,
             reasoning="Sin cualificar: has alcanzado el límite de leads del plan gratuito este mes. Mejora tu plan para desbloquear la cualificación con IA.",
             generated_email=None, recommended_actions=[], intent_analysis={}, company_info={},
+            email_sent=0,
         )
         logger.info("Intake free sobre límite — lead capturado sin IA (tenant %s)", tenant_id)
         return {
             "ok": True,
             "message": "Tu consulta ha sido recibida. En breve nos pondremos en contacto contigo.",
         }
+
+    # Ajustes de respuesta del tenant: envío automático (o borrador) y voz de marca
+    av = tenant.get("auto_send_email")
+    auto_send = True if av is None else bool(av)
 
     try:
         client = get_anthropic_client()
@@ -93,19 +98,21 @@ async def public_intake(api_key: str, lead: PublicLeadInput, request: Request):
             anthropic_client=client,
             tenant_id=tenant_id,
             agency_name=tenant.get("name"),
+            brand_voice=tenant.get("brand_voice") or None,
+            auto_send=auto_send,
         )
 
-        # Email de respuesta al lead (firmado por la agencia, con Reply-To a la agencia)
-        send_lead_response_email(
-            lead_email=lead.email,
-            lead_name=lead.name,
-            generated_email_body=result["generated_email"],
-            reply_to=tenant.get("notify_email") or tenant.get("email"),
-            from_name=tenant.get("name"),
-        )
-
-        # Notificación a la inmobiliaria
-        notificar_tenant(tenant_id, lead, result)
+        # Envío y avisos en segundo plano: el visitante no espera al SMTP.
+        if auto_send:
+            background_tasks.add_task(
+                send_lead_response_email,
+                lead_email=lead.email,
+                lead_name=lead.name,
+                generated_email_body=result["generated_email"],
+                reply_to=tenant.get("notify_email") or tenant.get("email"),
+                from_name=tenant.get("name"),
+            )
+        background_tasks.add_task(notificar_tenant, tenant_id, lead, result)
 
         return {
             "ok": True,

@@ -8,7 +8,8 @@ from pydantic import BaseModel
 
 from core.database import (
     count_unread_notifications, ensure_tenant, get_notifications, get_tenant,
-    mark_notifications_read, update_tenant_profile, update_whatsapp_config,
+    mark_notifications_read, update_ai_settings, update_tenant_profile,
+    update_whatsapp_config,
 )
 from deps import get_tenant_id
 from services.whatsapp import normalize_phone
@@ -26,6 +27,11 @@ class ActualizarPerfilInput(BaseModel):
 class WhatsappConfigInput(BaseModel):
     number: str = ""
     enabled: bool = False
+
+
+class AiSettingsInput(BaseModel):
+    auto_send: bool = True
+    brand_voice: str = ""
 
 
 @router.get("/me")
@@ -47,6 +53,8 @@ async def get_my_profile(tenant_id: str = Depends(get_tenant_id)):
         "is_admin":     bool(admin_id and tenant_id == admin_id),
         "whatsapp_number":  tenant.get("whatsapp_number", "") or "",
         "whatsapp_enabled": bool(tenant.get("whatsapp_enabled")),
+        "auto_send_email":  True if tenant.get("auto_send_email") is None else bool(tenant.get("auto_send_email")),
+        "brand_voice":      tenant.get("brand_voice") or "",
     }
 
 
@@ -75,6 +83,23 @@ async def read_notifications(tenant_id: str = Depends(get_tenant_id)):
     """Marca todas las notificaciones de sistema como leídas."""
     mark_notifications_read(tenant_id)
     return {"ok": True}
+
+
+@router.post("/me/ai-settings")
+async def save_ai_settings(
+    body: AiSettingsInput,
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """
+    Configura las respuestas con IA:
+    - auto_send: True → el email al lead se envía solo; False → queda como
+      borrador para revisarlo/editarlo antes de enviar desde el dashboard.
+    - brand_voice: preferencias de estilo que la IA respeta al redactar.
+    """
+    ensure_tenant(tenant_id)
+    voz = body.brand_voice.strip()[:500]  # límite defensivo para el prompt
+    update_ai_settings(tenant_id, body.auto_send, voz)
+    return {"ok": True, "auto_send_email": body.auto_send, "brand_voice": voz}
 
 
 @router.post("/me/whatsapp")
