@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { useAuth } from '@clerk/nextjs';
+import { useAuth, useUser } from '@clerk/nextjs';
 import { cualificarLead } from '@/lib/api';
 import type { LeadQualificado } from '@/types/lead';
 import LeadBadge from '@/components/LeadBadge';
@@ -91,6 +91,7 @@ function Textarea({ id, name, value, onChange, placeholder, disabled, inputStyle
 export default function NuevoLeadPage() {
   const { addToast }  = useToast();
   const { getToken }  = useAuth();
+  const { user }      = useUser();
   const { c }         = useTheme();
 
   const [form, setForm]               = useState<FormData>(FORM_VACIO);
@@ -102,6 +103,40 @@ export default function NuevoLeadPage() {
   const [mostrarConfeti, setMostrarConfeti] = useState(false);
   const [operacion, setOperacion]           = useState('');
   const [presupuesto, setPresupuesto]       = useState('');
+  const [esDemo, setEsDemo]                 = useState(false);
+  const yaPrefillado = useRef(false);
+
+  // Lead de ejemplo para el "momento mágico": el destinatario es el PROPIO
+  // agente, así el email que redacta la IA le llega a su bandeja y lo ve
+  // exactamente como lo vería su cliente.
+  function rellenarEjemplo() {
+    if (procesando) return;
+    const emailPropio = user?.primaryEmailAddress?.emailAddress ?? 'maria.garcia@example.com';
+    setForm({
+      name: 'María García (ejemplo)',
+      email: emailPropio,
+      phone: '',
+      message: 'Busco un piso de 3 habitaciones con terraza en el centro de Valencia. '
+        + 'Tengo la hipoteca preaprobada y un presupuesto de hasta 320.000 €. '
+        + 'Me gustaría visitar esta misma semana.',
+    });
+    setOperacion('Comprar');
+    setPresupuesto('');
+    setResultado(null);
+    setEsDemo(true);
+    addToast('Lead de ejemplo listo — pulsa «Cualificar con IA»', 'info');
+  }
+
+  // Entrada directa en modo demo: /nuevo-lead?demo=1 (botones de onboarding y vacíos)
+  useEffect(() => {
+    if (yaPrefillado.current) return;
+    if (typeof window !== 'undefined'
+        && new URLSearchParams(window.location.search).get('demo') === '1'
+        && user) {
+      yaPrefillado.current = true;
+      rellenarEjemplo();
+    }
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const RANGOS_COMPRA   = ['Hasta 100.000 €', '100.000 – 200.000 €', '200.000 – 300.000 €', '300.000 – 500.000 €', 'Más de 500.000 €'];
   const RANGOS_ALQUILER = ['Hasta 600 €/mes', '600 – 900 €/mes', '900 – 1.200 €/mes', 'Más de 1.200 €/mes'];
@@ -164,7 +199,7 @@ export default function NuevoLeadPage() {
     } finally { setProcesando(false); }
   }
 
-  function resetear() { setForm(FORM_VACIO); setResultado(null); setError(null); setScoreVisible(0); setOperacion(''); setPresupuesto(''); }
+  function resetear() { setForm(FORM_VACIO); setResultado(null); setError(null); setScoreVisible(0); setOperacion(''); setPresupuesto(''); setEsDemo(false); }
 
   // Estilos derivados del tema
   const inputStyle: React.CSSProperties = {
@@ -191,6 +226,23 @@ export default function NuevoLeadPage() {
             description="El agente ha procesado el lead correctamente."
           />
         </div>
+
+        {/* Aviso del modo demo: el email fue a la bandeja del propio agente */}
+        {esDemo && (
+          <div className="rounded-xl px-4 py-3 mb-6 animate-reveal-in flex items-start gap-3"
+            style={{ background: 'rgba(200,169,110,0.1)', border: '1.5px solid rgba(200,169,110,0.3)' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9a7a3a"
+              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 2 }}>
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+              <polyline points="22,6 12,13 2,6"/>
+            </svg>
+            <p className="text-sm" style={{ color: '#9a7a3a', lineHeight: 1.55 }}>
+              <strong>Era un lead de ejemplo con tu email como destinatario.</strong>{' '}
+              Revisa tu bandeja de entrada: ese es exactamente el email que recibiría tu cliente,
+              firmado por tu agencia. (Si usas el modo revisión, lo tienes como borrador en el detalle.)
+            </p>
+          </div>
+        )}
 
         {/* Score + clasificación */}
         <div className="rounded-2xl p-6 mb-6 animate-reveal-in"
@@ -289,6 +341,24 @@ export default function NuevoLeadPage() {
         title="Cualificar nuevo lead"
         description="El agente de IA analizará el mensaje, puntuará el lead y generará un email de respuesta."
       />
+
+      {/* Atajo demo: rellena un ejemplo realista en un clic */}
+      {!procesando && !esDemo && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -12, marginBottom: 16 }}>
+          <button type="button" onClick={rellenarEjemplo}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              fontSize: 12.5, fontWeight: 600, color: '#9a7a3a',
+              background: 'none', border: 'none', cursor: 'pointer', padding: '4px 2px',
+            }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+            </svg>
+            ¿Sin un lead a mano? Rellenar con un ejemplo
+          </button>
+        </div>
+      )}
 
       {/* Pasos de procesamiento */}
       {procesando && (

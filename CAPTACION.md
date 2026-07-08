@@ -60,6 +60,19 @@ El dolor que resuelves: **"se me escapan clientes porque no respondo a tiempo y 
 
 ---
 
+## 🎬 La demo de 10 minutos (con el momento mágico)
+
+Preparación: cuenta abierta con tu empresa configurada en el perfil, y el enlace de registro a mano.
+
+1. **El dolor (2 min).** No presentes: pregunta. *"¿Cuánto tardáis en responder a un lead de Idealista?"* y *"¿cómo decidís a quién llamar primero?"*. Deja que el problema lo digan ellos.
+2. **El momento mágico (3 min).** Comparte pantalla → botón **"Probar con un ejemplo"** → «Cualificar con IA». Verán en directo el análisis, el **CALIENTE 10/10** con confeti y el email ya redactado. Remata: *"ese email acaba de llegar a mi bandeja — esto tu cliente lo recibe en segundos, firmado por ti"* (enséñales tu bandeja: el lead de ejemplo se envía a tu propio email).
+3. **Su caso (3 min).** Abre tu formulario público y pídeles que envíen **una consulta real suya desde su móvil**. Que vean SU lead entrar cualificado en el dashboard. Esto convierte más que cualquier argumento.
+4. **El cierre (2 min).** *"¿Te creo la cuenta ahora? El plan gratuito son 10 leads/mes, sin tarjeta."* Registro en vivo, nombre de su agencia en el perfil, y les copias el enlace de SU formulario. Se van con algo funcionando.
+
+Si dudan de la IA: enséñales el **modo "revisar antes de enviar"** (ellos tienen la última palabra) y la **voz de marca** (el email suena a ellos). Son los dos matadores de objeciones.
+
+---
+
 ## 🛡️ Objeciones típicas (y respuesta)
 
 - **"Es caro."** → Una sola operación son miles de euros de comisión. Inmobia cuesta menos que una cena al mes y evita que se te escape un cliente. Además tienes plan gratuito.

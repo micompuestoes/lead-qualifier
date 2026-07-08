@@ -135,7 +135,7 @@ export default function DashboardHome() {
     ...(setup.plan === 'pro' || setup.plan === 'agencia'
       ? [{ label: 'Conecta tu bandeja de entrada', desc: 'Convierte tus emails en leads automáticamente', done: setup.imap, href: '/perfil', cta: 'Conectar' }]
       : []),
-    { label: 'Cualifica tu primer lead', desc: 'Pruébalo con un contacto real', done: total > 0, href: '/nuevo-lead', cta: 'Empezar' },
+    { label: 'Cualifica tu primer lead', desc: 'Hazlo en 10 segundos con nuestro ejemplo', done: total > 0, href: '/nuevo-lead?demo=1', cta: 'Probar ahora' },
   ];
   const onboardingCompleto = pasosOnboarding.every(p => p.done);
   const mostrarOnboarding = !cargando && setupCargado && !onboardingCompleto;
@@ -280,14 +280,28 @@ export default function DashboardHome() {
             <p style={{ fontSize: 12, color: c.text2, maxWidth: 280, lineHeight: 1.6 }}>
               Cualifica tu primer contacto y aparecerá aquí con su análisis de IA.
             </p>
-            <Link href="/nuevo-lead" style={{
-              marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 7,
-              padding: '9px 18px', borderRadius: 11, fontSize: 13, fontWeight: 600,
-              background: '#c8a96e', color: '#1a1814', textDecoration: 'none',
-              boxShadow: '0 2px 10px rgba(200,169,110,0.3)',
-            }}>
-              Cualificar primer lead
-            </Link>
+            <div style={{ marginTop: 4, display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+              <Link href="/nuevo-lead?demo=1" style={{
+                display: 'inline-flex', alignItems: 'center', gap: 7,
+                padding: '9px 18px', borderRadius: 11, fontSize: 13, fontWeight: 600,
+                background: '#c8a96e', color: '#1a1814', textDecoration: 'none',
+                boxShadow: '0 2px 10px rgba(200,169,110,0.3)',
+              }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                </svg>
+                Probar con un ejemplo
+              </Link>
+              <Link href="/nuevo-lead" style={{
+                display: 'inline-flex', alignItems: 'center', gap: 7,
+                padding: '9px 18px', borderRadius: 11, fontSize: 13, fontWeight: 600,
+                border: '1.5px solid rgba(200,169,110,0.4)', color: c.text1,
+                background: 'transparent', textDecoration: 'none',
+              }}>
+                Cualificar un lead real
+              </Link>
+            </div>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 14 }}>

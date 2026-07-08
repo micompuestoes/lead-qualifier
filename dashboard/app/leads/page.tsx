@@ -577,17 +577,27 @@ function EmptyState({ sinLeads, onLimpiarFiltros, c }: {
           : 'Prueba a cambiar o limpiar los filtros activos para ver más resultados.'}
       </p>
       {sinLeads ? (
-        <Link href="/nuevo-lead" style={{
-          display: 'inline-flex', alignItems: 'center', gap: 8,
-          padding: '10px 22px', borderRadius: 12, fontSize: 13, fontWeight: 600,
-          background: '#c8a96e', color: '#1a1814', textDecoration: 'none',
-          boxShadow: '0 2px 12px rgba(200,169,110,0.35)',
-        }}>
-          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          Cualificar primer lead
-        </Link>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <Link href="/nuevo-lead?demo=1" style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            padding: '10px 22px', borderRadius: 12, fontSize: 13, fontWeight: 600,
+            background: '#c8a96e', color: '#1a1814', textDecoration: 'none',
+            boxShadow: '0 2px 12px rgba(200,169,110,0.35)',
+          }}>
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+            </svg>
+            Probar con un ejemplo
+          </Link>
+          <Link href="/nuevo-lead" style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            padding: '10px 22px', borderRadius: 12, fontSize: 13, fontWeight: 600,
+            border: `1.5px solid ${c.inputBorder}`, color: c.text1,
+            background: 'transparent', textDecoration: 'none',
+          }}>
+            Cualificar un lead real
+          </Link>
+        </div>
       ) : (
         <button onClick={onLimpiarFiltros}
           style={{
