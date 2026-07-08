@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useUser } from '@clerk/nextjs';
 import { useAuth } from '@clerk/nextjs';
-import { obtenerLeads, apiFetch } from '@/lib/api';
+import { obtenerLeadsPagina, apiFetch } from '@/lib/api';
 import type { Lead, EstadoLead } from '@/types/lead';
 import LeadCard from '@/components/LeadCard';
 import { KpiSkeleton, LeadCardSkeleton } from '@/components/Skeleton';
@@ -79,6 +79,7 @@ export default function DashboardHome() {
   const { c }        = useTheme();
 
   const [leads, setLeads]       = useState<Lead[]>([]);
+  const [totalReal, setTotalReal] = useState(0);   // total del servidor, no solo lo paginado
   const [cargando, setCargando] = useState(true);
 
   // Estado para el onboarding
@@ -86,8 +87,8 @@ export default function DashboardHome() {
   const [setupCargado, setSetupCargado] = useState(false);
 
   useEffect(() => {
-    obtenerLeads(getToken)
-      .then(setLeads)
+    obtenerLeadsPagina(getToken)
+      .then(d => { setLeads(d.leads); setTotalReal(d.total); })
       .catch(() => {})
       .finally(() => setCargando(false));
 
@@ -107,8 +108,8 @@ export default function DashboardHome() {
     })();
   }, [getToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Stats computados desde los leads
-  const total = leads.length;
+  // Stats: total real del servidor; mes y score sobre los más recientes cargados
+  const total = totalReal;
   const ahora = new Date();
   const estesMes = leads.filter(l => {
     const d = new Date(l.created_at);

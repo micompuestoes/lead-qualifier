@@ -226,7 +226,11 @@ export default function MarketingLanding() {
                 <span style={{ fontSize: 40, fontWeight: 700, letterSpacing: '-0.02em' }}>
                   {plan.precio === 0 ? 'Gratis' : `${plan.precio}€`}
                 </span>
-                {plan.precio > 0 && <span style={{ fontSize: 14, color: '#8a8278' }}>/mes</span>}
+                {plan.precio > 0 && (
+                  <span style={{ fontSize: 14, color: '#8a8278' }}>
+                    {plan.porAsiento ? '/agente al mes' : '/mes'}
+                  </span>
+                )}
               </div>
               <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px', display: 'flex', flexDirection: 'column', gap: 11 }}>
                 {plan.features.map(f => (

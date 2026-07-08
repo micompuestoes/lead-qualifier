@@ -6,9 +6,10 @@
 export interface Plan {
   id: 'free' | 'pro' | 'agencia';
   nombre: string;
-  precio: number;        // €/mes
+  precio: number;        // €/mes (si porAsiento, €/agente/mes)
   descripcion: string;
   destacado?: boolean;
+  porAsiento?: boolean;  // Agencia se factura por agente (Stripe cobra quantity = nº de agentes)
   features: string[];
   limitacion?: string;
 }
@@ -47,6 +48,7 @@ export const PLANS: Plan[] = [
     nombre: 'Agencia',
     precio: 99,
     descripcion: 'Para dirigir un equipo',
+    porAsiento: true,
     features: [
       'Todo lo de Pro',
       'Reparto de leads entre agentes',

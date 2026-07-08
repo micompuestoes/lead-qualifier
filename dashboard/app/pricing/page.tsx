@@ -159,7 +159,9 @@ export default function PricingPage() {
                       {plan.precio === 0 ? 'Gratis' : `${plan.precio}€`}
                     </span>
                     {plan.precio > 0 && (
-                      <span style={{ fontSize: 14, color: c.text2 }}>/mes</span>
+                      <span style={{ fontSize: 14, color: c.text2 }}>
+                        {plan.porAsiento ? '/agente al mes' : '/mes'}
+                      </span>
                     )}
                   </div>
                 </div>

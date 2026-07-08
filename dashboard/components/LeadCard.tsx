@@ -214,6 +214,9 @@ export default function LeadCard({ lead, index = 0, onStatusChange }: Props) {
       }}
       onClick={irAlLead}
       onKeyDown={e => {
+        // Solo cuando el foco está en el propio card: los controles internos
+        // (dropdown de estado) no deben disparar la navegación al burbujear.
+        if (e.target !== e.currentTarget) return;
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); irAlLead(); }
       }}
       onMouseEnter={resaltar}

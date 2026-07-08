@@ -85,7 +85,7 @@ export default function LeadsPage() {
   }, []);
 
   const idsConocidos = useRef<Set<string>>(new Set());
-  const pendingLeads = useRef<Lead[]>([]);
+  const pendingLeads = useRef<{ leads: Lead[]; counts: LeadCounts } | null>(null);
   const [leadsNuevos, setLeadsNuevos] = useState(0);
 
   useEffect(() => { cargarLeads(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -98,9 +98,12 @@ export default function LeadsPage() {
   useEffect(() => {
     const iv = setInterval(async () => {
       try {
-        const data = await obtenerLeads(getToken, { limit: PAGE_SIZE, offset: 0 });
-        const nuevos = data.filter(l => !idsConocidos.current.has(l.id));
-        if (nuevos.length > 0) { pendingLeads.current = data; setLeadsNuevos(nuevos.length); }
+        const data = await obtenerLeadsPagina(getToken, { limit: PAGE_SIZE, offset: 0 });
+        const nuevos = data.leads.filter(l => !idsConocidos.current.has(l.id));
+        if (nuevos.length > 0) {
+          pendingLeads.current = { leads: data.leads, counts: data.counts };
+          setLeadsNuevos(nuevos.length);
+        }
       } catch { /* silencioso */ }
     }, 30_000);
     return () => clearInterval(iv);
@@ -140,13 +143,14 @@ export default function LeadsPage() {
   }
 
   function aplicarLeadsNuevos() {
-    if (pendingLeads.current.length > 0) {
-      const data = pendingLeads.current;
-      setLeads(data);
-      setOffset(data.length);
-      setHayMas(data.length === PAGE_SIZE);
-      idsConocidos.current = new Set(data.map(l => l.id));
-      pendingLeads.current = [];
+    const pend = pendingLeads.current;
+    if (pend) {
+      setLeads(pend.leads);
+      setCounts(pend.counts);   // las métricas también se refrescan, no solo la lista
+      setOffset(pend.leads.length);
+      setHayMas(pend.leads.length === PAGE_SIZE);
+      idsConocidos.current = new Set(pend.leads.map(l => l.id));
+      pendingLeads.current = null;
     }
     setLeadsNuevos(0);
   }

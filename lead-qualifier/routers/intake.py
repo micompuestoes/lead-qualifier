@@ -114,10 +114,10 @@ async def public_intake(api_key: str, lead: PublicLeadInput, request: Request, b
             )
         background_tasks.add_task(notificar_tenant, tenant_id, lead, result)
 
+        # OJO: no devolver score/clasificación — es un endpoint público y la
+        # cualificación es información interna de la agencia.
         return {
             "ok": True,
-            "score": result.get("score"),
-            "classification": result.get("classification"),
             "message": "Tu consulta ha sido recibida. En breve nos pondremos en contacto contigo.",
         }
 
