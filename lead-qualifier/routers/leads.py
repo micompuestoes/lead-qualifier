@@ -6,15 +6,17 @@ from typing import Literal, Optional
 
 import anthropic
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from config import FREE_LEAD_LIMIT
 from core.agent import qualify_lead
+from core.csv_export import leads_to_csv
 from core.database import (
     assign_lead, delete_lead, ensure_tenant, get_agent_ids, get_lead_by_id,
     get_lead_count_this_month, get_lead_counts, get_leads_by_email,
-    get_recent_leads, get_tenant, mark_lead_email_sent, set_lead_feedback,
-    update_lead_status,
+    get_leads_export, get_recent_leads, get_tenant, mark_lead_email_sent,
+    set_lead_feedback, update_lead_status,
 )
 from deps import Caller, get_anthropic_client, get_caller, get_tenant_id, require_plan
 from models import LeadInput, LeadOutput
@@ -26,6 +28,18 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["leads"])
 
 EstadoLiteral = Literal["PENDIENTE", "CONTACTADO", "CERRADO", "DESCARTADO"]
+
+CLASIFICACIONES = ("CALIENTE", "TIBIO", "FRÍO")
+ESTADOS = ("PENDIENTE", "CONTACTADO", "CERRADO", "DESCARTADO")
+
+
+def _filtros_validados(q: Optional[str], classification: Optional[str], status: Optional[str]):
+    """Normaliza los filtros de query: los valores desconocidos se ignoran."""
+    return (
+        q.strip() if q and q.strip() else None,
+        classification if classification in CLASIFICACIONES else None,
+        status if status in ESTADOS else None,
+    )
 
 
 class ActualizarEstadoInput(BaseModel):
@@ -130,10 +144,15 @@ async def qualify_lead_endpoint(
 async def list_leads(
     limit: int = 100,
     offset: int = 0,
+    q: Optional[str] = None,
+    classification: Optional[str] = None,
+    status: Optional[str] = None,
     caller: Caller = Depends(get_caller),
 ):
     """
-    Lista los leads, ordenados por fecha desc, con paginación.
+    Lista los leads, ordenados por fecha desc, con paginación y filtros en
+    servidor (q busca en nombre/email/mensaje). Los counts son SIEMPRE los del
+    pipeline completo (sin filtros), para que las métricas no bailen al filtrar.
     El dueño ve todos; un agente del equipo solo ve los suyos ("mis leads").
     """
     ensure_tenant(caller.tenant_id)
@@ -142,7 +161,9 @@ async def list_leads(
     if offset < 0:
         offset = 0
     agente = caller.agent_filter
-    leads = get_recent_leads(limit, tenant_id=caller.tenant_id, offset=offset, agent_id=agente)
+    q, clasif, est = _filtros_validados(q, classification, status)
+    leads = get_recent_leads(limit, tenant_id=caller.tenant_id, offset=offset,
+                             agent_id=agente, q=q, classification=clasif, status=est)
     counts = get_lead_counts(caller.tenant_id, agent_id=agente)
     return {
         "leads": [_serializar_lead(l) for l in leads],
@@ -150,6 +171,31 @@ async def list_leads(
         "counts": counts,
         "scope": "mine" if agente else "all",
     }
+
+
+@router.get("/leads/export")
+async def export_leads(
+    q: Optional[str] = None,
+    classification: Optional[str] = None,
+    status: Optional[str] = None,
+    caller: Caller = Depends(get_caller),
+):
+    """
+    Exporta a CSV TODOS los leads que cumplen los filtros (sin el corte de
+    paginación). Respeta la visibilidad por agente. Solo planes Pro y Agencia.
+    NOTA: registrado antes de /leads/{lead_id} para que 'export' no se
+    interprete como un id.
+    """
+    require_plan(caller.tenant_id, "pro")
+    q, clasif, est = _filtros_validados(q, classification, status)
+    leads = get_leads_export(caller.tenant_id, agent_id=caller.agent_filter,
+                             q=q, classification=clasif, status=est)
+    from datetime import date
+    return Response(
+        content=leads_to_csv(leads),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="leads-{date.today().isoformat()}.csv"'},
+    )
 
 
 @router.get("/leads/{lead_id}")

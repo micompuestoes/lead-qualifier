@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@clerk/nextjs';
-import { obtenerLeads, obtenerLeadsPagina, type LeadCounts } from '@/lib/api';
+import { obtenerLeadsPagina, exportarLeadsCSV, type LeadCounts, type FiltrosLeads } from '@/lib/api';
 import type { Lead, Clasificacion, EstadoLead } from '@/types/lead';
 import { TEMP } from '@/lib/temperature';
 import LeadCard from '@/components/LeadCard';
@@ -34,30 +34,6 @@ const PAGE_SIZE = 24;   // leads por página
 
 // ── Página ────────────────────────────────────────────────────────────────────
 
-// ── CSV export ─────────────────────────────────────────────────────────────────
-
-function generarCSV(leads: Lead[]) {
-  const esc = (s: string | null | undefined) => `"${(s ?? '').replace(/"/g, '""')}"`;
-  const filas = leads.map(l => [
-    esc(l.name), esc(l.email), esc(l.phone),
-    l.classification ?? '', l.score ?? '',
-    l.status ?? '',
-    l.created_at ? new Date(l.created_at).toLocaleDateString('es-ES') : '',
-    esc(l.message),
-  ].join(','));
-  const csv  = ['Nombre,Email,Teléfono,Clasificación,Score,Estado,Fecha,Mensaje', ...filas].join('\n');
-  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = Object.assign(document.createElement('a'), {
-    href: url,
-    download: `leads-${new Date().toISOString().slice(0, 10)}.csv`,
-  });
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a); URL.revokeObjectURL(url);
-}
-
-// ── Página ────────────────────────────────────────────────────────────────────
-
 export default function LeadsPage() {
   const { getToken } = useAuth();
   const { c } = useTheme();
@@ -69,6 +45,7 @@ export default function LeadsPage() {
   const [filtroClasif, setFiltroClasif] = useState<Clasificacion | 'TODAS'>('TODAS');
   const [filtroEstado, setFiltroEstado] = useState<EstadoLead | 'TODOS'>('TODOS');
   const [busqueda, setBusqueda]         = useState('');
+  const [busquedaDebounced, setBusquedaDebounced] = useState('');
   const [busquedaFocus, setBusquedaFocus] = useState(false);
   const [plan, setPlan]                 = useState('free');
   const [offset, setOffset]             = useState(0);
@@ -88,14 +65,31 @@ export default function LeadsPage() {
   const pendingLeads = useRef<{ leads: Lead[]; counts: LeadCounts } | null>(null);
   const [leadsNuevos, setLeadsNuevos] = useState(0);
 
-  useEffect(() => { cargarLeads(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // La búsqueda espera 350 ms de pausa de tecleo antes de ir al servidor
+  useEffect(() => {
+    const t = setTimeout(() => setBusquedaDebounced(busqueda.trim()), 350);
+    return () => clearTimeout(t);
+  }, [busqueda]);
+
+  // Filtros activos → se resuelven en el SERVIDOR (buscan sobre todos los leads)
+  const filtros: FiltrosLeads = {
+    q:              busquedaDebounced || undefined,
+    classification: filtroClasif !== 'TODAS' ? filtroClasif : undefined,
+    status:         filtroEstado !== 'TODOS' ? filtroEstado : undefined,
+  };
+  const hayFiltros = Boolean(filtros.q || filtros.classification || filtros.status);
+
+  // Recarga la primera página cada vez que cambian los filtros (y al montar)
+  useEffect(() => { cargarLeads(); }, [busquedaDebounced, filtroClasif, filtroEstado]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!cargando && leads.length > 0 && idsConocidos.current.size === 0)
       idsConocidos.current = new Set(leads.map(l => l.id));
   }, [cargando, leads]);
 
+  // Polling de leads nuevos — solo sin filtros (con filtros compararía listas distintas)
   useEffect(() => {
+    if (hayFiltros) return;
     const iv = setInterval(async () => {
       try {
         const data = await obtenerLeadsPagina(getToken, { limit: PAGE_SIZE, offset: 0 });
@@ -107,12 +101,12 @@ export default function LeadsPage() {
       } catch { /* silencioso */ }
     }, 30_000);
     return () => clearInterval(iv);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hayFiltros]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function cargarLeads() {
     try {
       setCargando(true); setError(null);
-      const data = await obtenerLeadsPagina(getToken, { limit: PAGE_SIZE, offset: 0 });
+      const data = await obtenerLeadsPagina(getToken, { limit: PAGE_SIZE, offset: 0, ...filtros });
       setLeads(data.leads);
       setCounts(data.counts);
       setScope(data.scope);
@@ -128,15 +122,15 @@ export default function LeadsPage() {
     if (cargandoMas) return;
     try {
       setCargandoMas(true);
-      const data = await obtenerLeads(getToken, { limit: PAGE_SIZE, offset });
+      const data = await obtenerLeadsPagina(getToken, { limit: PAGE_SIZE, offset, ...filtros });
       setLeads(prev => {
         const vistos = new Set(prev.map(l => l.id));
-        const nuevos = data.filter(l => !vistos.has(l.id));
+        const nuevos = data.leads.filter(l => !vistos.has(l.id));
         nuevos.forEach(l => idsConocidos.current.add(l.id));
         return [...prev, ...nuevos];
       });
-      setOffset(prev => prev + data.length);
-      setHayMas(data.length === PAGE_SIZE);
+      setOffset(prev => prev + data.leads.length);
+      setHayMas(data.leads.length === PAGE_SIZE);
     } catch {
       addToast('No se pudieron cargar más leads', 'error');
     } finally { setCargandoMas(false); }
@@ -166,13 +160,12 @@ export default function LeadsPage() {
       return;
     }
     try {
-      // Traer todos los leads (no solo los cargados en pantalla) para exportar
-      const todos = await obtenerLeads(getToken, { limit: 500 });
-      if (todos.length === 0) { addToast('No hay leads que exportar', 'error'); return; }
-      generarCSV(todos);
-      addToast(`${todos.length} leads exportados`, 'success');
-    } catch {
-      addToast('No se pudo exportar', 'error');
+      // El servidor genera el CSV con TODOS los leads (sin corte de paginación),
+      // aplicando los filtros activos: exportas exactamente lo que estás viendo.
+      await exportarLeadsCSV(getToken, filtros);
+      addToast(hayFiltros ? 'CSV exportado (con los filtros aplicados)' : 'CSV exportado', 'success');
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : 'No se pudo exportar', 'error');
     }
   }
 
@@ -185,17 +178,9 @@ export default function LeadsPage() {
 
   // Totales REALES del backend (no solo lo paginado en pantalla)
   const { total, calientes, tibios, frios } = counts;
-  const hayFiltros = filtroClasif !== 'TODAS' || filtroEstado !== 'TODOS' || busqueda !== '';
 
-  const leadsFiltrados = leads.filter(l => {
-    const pasaClasif  = filtroClasif === 'TODAS' || l.classification === filtroClasif;
-    const pasaEstado  = filtroEstado === 'TODOS'  || (l.status ?? 'PENDIENTE') === filtroEstado;
-    const q = busqueda.toLowerCase();
-    const pasaBusqueda = q === '' || [l.name, l.email, l.message].some(
-      f => f?.toLowerCase().includes(q)
-    );
-    return pasaClasif && pasaEstado && pasaBusqueda;
-  });
+  // El filtrado y la búsqueda ya vienen resueltos del servidor
+  const leadsFiltrados = leads;
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -417,6 +402,14 @@ export default function LeadsPage() {
             );
           })}
         </div>
+
+        {/* Nº de resultados cuando hay filtros activos */}
+        {hayFiltros && !cargando && (
+          <span style={{ marginLeft: 'auto', fontSize: 12.5, color: c.text2 }}>
+            {leadsFiltrados.length}{hayMas ? '+' : ''}{' '}
+            {leadsFiltrados.length === 1 ? 'resultado' : 'resultados'}
+          </span>
+        )}
       </div>
 
       {/* ── Contenido ── */}

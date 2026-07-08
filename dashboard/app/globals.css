@@ -80,6 +80,37 @@
   overflow: hidden;
 }
 
+/* ── Acabado premium (detalles globales) ─────────────────────────────────── */
+
+/* Selección de texto en dorado de marca */
+::selection {
+  background: rgba(200, 169, 110, 0.35);
+}
+
+/* Foco visible consistente (teclado): anillo dorado en toda la app */
+:focus-visible {
+  outline: 2px solid rgba(200, 169, 110, 0.7);
+  outline-offset: 2px;
+}
+
+/* Tacto al pulsar cualquier botón */
+button:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+/* Scrollbar sutil acorde al tema (WebKit) */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(200, 169, 110, 0.28);
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(200, 169, 110, 0.5);
+}
+
 /* ── Animaciones ─────────────────────────────────────────────────────────── */
 
 @keyframes toast-in {

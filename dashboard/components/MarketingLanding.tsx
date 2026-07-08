@@ -65,6 +65,25 @@ const PASOS = [
   { n: '03', t: 'Tú cierras la venta', d: 'Llamas primero a quien de verdad va a comprar.' },
 ];
 
+// Mini-bandeja de ejemplo del hero — misma paleta que los badges reales de la app
+const DEMO_LEADS = [
+  {
+    nombre: 'María García', etiqueta: 'CALIENTE', score: 9,
+    detalle: 'Compra · 480.000 € · hipoteca aprobada · quiere visitar esta semana',
+    color: '#b45309', bg: 'rgba(180,83,9,0.08)', borde: 'rgba(180,83,9,0.25)',
+  },
+  {
+    nombre: 'Javier Ruiz', etiqueta: 'TIBIO', score: 6,
+    detalle: 'Alquiler en el centro · presupuesto por confirmar',
+    color: '#9a7a3a', bg: 'rgba(200,169,110,0.14)', borde: 'rgba(200,169,110,0.35)',
+  },
+  {
+    nombre: 'Sofía Romero', etiqueta: 'FRÍO', score: 3,
+    detalle: 'Consulta general, sin operación definida todavía',
+    color: '#3a7a9a', bg: 'rgba(110,168,200,0.1)', borde: 'rgba(110,168,200,0.3)',
+  },
+];
+
 export default function MarketingLanding() {
   const sectionPad: React.CSSProperties = { maxWidth: 1080, margin: '0 auto', padding: '0 24px' };
 
@@ -141,6 +160,65 @@ export default function MarketingLanding() {
             </a>
           </div>
           <p style={{ fontSize: 13, color: '#8a8278', marginTop: 18 }}>Sin tarjeta · Sin permanencia · En español</p>
+
+          {/* ── Vista del producto: así llegan los leads, ya cualificados ── */}
+          <div style={{ maxWidth: 780, margin: '56px auto 0' }}>
+            <div style={{
+              borderRadius: 18, background: '#fff', overflow: 'hidden', textAlign: 'left',
+              border: '1.5px solid rgba(200,169,110,0.28)',
+              boxShadow: '0 24px 70px rgba(26,24,20,0.13), 0 6px 20px rgba(200,169,110,0.12)',
+            }}>
+              {/* Barra de ventana */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '11px 16px',
+                background: '#faf7f1', borderBottom: '1px solid rgba(200,169,110,0.16)',
+              }}>
+                {['#e2b9b0', '#e6cd97', '#bcd8b4'].map(col => (
+                  <span key={col} style={{ width: 10, height: 10, borderRadius: '50%', background: col }} />
+                ))}
+                <span style={{ marginLeft: 'auto', fontSize: 11, color: '#8a8278', fontFamily: 'monospace' }}>
+                  app.inmobia.es/leads
+                </span>
+              </div>
+              {/* Mini tarjetas de lead */}
+              <div style={{
+                display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(215px, 1fr))',
+                gap: 12, padding: 16,
+              }}>
+                {DEMO_LEADS.map(d => (
+                  <div key={d.nombre} style={{
+                    borderRadius: 12, border: '1px solid rgba(200,169,110,0.2)',
+                    padding: 14, background: '#fff',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {d.nombre}
+                      </span>
+                      <span style={{
+                        fontSize: 9.5, fontWeight: 700, letterSpacing: '0.05em', flexShrink: 0,
+                        padding: '2px 7px', borderRadius: 6,
+                        background: d.bg, color: d.color, border: `1px solid ${d.borde}`,
+                      }}>
+                        {d.etiqueta}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: 11.5, color: '#8a8278', lineHeight: 1.5, marginBottom: 11, minHeight: 34 }}>
+                      {d.detalle}
+                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ flex: 1, height: 4, borderRadius: 2, background: 'rgba(200,169,110,0.12)', overflow: 'hidden' }}>
+                        <div style={{ width: `${d.score * 10}%`, height: '100%', borderRadius: 2, background: d.color }} />
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: d.color }}>{d.score}/10</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <p style={{ fontSize: 12.5, color: '#8a8278', marginTop: 14 }}>
+              Así llega cada consulta: puntuada, clasificada y con la respuesta ya redactada.
+            </p>
+          </div>
         </div>
       </section>
 

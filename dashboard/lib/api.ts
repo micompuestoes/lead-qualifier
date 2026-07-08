@@ -61,7 +61,16 @@ async function handleResponse<T>(res: Response): Promise<T> {
 export interface LeadCounts { total: number; calientes: number; tibios: number; frios: number }
 export interface LeadsPagina { leads: Lead[]; total: number; counts: LeadCounts; scope: 'mine' | 'all' }
 
+// Filtros que se resuelven en el SERVIDOR (búsqueda sobre todos los leads, no solo los cargados)
+export interface FiltrosLeads { q?: string; classification?: string; status?: string }
+
 const COUNTS_VACIO: LeadCounts = { total: 0, calientes: 0, tibios: 0, frios: 0 };
+
+function filtrosAQuery(qs: URLSearchParams, filtros?: FiltrosLeads) {
+  if (filtros?.q)              qs.set('q', filtros.q);
+  if (filtros?.classification) qs.set('classification', filtros.classification);
+  if (filtros?.status)         qs.set('status', filtros.status);
+}
 
 export async function obtenerLeads(
   getToken: GetToken,
@@ -78,13 +87,15 @@ export async function obtenerLeads(
 
 // Igual que obtenerLeads pero devuelve también los totales REALES por temperatura
 // y el ámbito (mine/all), para que las métricas no mientan con la paginación.
+// Admite filtros server-side (q/classification/status).
 export async function obtenerLeadsPagina(
   getToken: GetToken,
-  opts?: { limit?: number; offset?: number },
+  opts?: { limit?: number; offset?: number } & FiltrosLeads,
 ): Promise<LeadsPagina> {
   const qs = new URLSearchParams();
   if (opts?.limit  != null) qs.set('limit',  String(opts.limit));
   if (opts?.offset != null) qs.set('offset', String(opts.offset));
+  filtrosAQuery(qs, opts);
   const path = '/leads' + (qs.toString() ? `?${qs.toString()}` : '');
   const res = await apiFetch(path, getToken, { cache: 'no-store' } as RequestInit);
   const data = await handleResponse<{ leads: Lead[]; total?: number; counts?: LeadCounts; scope?: 'mine' | 'all' }>(res);
@@ -122,6 +133,23 @@ export async function actualizarEstado(
     body: JSON.stringify(payload),
   });
   return handleResponse<Lead>(res);
+}
+
+// Descarga el CSV con TODOS los leads que cumplen los filtros (lo genera el servidor)
+export async function exportarLeadsCSV(getToken: GetToken, filtros?: FiltrosLeads): Promise<void> {
+  const qs = new URLSearchParams();
+  filtrosAQuery(qs, filtros);
+  const path = '/leads/export' + (qs.toString() ? `?${qs.toString()}` : '');
+  const res = await apiFetch(path, getToken);
+  if (!res.ok) return handleResponse<never>(res);   // lanza con el mensaje del servidor
+  const blob = await res.blob();
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement('a'), {
+    href: url,
+    download: `leads-${new Date().toISOString().slice(0, 10)}.csv`,
+  });
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
 // Envía el email de respuesta al lead (borrador aprobado, opcionalmente editado)

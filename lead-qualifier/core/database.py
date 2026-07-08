@@ -818,18 +818,52 @@ def get_leads_by_email(email: str, tenant_id: str, agent_id: Optional[str] = Non
     return [_row_a_dict(r) for r in rows]
 
 
-def get_recent_leads(limit: int = 100, tenant_id: str = "legacy", offset: int = 0,
-                     agent_id: Optional[str] = None) -> list:
-    """
-    Leads del tenant por fecha desc, con paginación. Con agent_id, solo los
-    asignados a ese agente ("mis leads").
-    """
-    sql = "SELECT * FROM leads WHERE tenant_id = :tid"
-    params = {"limit": limit, "tid": tenant_id, "offset": offset}
+def _filtro_leads(tenant_id: str, agent_id: Optional[str] = None, q: Optional[str] = None,
+                  classification: Optional[str] = None, status: Optional[str] = None):
+    """Construye el WHERE (+ params) común para listar/exportar leads con filtros."""
+    sql = " FROM leads WHERE tenant_id = :tid"
+    params: dict = {"tid": tenant_id}
     if agent_id is not None:
         sql += " AND assigned_to = :aid"
         params["aid"] = agent_id
-    sql += " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
+    if classification:
+        sql += " AND classification = :cl"
+        params["cl"] = classification
+    if status:
+        sql += " AND status = :st"
+        params["st"] = status
+    if q and q.strip():
+        # Escapar los comodines de LIKE que vengan en el texto del usuario
+        term = (q.strip().lower()
+                .replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_"))
+        sql += (" AND (LOWER(name) LIKE :q ESCAPE '\\'"
+                " OR LOWER(email) LIKE :q ESCAPE '\\'"
+                " OR LOWER(message) LIKE :q ESCAPE '\\')")
+        params["q"] = f"%{term}%"
+    return sql, params
+
+
+def get_recent_leads(limit: int = 100, tenant_id: str = "legacy", offset: int = 0,
+                     agent_id: Optional[str] = None, q: Optional[str] = None,
+                     classification: Optional[str] = None, status: Optional[str] = None) -> list:
+    """
+    Leads del tenant por fecha desc, con paginación y filtros opcionales
+    (búsqueda en nombre/email/mensaje, clasificación y estado). Con agent_id,
+    solo los asignados a ese agente ("mis leads").
+    """
+    where, params = _filtro_leads(tenant_id, agent_id, q, classification, status)
+    params.update({"limit": limit, "offset": offset})
+    sql = "SELECT *" + where + " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
+    with engine.connect() as conn:
+        rows = conn.execute(text(sql), params).fetchall()
+    return [_row_a_dict(r) for r in rows]
+
+
+def get_leads_export(tenant_id: str, agent_id: Optional[str] = None, q: Optional[str] = None,
+                     classification: Optional[str] = None, status: Optional[str] = None) -> list:
+    """Todos los leads (sin paginar) que cumplen los filtros — para el export CSV."""
+    where, params = _filtro_leads(tenant_id, agent_id, q, classification, status)
+    sql = "SELECT *" + where + " ORDER BY created_at DESC"
     with engine.connect() as conn:
         rows = conn.execute(text(sql), params).fetchall()
     return [_row_a_dict(r) for r in rows]
