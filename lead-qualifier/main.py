@@ -21,6 +21,7 @@ Variables de entorno necesarias:
 
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -79,10 +80,27 @@ _scheduler = AsyncIOScheduler(timezone="UTC")
 # ─────────────────────────────────────────────
 # Ciclo de vida: inicializar BD, cliente IA y scheduler al arrancar
 # ─────────────────────────────────────────────
+def _init_db_con_reintentos(intentos: int = 5, espera_s: int = 5) -> None:
+    """
+    La BD puede estar reiniciándose justo durante un deploy (típico en Render).
+    Reintentar unas veces antes de rendirse evita arranques fallidos transitorios.
+    """
+    for i in range(1, intentos + 1):
+        try:
+            init_db()
+            return
+        except Exception as exc:
+            if i == intentos:
+                logger.error("BD inaccesible tras %d intentos. Revisa DATABASE_URL y el estado de la base de datos.", intentos)
+                raise
+            logger.warning("BD no disponible (intento %d/%d): %s — reintento en %ds", i, intentos, exc, espera_s)
+            time.sleep(espera_s)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Arrancando Lead Qualifier API (multi-tenant)")
-    init_db()
+    _init_db_con_reintentos()
 
     if not os.getenv("ANTHROPIC_API_KEY"):
         logger.error("ANTHROPIC_API_KEY no definida en .env")

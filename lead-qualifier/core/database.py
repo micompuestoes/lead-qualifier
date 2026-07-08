@@ -31,8 +31,19 @@ def _crear_engine():
     if database_url:
         if database_url.startswith("postgres://"):
             database_url = database_url.replace("postgres://", "postgresql://", 1)
+        # Render/Heroku exigen SSL en la URL externa; si no viene, lo forzamos.
+        connect_args = {"connect_timeout": 10}
+        if "sslmode" not in database_url:
+            connect_args["sslmode"] = "require"
         logger.info("BD: PostgreSQL (produccion)")
-        return create_engine(database_url)
+        return create_engine(
+            database_url,
+            pool_pre_ping=True,   # detecta conexiones muertas antes de usarlas
+            pool_recycle=300,     # recicla conexiones de >5 min (Render corta las inactivas)
+            pool_size=5,
+            max_overflow=5,
+            connect_args=connect_args,
+        )
 
     db_path = Path(__file__).parent / "leads.db"
     logger.info("BD: SQLite local en %s", db_path)
