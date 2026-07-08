@@ -352,6 +352,12 @@ export default function LeadDetallePage() {
               {formatearFecha(lead.processed_at)}
             </span>
           )}
+          {lead.followup_sent_at && (
+            <span style={{ fontSize: 12, color: '#9a7a3a' }}>
+              <span style={{ color: c.text3 }}>Seguimiento enviado · </span>
+              {formatearFecha(lead.followup_sent_at)}
+            </span>
+          )}
         </div>
       </div>
 

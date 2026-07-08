@@ -57,6 +57,31 @@ def send_email(
     return False
 
 
+def build_followup_email(lead_name: str, agency_name: str) -> tuple:
+    """
+    Construye el (asunto, cuerpo) del recordatorio de seguimiento que se envía
+    UNA sola vez a un lead que sigue pendiente días después de su consulta.
+    Plantilla determinista (sin IA): barata, predecible y segura para salir
+    en nombre de la agencia.
+    """
+    primer_nombre = lead_name.split()[0] if lead_name.strip() else "de nuevo"
+    firma = (agency_name or "").strip() or "el equipo"
+
+    asunto = "Seguimos pendientes de tu consulta"
+    if agency_name and agency_name.strip():
+        asunto += f" · {agency_name.strip()}"
+
+    cuerpo = (
+        f"Hola {primer_nombre},\n\n"
+        "Hace unos días recibimos tu consulta y no queremos que se quede sin respuesta. "
+        "Seguimos a tu disposición: contéstanos a este email o, si lo prefieres, "
+        "déjanos un teléfono y te llamamos cuando te venga bien.\n\n"
+        "Si ya no lo necesitas, no pasa nada — no volveremos a insistir.\n\n"
+        f"Un saludo,\n{firma}"
+    )
+    return asunto, cuerpo
+
+
 def _send_via_smtp(
     to_email: str,
     to_name: str,

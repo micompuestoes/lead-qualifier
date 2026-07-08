@@ -101,7 +101,8 @@ Los guards `require_plan` / `require_admin` viven en `deps.py`.
 |---|---|---|
 | `sync_imap_todos` | cada 10 min | Descarga emails no leídos de cada tenant y los cualifica |
 | `enviar_resumenes_semanales` | lunes 08:00 UTC | Digest semanal de actividad por agencia |
-| `avisar_leads_sin_contactar` | diario 09:00 UTC | Avisa de leads buenos en estado `PENDIENTE` |
+| `avisar_leads_sin_contactar` | diario 09:00 UTC | Avisa al agente de leads buenos en `PENDIENTE` |
+| `enviar_seguimientos` | diario 10:00 UTC | Recordatorio único al lead que sigue pendiente a los 3-10 días (opt-in por tenant) |
 
 ## Pruebas
 

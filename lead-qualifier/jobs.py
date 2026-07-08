@@ -17,14 +17,17 @@ from datetime import datetime, timedelta, timezone
 import runtime
 from core.agent import qualify_lead
 from core.database import (
-    get_all_tenants, get_digest_counts, get_stale_pending_leads, get_tenant,
-    get_tenants_with_imap, update_imap_last_sync,
+    get_all_tenants, get_digest_counts, get_leads_for_followup,
+    get_stale_pending_leads, get_tenant, get_tenants_with_imap,
+    mark_followup_sent, update_imap_last_sync,
 )
 from models import LeadInput
 from notifications import notificar_tenant
 from security import descifrar
 from services.email_imap import obtener_no_leidos
-from services.email_sender import send_stale_leads_alert, send_weekly_digest
+from services.email_sender import (
+    build_followup_email, send_email, send_stale_leads_alert, send_weekly_digest,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +88,46 @@ async def enviar_resumenes_semanales() -> None:
 async def avisar_leads_sin_contactar() -> None:
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(None, _leads_sin_contactar_sync)
+
+
+# ─────────────────────────────────────────────
+# Seguimiento automático al lead (opt-in por tenant)
+# ─────────────────────────────────────────────
+
+def _seguimientos_sync() -> None:
+    """
+    Envía UN recordatorio amable al lead que sigue PENDIENTE días después de su
+    consulta (score >= 5, respuesta inicial enviada, sin seguimiento previo).
+    Solo para tenants que lo han activado explícitamente (followup_enabled).
+    """
+    enviados = 0
+    for t in get_all_tenants():
+        if t.get("status") != "active" or not t.get("followup_enabled"):
+            continue
+        for lead in get_leads_for_followup(t["id"]):
+            asunto, cuerpo = build_followup_email(lead["name"], t.get("name") or "")
+            try:
+                ok = send_email(
+                    to_email=lead["email"],
+                    to_name=lead["name"],
+                    subject=asunto,
+                    body=cuerpo,
+                    reply_to=t.get("notify_email") or t.get("email"),
+                    from_name=t.get("name"),
+                )
+            except Exception as exc:
+                logger.warning("Seguimiento falló (lead %s, tenant %s): %s", lead["id"], t["id"], exc)
+                continue
+            # Solo se marca si el envío fue OK: si falla, se reintenta al día siguiente.
+            if ok:
+                mark_followup_sent(lead["id"], t["id"])
+                enviados += 1
+    logger.info("Seguimientos automáticos enviados: %d", enviados)
+
+
+async def enviar_seguimientos() -> None:
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, _seguimientos_sync)
 
 
 # ─────────────────────────────────────────────

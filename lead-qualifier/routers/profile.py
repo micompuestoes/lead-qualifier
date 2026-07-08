@@ -32,6 +32,7 @@ class WhatsappConfigInput(BaseModel):
 class AiSettingsInput(BaseModel):
     auto_send: bool = True
     brand_voice: str = ""
+    followup_enabled: bool = False
 
 
 @router.get("/me")
@@ -55,6 +56,7 @@ async def get_my_profile(tenant_id: str = Depends(get_tenant_id)):
         "whatsapp_enabled": bool(tenant.get("whatsapp_enabled")),
         "auto_send_email":  True if tenant.get("auto_send_email") is None else bool(tenant.get("auto_send_email")),
         "brand_voice":      tenant.get("brand_voice") or "",
+        "followup_enabled": bool(tenant.get("followup_enabled")),
     }
 
 
@@ -98,8 +100,11 @@ async def save_ai_settings(
     """
     ensure_tenant(tenant_id)
     voz = body.brand_voice.strip()[:500]  # límite defensivo para el prompt
-    update_ai_settings(tenant_id, body.auto_send, voz)
-    return {"ok": True, "auto_send_email": body.auto_send, "brand_voice": voz}
+    update_ai_settings(tenant_id, body.auto_send, voz, body.followup_enabled)
+    return {
+        "ok": True, "auto_send_email": body.auto_send, "brand_voice": voz,
+        "followup_enabled": body.followup_enabled,
+    }
 
 
 @router.post("/me/whatsapp")

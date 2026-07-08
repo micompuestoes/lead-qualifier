@@ -58,7 +58,7 @@ export default function PerfilPage() {
   const [waForm, setWaForm]       = useState({ number: '', enabled: false });
   const [waGuardando, setWaGuardando] = useState(false);
 
-  const [aiForm, setAiForm]       = useState({ auto_send: true, brand_voice: '' });
+  const [aiForm, setAiForm]       = useState({ auto_send: true, brand_voice: '', followup_enabled: false });
   const [aiGuardando, setAiGuardando] = useState(false);
 
   const [equipo, setEquipo]               = useState<TeamMember[]>([]);
@@ -164,7 +164,11 @@ export default function PerfilPage() {
         setPerfil(data);
         setForm({ name: data.name ?? '', notify_email: data.notify_email ?? '' });
         setWaForm({ number: data.whatsapp_number ?? '', enabled: !!data.whatsapp_enabled });
-        setAiForm({ auto_send: data.auto_send_email !== false, brand_voice: data.brand_voice ?? '' });
+        setAiForm({
+          auto_send: data.auto_send_email !== false,
+          brand_voice: data.brand_voice ?? '',
+          followup_enabled: !!data.followup_enabled,
+        });
         if (resImap.ok) setImap(await resImap.json());
         if (resTeam.ok) { const t = await resTeam.json(); setEquipo(t.members ?? []); }
       } catch {
@@ -211,7 +215,11 @@ export default function PerfilPage() {
       });
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail ?? 'Error al guardar'); }
       const data = await res.json();
-      setAiForm({ auto_send: !!data.auto_send_email, brand_voice: data.brand_voice ?? '' });
+      setAiForm({
+        auto_send: !!data.auto_send_email,
+        brand_voice: data.brand_voice ?? '',
+        followup_enabled: !!data.followup_enabled,
+      });
       addToast(data.auto_send_email
         ? 'Respuestas automáticas activadas'
         : 'Modo revisión activado: los emails quedarán como borrador', 'success');
@@ -531,6 +539,29 @@ export default function PerfilPage() {
                 );
               })}
             </div>
+
+            {/* Seguimiento automático */}
+            <label className="flex items-start gap-3 rounded-xl px-4 py-3 cursor-pointer transition-all"
+              style={{
+                border: aiForm.followup_enabled ? '1.5px solid #c8a96e' : `1.5px solid ${c.inputBorder}`,
+                background: aiForm.followup_enabled ? 'rgba(200,169,110,0.07)' : 'transparent',
+              }}>
+              <input
+                type="checkbox"
+                checked={aiForm.followup_enabled}
+                onChange={e => setAiForm(p => ({ ...p, followup_enabled: e.target.checked }))}
+                style={{ marginTop: 3, width: 15, height: 15, accentColor: '#c8a96e', cursor: 'pointer', flexShrink: 0 }}
+              />
+              <span>
+                <span className="text-sm font-semibold block" style={{ color: c.text1 }}>
+                  Seguimiento automático
+                </span>
+                <span className="text-xs" style={{ color: c.text2, lineHeight: 1.5 }}>
+                  Si un lead interesante sigue pendiente a los 3 días, le enviamos un único
+                  recordatorio amable en tu nombre. El 80% de los cierres vienen del seguimiento.
+                </span>
+              </span>
+            </label>
 
             {/* Voz de marca */}
             <div>

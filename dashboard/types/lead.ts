@@ -36,6 +36,7 @@ export interface Lead {
   assigned_to?: string | null;           // Clerk user_id del agente asignado
   email_sent?: number | boolean | null;  // 0/false → borrador pendiente de enviar
   score_feedback?: number | null;        // 1 = acierto, -1 = fallo, null = sin valorar
+  followup_sent_at?: string | null;      // fecha del recordatorio automático (si se envió)
   created_at: string;
   processed_at: string | null;
 }

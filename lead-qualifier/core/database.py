@@ -127,6 +127,9 @@ def init_db() -> None:
         "ALTER TABLE leads ADD COLUMN email_sent INTEGER",
         # Feedback del agente sobre la clasificación (1 = acierto, -1 = fallo)
         "ALTER TABLE leads ADD COLUMN score_feedback INTEGER",
+        # Seguimiento automático: recordatorio al lead si sigue pendiente (opt-in)
+        "ALTER TABLE tenants ADD COLUMN followup_enabled INTEGER DEFAULT 0",
+        "ALTER TABLE leads ADD COLUMN followup_sent_at TEXT",
     ]:
         try:
             with engine.begin() as conn:
@@ -270,18 +273,21 @@ def update_tenant_profile(tenant_id: str, name: str, notify_email: str) -> None:
     logger.info("Perfil actualizado para tenant %s: name=%s, notify=%s", tenant_id, name, notify_email)
 
 
-def update_ai_settings(tenant_id: str, auto_send: bool, brand_voice: str) -> None:
-    """Guarda si el email al lead se envía solo o queda en borrador, y la voz de marca."""
+def update_ai_settings(tenant_id: str, auto_send: bool, brand_voice: str,
+                       followup_enabled: bool = False) -> None:
+    """Guarda el modo de envío del email, la voz de marca y el seguimiento automático."""
     with engine.begin() as conn:
         conn.execute(
             text("""
                 UPDATE tenants
-                SET auto_send_email = :auto, brand_voice = :voz
+                SET auto_send_email = :auto, brand_voice = :voz, followup_enabled = :fup
                 WHERE id = :id
             """),
-            {"auto": 1 if auto_send else 0, "voz": brand_voice or None, "id": tenant_id},
+            {"auto": 1 if auto_send else 0, "voz": brand_voice or None,
+             "fup": 1 if followup_enabled else 0, "id": tenant_id},
         )
-    logger.info("Ajustes de IA actualizados para tenant %s (auto_send=%s)", tenant_id, auto_send)
+    logger.info("Ajustes de IA actualizados para tenant %s (auto_send=%s, followup=%s)",
+                tenant_id, auto_send, followup_enabled)
 
 
 def update_whatsapp_config(tenant_id: str, number: Optional[str], enabled: bool) -> None:
@@ -912,6 +918,42 @@ def get_stale_pending_leads(tenant_id: str, dias: int = 2, min_score: int = 5) -
             {"t": tenant_id, "ms": min_score, "lim": limite},
         ).fetchall()
     return [dict(r._mapping) for r in rows]
+
+
+def get_leads_for_followup(tenant_id: str, dias_min: int = 3, dias_max: int = 10,
+                           min_score: int = 5, limit: int = 20) -> list:
+    """
+    Leads candidatos a recordatorio: buenos (score >= min_score), aún PENDIENTE,
+    cuya respuesta inicial SÍ se envió, sin seguimiento previo, y con una
+    antigüedad entre dias_min y dias_max (la ventana evita reflotar leads viejos).
+    """
+    from datetime import datetime, timezone, timedelta
+    now = datetime.now(timezone.utc)
+    hasta = (now - timedelta(days=dias_min)).isoformat()
+    desde = (now - timedelta(days=dias_max)).isoformat()
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT id, name, email FROM leads
+                WHERE tenant_id = :t AND status = 'PENDIENTE'
+                  AND followup_sent_at IS NULL AND email_sent = 1
+                  AND score >= :ms
+                  AND created_at <= :hasta AND created_at >= :desde
+                ORDER BY score DESC, created_at ASC
+                LIMIT :lim
+            """),
+            {"t": tenant_id, "ms": min_score, "hasta": hasta, "desde": desde, "lim": limit},
+        ).fetchall()
+    return [{"id": r[0], "name": r[1], "email": r[2]} for r in rows]
+
+
+def mark_followup_sent(lead_id: str, tenant_id: str) -> None:
+    """Registra que el lead ya recibió su (único) recordatorio de seguimiento."""
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE leads SET followup_sent_at = :ts WHERE id = :id AND tenant_id = :tid"),
+            {"ts": datetime.now(timezone.utc).isoformat(), "id": lead_id, "tid": tenant_id},
+        )
 
 
 def mark_lead_email_sent(lead_id: str, tenant_id: str, body: Optional[str] = None) -> None:
