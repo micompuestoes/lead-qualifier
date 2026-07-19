@@ -177,6 +177,15 @@ def init_db() -> None:
             )
         """))
 
+    # Eventos de Stripe ya procesados (idempotencia del webhook: Stripe reintenta)
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS stripe_events (
+                id          TEXT PRIMARY KEY,
+                created_at  TEXT NOT NULL
+            )
+        """))
+
     # Índices para rendimiento
     with engine.begin() as conn:
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_leads_email     ON leads (email)"))
@@ -344,6 +353,24 @@ def get_tenant_by_stripe_customer(customer_id: str) -> Optional[dict]:
             {"cid": customer_id},
         ).fetchone()
     return dict(row._mapping) if row else None
+
+
+def registrar_stripe_event(event_id: str) -> bool:
+    """
+    Registro idempotente de eventos de Stripe: devuelve True si es la primera
+    vez que vemos este evento (hay que procesarlo) y False si ya se procesó
+    (reintento de Stripe → ignorar). El INSERT con ON CONFLICT lo hace atómico.
+    """
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("""
+                INSERT INTO stripe_events (id, created_at)
+                VALUES (:id, :ts)
+                ON CONFLICT (id) DO NOTHING
+            """),
+            {"id": event_id, "ts": datetime.now(timezone.utc).isoformat()},
+        )
+    return result.rowcount > 0
 
 
 def get_lead_count_this_month(tenant_id: str) -> int:

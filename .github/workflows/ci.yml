@@ -21,9 +21,10 @@ jobs:
         with:
           python-version: "3.11"
 
-      # Los tests de tools.py son stdlib puro: solo hace falta pytest.
-      - name: Instalar pytest
-        run: pip install pytest
+      # Suite completa: unitarios (stdlib puro) + integración de la API con
+      # TestClient (necesita las dependencias reales del backend).
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt pytest
 
       - name: Ejecutar tests
         run: pytest -q

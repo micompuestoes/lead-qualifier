@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from core.database import (
     add_notification, disable_imap, ensure_tenant, get_agent_ids, get_tenant,
-    get_tenant_by_stripe_customer, set_tenant_plan,
+    get_tenant_by_stripe_customer, registrar_stripe_event, set_tenant_plan,
 )
 from deps import get_tenant_id
 
@@ -202,6 +202,13 @@ async def stripe_webhook(request: Request):
     except stripe.SignatureVerificationError as exc:
         logger.warning("Firma de webhook inválida: %s", exc)
         raise HTTPException(status_code=400, detail="Firma inválida")
+
+    # Idempotencia: Stripe reintenta los webhooks; el mismo evento no se
+    # procesa dos veces (evita duplicar notificaciones o cambios de plan).
+    event_id = event.get("id")
+    if event_id and not registrar_stripe_event(event_id):
+        logger.info("Webhook %s ya procesado — ignorado (reintento de Stripe)", event_id)
+        return {"ok": True, "duplicate": True}
 
     etype = event.get("type", "")
     obj   = event.get("data", {}).get("object", {})
