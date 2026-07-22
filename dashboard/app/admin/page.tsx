@@ -34,9 +34,24 @@ export default async function AdminPage() {
   // dejar fuera al admin legítimo.
   const superAdminId = process.env.SUPER_ADMIN_USER_ID?.trim();
   if (superAdminId && userId !== superAdminId) {
+    // Se muestra el ID del propio visitante para poder configurar el acceso
+    // sin adivinar: es SU id (dato no sensible para él mismo) y es el valor
+    // exacto que debe ir en SUPER_ADMIN_USER_ID (ojo: las instancias Dev y
+    // Prod de Clerk asignan IDs distintos a la misma persona).
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p style={{ color: '#7a7468' }}>No tienes acceso a esta página.</p>
+        <div style={{ textAlign: 'center', color: '#7a7468' }}>
+          <p style={{ marginBottom: 10 }}>No tienes acceso a esta página.</p>
+          <p style={{ fontSize: 13 }}>
+            Tu ID de usuario es{' '}
+            <code style={{ fontFamily: 'monospace', background: 'rgba(122,116,104,0.1)', padding: '2px 6px', borderRadius: 6 }}>
+              {userId}
+            </code>
+            <br />
+            Si eres el administrador, pon exactamente ese valor en{' '}
+            <code style={{ fontFamily: 'monospace' }}>SUPER_ADMIN_USER_ID</code> (Vercel y Render) y redespliega.
+          </p>
+        </div>
       </div>
     );
   }
