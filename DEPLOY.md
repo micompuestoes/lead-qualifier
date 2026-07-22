@@ -42,7 +42,10 @@ Si alguna clave se ha compartido alguna vez, rótala antes de lanzar:
 ## 3. Stripe (pagos)
 
 - [ ] Activar el modo **Live**.
-- [ ] Crear 2 productos con precio recurrente mensual: **Pro (49 €)** y **Agencia (99 €)**.
+- [ ] Crear 2 productos con precio recurrente mensual: **Pro (49 €)** y **Agencia (49 €/agente)**.
+  - El de Agencia debe ser un precio **por unidad** (per-seat): al crear el precio, cantidad
+    ajustable/licencia por unidad. El backend pasa `quantity = nº de agentes` en el checkout
+    y sincroniza los asientos (con prorrateo) al añadir o quitar miembros del equipo.
 - [ ] Copiar los **Price ID** → `STRIPE_PRICE_PRO` y `STRIPE_PRICE_AGENCIA`.
 - [ ] Crear un **webhook** apuntando a `https://<tu-api>/billing/webhook` con los eventos:
   `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`,

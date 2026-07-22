@@ -1,7 +1,9 @@
 // Fuente ÚNICA de los planes — usada por la landing y por la página de precios,
 // para que no vuelvan a desincronizarse.
-// Nota: Agencia se factura por asiento en Stripe; el importe mostrado es la base
-// por agente (ajústalo cuando definas el precio por asiento definitivo).
+// Agencia se factura por asiento (49€/agente): mismo precio unitario que Pro
+// para que a nadie le salga más barato Agencia yendo solo (no canibaliza Pro),
+// y una agencia de 2 agentes queda en ~99€, el precio que siempre se anunció.
+// Si cambias el importe aquí, cambia también el precio en Stripe (STRIPE_PRICE_AGENCIA).
 
 export interface Plan {
   id: 'free' | 'pro' | 'agencia';
@@ -46,7 +48,7 @@ export const PLANS: Plan[] = [
   {
     id: 'agencia',
     nombre: 'Agencia',
-    precio: 99,
+    precio: 49,
     descripcion: 'Para dirigir un equipo',
     porAsiento: true,
     features: [
@@ -57,5 +59,6 @@ export const PLANS: Plan[] = [
       'Estadísticas avanzadas',
       'Soporte prioritario',
     ],
+    limitacion: 'Se factura por agente activo: el importe se ajusta solo al añadir o quitar miembros',
   },
 ];
