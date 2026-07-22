@@ -41,7 +41,7 @@ async def get_my_profile(tenant_id: str = Depends(get_tenant_id)):
     ensure_tenant(tenant_id)
     tenant = get_tenant(tenant_id)
     # No exponer campos sensibles innecesarios
-    admin_id = os.getenv("SUPER_ADMIN_USER_ID", "")
+    admin_id = os.getenv("SUPER_ADMIN_USER_ID", "").strip()
     return {
         "id":           tenant["id"],
         "name":         tenant.get("name", ""),

@@ -30,7 +30,9 @@ export default async function AdminPage() {
   if (!userId) redirect('/sign-in');
 
   // Solo el owner puede acceder. Configura SUPER_ADMIN_USER_ID en Vercel.
-  const superAdminId = process.env.SUPER_ADMIN_USER_ID;
+  // trim(): un espacio o salto de línea colado al pegar la variable no debe
+  // dejar fuera al admin legítimo.
+  const superAdminId = process.env.SUPER_ADMIN_USER_ID?.trim();
   if (superAdminId && userId !== superAdminId) {
     return (
       <div className="flex items-center justify-center min-h-screen">

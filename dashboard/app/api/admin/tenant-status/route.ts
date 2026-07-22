@@ -12,7 +12,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   // Solo el super admin (si está configurado)
-  const superAdminId = process.env.SUPER_ADMIN_USER_ID;
+  const superAdminId = process.env.SUPER_ADMIN_USER_ID?.trim();
   if (superAdminId && userId !== superAdminId) {
     return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 });
   }
