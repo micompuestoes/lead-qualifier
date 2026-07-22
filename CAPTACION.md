@@ -15,6 +15,29 @@ El dolor que resuelves: **"se me escapan clientes porque no respondo a tiempo y 
 
 ---
 
+## 🔥 Empieza aquí: la prueba de las 20 agencias (2 semanas)
+
+Antes del plan de 30 días, corre este experimento. Su único objetivo es responder
+con datos a la pregunta "¿alguien pagaría por esto?" — y darte los primeros
+testimonios reales para la landing.
+
+1. **Día 1:** lista de 20 inmobiliarias de tu zona (Google Maps → web → email/teléfono).
+   Cercanas mejor: la demo presencial convierte el doble y puedes pedir referidos.
+2. **Días 2-10:** contacta a 2-3 al día con los guiones de abajo. Oferta simple:
+   *"Te configuro gratis un asistente que responde a tus leads en 1 minuto.
+   Un mes sin pagar nada. Te lo enseño en 15 minutos."*
+3. **En cada demo:** sigue "La demo de 10 minutos" (más abajo). El paso que cierra:
+   que envíen una consulta real suya desde su móvil y la vean entrar cualificada.
+4. **Día 30 (para cada una que activaste):** llamada corta → ¿cuántos leads entraron?
+   ¿respondió bien? → pide el paso a Pro.
+
+**Criterio de éxito:** 20 contactos → ≥5 demos → **≥2 de pago al mes**. Si se cumple,
+el modelo funciona: escala al plan de 30 días. Si nadie paga, apunta la razón exacta
+que te den (precio, desconfianza, "ya tengo CRM"…): esa lista vale más que cualquier
+opinión — se corrige el producto o el mensaje, no se abandona a ciegas.
+
+---
+
 ## 📍 Canales (España), por orden de eficacia
 
 1. **Outreach directo en LinkedIn** — busca "agente inmobiliario", "API", "asesor inmobiliario" + ciudad. Conecta y escribe. Gratísimo y muy efectivo.
