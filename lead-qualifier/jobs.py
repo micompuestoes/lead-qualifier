@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 import runtime
 from core.agent import qualify_lead
 from core.database import (
-    get_all_tenants, get_digest_counts, get_leads_for_followup,
+    acquire_job_lock, get_all_tenants, get_digest_counts, get_leads_for_followup,
     get_stale_pending_leads, get_tenant, get_tenants_with_imap,
     mark_followup_sent, update_imap_last_sync,
 )
@@ -30,6 +30,24 @@ from services.email_sender import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ─────────────────────────────────────────────
+# Periodos para el lock de jobs (ver acquire_job_lock):
+# con varias instancias, solo una ejecuta cada (job, periodo).
+# ─────────────────────────────────────────────
+
+def _periodo_diario() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def _periodo_semanal() -> str:
+    return datetime.now(timezone.utc).strftime("%G-W%V")  # semana ISO, ej. 2026-W30
+
+
+def _periodo_10min() -> str:
+    now = datetime.now(timezone.utc)
+    return now.strftime("%Y-%m-%dT%H:") + f"{now.minute // 10}0"
 
 
 # ─────────────────────────────────────────────
@@ -81,11 +99,15 @@ def _leads_sin_contactar_sync() -> None:
 
 
 async def enviar_resumenes_semanales() -> None:
+    if not acquire_job_lock("resumen_semanal", _periodo_semanal()):
+        return
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(None, _resumenes_semanales_sync)
 
 
 async def avisar_leads_sin_contactar() -> None:
+    if not acquire_job_lock("leads_sin_contactar", _periodo_diario()):
+        return
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(None, _leads_sin_contactar_sync)
 
@@ -126,6 +148,8 @@ def _seguimientos_sync() -> None:
 
 
 async def enviar_seguimientos() -> None:
+    if not acquire_job_lock("seguimientos", _periodo_diario()):
+        return
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(None, _seguimientos_sync)
 
@@ -136,6 +160,10 @@ async def enviar_seguimientos() -> None:
 
 async def sync_imap_todos() -> None:
     """Job del scheduler: procesa la bandeja IMAP de cada tenant activo."""
+    # Lock por ventana de 10 min: dos instancias leyendo la misma bandeja
+    # a la vez crearían leads duplicados del mismo email.
+    if not acquire_job_lock("imap_sync", _periodo_10min()):
+        return
     tenants = get_tenants_with_imap()
     if not tenants:
         return

@@ -146,8 +146,15 @@ def init_db() -> None:
             with engine.begin() as conn:
                 conn.execute(text(migration_sql))
             logger.info("Migración aplicada: %s", migration_sql[:60])
-        except Exception:
-            pass  # Ya existe — ignorar
+        except Exception as exc:
+            # Esperado: la columna ya existe, o la tabla aún no existe en una BD
+            # nueva (se crea más abajo). Cualquier OTRO fallo debe verse en los
+            # logs, no tragarse en silencio.
+            msg = str(exc).lower()
+            esperado = ("duplicate" in msg or "already exists" in msg
+                        or "no such table" in msg or "does not exist" in msg)
+            if not esperado:
+                logger.warning("Migración FALLÓ (%s): %s", migration_sql[:60], exc)
 
     # Tabla de miembros del equipo (plan agencia — múltiples usuarios)
     with engine.begin() as conn:
@@ -186,6 +193,19 @@ def init_db() -> None:
             )
         """))
 
+    # Lock de jobs del scheduler: con varias instancias/workers, solo la que
+    # inserta primero (job, periodo) ejecuta el job — el resto ve el conflicto
+    # y se retira. Evita resúmenes o seguimientos duplicados al escalar.
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS job_runs (
+                job_name    TEXT NOT NULL,
+                period_key  TEXT NOT NULL,
+                created_at  TEXT NOT NULL,
+                PRIMARY KEY (job_name, period_key)
+            )
+        """))
+
     # Índices para rendimiento
     with engine.begin() as conn:
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_leads_email     ON leads (email)"))
@@ -219,10 +239,13 @@ def ensure_tenant(tenant_id: str, email: str = "", name: str = "") -> None:
 
         if not existing:
             api_key = _generar_api_key()
+            # ON CONFLICT: dos requests simultáneos de un tenant nuevo pueden
+            # pasar ambos el SELECT; el segundo INSERT no debe reventar.
             conn.execute(
                 text("""
                     INSERT INTO tenants (id, email, name, plan, api_key, notify_email, created_at)
                     VALUES (:id, :email, :name, 'free', :api_key, :notify_email, :created_at)
+                    ON CONFLICT (id) DO NOTHING
                 """),
                 {
                     "id": tenant_id,
@@ -369,6 +392,32 @@ def registrar_stripe_event(event_id: str) -> bool:
                 ON CONFLICT (id) DO NOTHING
             """),
             {"id": event_id, "ts": datetime.now(timezone.utc).isoformat()},
+        )
+    return result.rowcount > 0
+
+
+def acquire_job_lock(job_name: str, period_key: str) -> bool:
+    """
+    Lock de ejecución de un job del scheduler para un periodo dado (mismo patrón
+    que registrar_stripe_event): devuelve True si ESTA instancia debe ejecutarlo
+    y False si otra ya lo reclamó. period_key define la granularidad:
+    '2026-07-22' (diario), '2026-W30' (semanal), '2026-07-22T09:40' (cada 10 min).
+    """
+    now = datetime.now(timezone.utc)
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("""
+                INSERT INTO job_runs (job_name, period_key, created_at)
+                VALUES (:j, :p, :ts)
+                ON CONFLICT (job_name, period_key) DO NOTHING
+            """),
+            {"j": job_name, "p": period_key, "ts": now.isoformat()},
+        )
+        # Limpieza de registros viejos (los locks solo importan en su periodo)
+        from datetime import timedelta
+        conn.execute(
+            text("DELETE FROM job_runs WHERE created_at < :lim"),
+            {"lim": (now - timedelta(days=30)).isoformat()},
         )
     return result.rowcount > 0
 
