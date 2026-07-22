@@ -190,6 +190,14 @@ async def stripe_webhook(request: Request):
     sig = request.headers.get("stripe-signature", "")
     webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 
+    # Fail-closed: con pagos activos, un webhook sin firma verificable permitiría
+    # a cualquiera falsear un checkout.session.completed y regalarse un plan.
+    # Solo se aceptan eventos sin firma cuando Stripe NI SIQUIERA está configurado
+    # (entorno de desarrollo/tests).
+    if _stripe_configured() and not webhook_secret:
+        logger.error("Webhook rechazado: STRIPE_WEBHOOK_SECRET no está configurado")
+        raise HTTPException(status_code=503, detail="Webhook de Stripe no configurado")
+
     try:
         if webhook_secret:
             # Verificar firma con la librería de Stripe (lanza excepción si no coincide)

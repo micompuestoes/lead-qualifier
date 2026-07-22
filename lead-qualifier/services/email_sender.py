@@ -202,6 +202,39 @@ def send_lead_response_email(
     )
 
 
+def send_and_mark_lead_email(
+    lead_id: str,
+    tenant_id: str,
+    lead_email: str,
+    lead_name: str,
+    generated_email_body: str,
+    reply_to: Optional[str] = None,
+    from_name: Optional[str] = None,
+) -> bool:
+    """
+    Envía la respuesta automática al lead y, SOLO si el envío fue bien, marca
+    email_sent=1 en la BD. Pensado para background tasks del intake/qualify:
+    si el SMTP falla, el lead queda como borrador y el agente puede enviarlo
+    manualmente desde el dashboard (nunca figura como enviado en falso).
+    """
+    ok = send_lead_response_email(
+        lead_email=lead_email,
+        lead_name=lead_name,
+        generated_email_body=generated_email_body,
+        reply_to=reply_to,
+        from_name=from_name,
+    )
+    if ok:
+        from core.database import mark_lead_email_sent
+        mark_lead_email_sent(lead_id, tenant_id)
+    else:
+        logger.error(
+            "Envío automático al lead %s FALLÓ — queda como borrador (tenant %s)",
+            lead_id, tenant_id,
+        )
+    return ok
+
+
 def send_tenant_notification(
     tenant_email: str,
     tenant_name: str,

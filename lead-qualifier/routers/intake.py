@@ -25,7 +25,7 @@ from deps import get_anthropic_client
 from models import LeadInput
 from notifications import notificar_tenant
 from security import client_ip, rate_limited
-from services.email_sender import send_lead_response_email
+from services.email_sender import send_and_mark_lead_email
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +39,15 @@ class PublicLeadInput(LeadInput):
 
 
 @router.post("/intake/{api_key}", status_code=200)
-async def public_intake(api_key: str, lead: PublicLeadInput, request: Request, background_tasks: BackgroundTasks):
-    """Recibe un lead desde un formulario externo identificado por api_key."""
+def public_intake(api_key: str, lead: PublicLeadInput, request: Request, background_tasks: BackgroundTasks):
+    """
+    Recibe un lead desde un formulario externo identificado por api_key.
+
+    Endpoint síncrono (def) a propósito: la llamada a Claude y el SMTP son
+    bloqueantes, y en un `async def` congelarían el event loop entero mientras
+    duran. Como `def`, FastAPI lo ejecuta en el threadpool y la API sigue
+    atendiendo al resto de peticiones.
+    """
     # ── Honeypot: si el campo trampa viene relleno, es un bot ──
     if lead.website:
         logger.warning("Intake rechazado por honeypot (api_key %s)", api_key[:8])
@@ -103,9 +110,12 @@ async def public_intake(api_key: str, lead: PublicLeadInput, request: Request, b
         )
 
         # Envío y avisos en segundo plano: el visitante no espera al SMTP.
+        # El lead se guarda como borrador y solo se marca enviado si el SMTP confirma.
         if auto_send:
             background_tasks.add_task(
-                send_lead_response_email,
+                send_and_mark_lead_email,
+                lead_id=result["lead_id"],
+                tenant_id=tenant_id,
                 lead_email=lead.email,
                 lead_name=lead.name,
                 generated_email_body=result["generated_email"],

@@ -21,7 +21,7 @@ from core.database import (
 from deps import Caller, get_anthropic_client, get_caller, get_tenant_id, require_plan
 from models import LeadInput, LeadOutput
 from notifications import notificar_tenant
-from services.email_sender import send_lead_response_email
+from services.email_sender import send_and_mark_lead_email, send_lead_response_email
 
 logger = logging.getLogger(__name__)
 
@@ -73,12 +73,17 @@ def _serializar_lead(lead: dict) -> dict:
 
 
 @router.post("/qualify-lead", response_model=LeadOutput, status_code=200)
-async def qualify_lead_endpoint(
+def qualify_lead_endpoint(
     lead: LeadInput,
     background_tasks: BackgroundTasks,
     tenant_id: str = Depends(get_tenant_id),
 ):
-    """Procesa un lead entrante con el agente de IA."""
+    """
+    Procesa un lead entrante con el agente de IA.
+
+    Síncrono (def) a propósito: la llamada a Claude es bloqueante y en un
+    `async def` congelaría el event loop; como `def` corre en el threadpool.
+    """
     logger.info("POST /qualify-lead — %s <%s> (tenant: %s)", lead.name, lead.email, tenant_id)
 
     # Garantizar que el tenant existe en la BD
@@ -118,9 +123,12 @@ async def qualify_lead_endpoint(
         )
 
         # Envío y avisos en segundo plano: la respuesta HTTP no espera al SMTP.
+        # El lead se guarda como borrador y solo se marca enviado si el SMTP confirma.
         if auto_send:
             background_tasks.add_task(
-                send_lead_response_email,
+                send_and_mark_lead_email,
+                lead_id=result["lead_id"],
+                tenant_id=tenant_id,
                 lead_email=lead.email,
                 lead_name=lead.name,
                 generated_email_body=result["generated_email"],
@@ -252,7 +260,7 @@ async def patch_lead_assign(
 
 
 @router.post("/leads/{lead_id}/send-email")
-async def send_lead_email(
+def send_lead_email(
     lead_id: str,
     body: EnviarEmailInput,
     caller: Caller = Depends(get_caller),

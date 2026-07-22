@@ -218,7 +218,10 @@ def qualify_lead(
             intent_analysis=intent,
             company_info=company,
             assigned_to=assigned_to,
-            email_sent=1 if auto_send else 0,
+            # Siempre 0: el envío ocurre DESPUÉS (background task) y solo al
+            # confirmarse se marca como enviado. Si el SMTP falla, el lead queda
+            # como borrador reclamable en el dashboard, no como enviado en falso.
+            email_sent=0,
         )
     except Exception as exc:
         logger.error("Error guardando lead %s en BD: %s", lead_id, exc)
@@ -231,6 +234,8 @@ def qualify_lead(
         "generated_email": generated_email,
         "recommended_actions": recommended_actions,
         "assigned_to": assigned_to,
+        # True = se enviará automáticamente (el envío real lo confirma el
+        # background task marcando email_sent=1 en BD); False = queda en borrador.
         "email_sent": bool(auto_send),
         "processed_at": datetime.now(timezone.utc).isoformat(),
     }

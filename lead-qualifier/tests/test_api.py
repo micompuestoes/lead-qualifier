@@ -74,13 +74,27 @@ def test_feedback_up_y_borrado(client):
     assert r.status_code == 200 and r.json()["score_feedback"] is None
 
 
-def test_qualify_en_modo_automatico(client):
+def test_qualify_automatico_sin_smtp_queda_como_borrador(client):
+    """Si el envío automático falla (aquí: sin SMTP), el lead NUNCA debe figurar
+    como enviado — queda en borrador para que el agente lo envíe a mano."""
     client.post("/me/ai-settings", json={"auto_send": True, "brand_voice": "", "followup_enabled": False})
     r = client.post("/qualify-lead", json={
         "name": "Auto Uno", "email": "a1@test.com", "phone": None,
         "message": "Quiero vender mi piso en Sevilla",
     })
-    assert r.status_code == 200 and r.json()["email_sent"] is True
+    assert r.status_code == 200 and r.json()["email_sent"] is True   # modo auto anunciado
+    assert get_lead_by_id(r.json()["lead_id"], T)["email_sent"] == 0  # …pero no se envió
+
+
+def test_qualify_automatico_marca_enviado_si_el_envio_confirma(client, monkeypatch):
+    """Con el backend de email funcionando, el background task marca email_sent=1."""
+    import services.email_sender as es
+    monkeypatch.setattr(es, "send_email", lambda **kw: True)
+    r = client.post("/qualify-lead", json={
+        "name": "Auto Dos", "email": "a2@test.com", "phone": None,
+        "message": "Quiero comprar un ático en Bilbao con 400.000 euros",
+    })
+    assert r.status_code == 200
     assert get_lead_by_id(r.json()["lead_id"], T)["email_sent"] == 1
 
 
@@ -207,3 +221,15 @@ def test_webhook_stripe_idempotente(client):
     r = client.post("/billing/webhook", json=evento)
     assert r.status_code == 200 and r.json().get("duplicate") is True
     assert client.get("/me/notifications").json()["unread"] == tras_primero
+
+
+def test_webhook_fail_closed_con_stripe_activo_sin_secret(client, monkeypatch):
+    """Con pagos activos (STRIPE_SECRET_KEY) pero sin STRIPE_WEBHOOK_SECRET, el
+    webhook debe rechazar todo: aceptar eventos sin firma permitiría falsear
+    un checkout y regalarse un plan de pago."""
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_dummy")
+    r = client.post("/billing/webhook", json={
+        "id": "evt_fake", "type": "checkout.session.completed",
+        "data": {"object": {"metadata": {"tenant_id": T, "plan": "agencia"}}},
+    })
+    assert r.status_code == 503
