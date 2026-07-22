@@ -272,6 +272,14 @@ def analyze_intent(message: str, name: str) -> dict:
     if any(v in msg for v in VAGAS):
         quality = "muy_vago"
 
+    # Texto de relleno / pruebas ("prueba", "test", "asdf"…): aunque el
+    # formulario guiado haya añadido operación y presupuesto, el mensaje libre
+    # no aporta nada real → no puede puntuar como un encargo claro.
+    if len(message.split()) < 20 and re.search(
+        r"\b(prueba|pruebas|testing|test|asdf\w*|qwerty|lorem|xxx+|aaa+)\b", msg
+    ):
+        quality = "muy_vago"
+
     # ── Etiqueta legible de la intención ──
     etiquetas_op = {
         "VENTA":       "Quiere vender su inmueble",
@@ -459,6 +467,16 @@ def score_lead(intent_analysis: dict, company_info: dict) -> dict:
         score = 7
         reasons.append("falta confirmar capacidad (presupuesto/financiación/plazo) antes de priorizar")
         actions.append("Cualificar capacidad de compra antes de dedicar visitas")
+
+    # ── Regla de concreción del encargo ──
+    # Tener presupuesto (p. ej. elegido en un desplegable del formulario) no
+    # basta para CALIENTE si no se sabe QUÉ busca: sin zona, tipo de inmueble
+    # ni habitaciones, primero hay que concretar el encargo.
+    concreto = has_zone or (rooms is not None) or bool(prop_type)
+    if operation in ("COMPRA", "ALQUILER") and not concreto and score > 7:
+        score = 7
+        reasons.append("sin detalles del inmueble buscado (zona/tipo/habitaciones) — confirmar el encargo")
+        actions.append("Concretar zona y tipo de inmueble antes de priorizar")
 
     # ── Clasificación ──
     if score >= 8:

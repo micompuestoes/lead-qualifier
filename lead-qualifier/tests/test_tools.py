@@ -205,6 +205,44 @@ def test_inversor_se_valora_alto():
 
 
 # ─────────────────────────────────────────────
+# Anti-inflado: texto de relleno y encargos sin concreción
+# (caso real: formulario guiado + mensaje "prueba" puntuaba CALIENTE 8)
+# ─────────────────────────────────────────────
+
+def test_mensaje_prueba_con_formulario_guiado_no_es_caliente():
+    # Exactamente lo que compone el formulario público al elegir operación y
+    # presupuesto en los desplegables y escribir "prueba" en el texto libre.
+    res = _score("Quiero comprar. Presupuesto aproximado: 200.000 – 300.000 €.\n\nprueba")
+    assert res["classification"] != "CALIENTE"
+    assert res["score"] <= 6
+
+
+@pytest.mark.parametrize("relleno", ["prueba", "test", "asdfgh", "aaaa"])
+def test_texto_de_relleno_marca_muy_vago(relleno):
+    intent = analyze_intent(f"Quiero comprar. Presupuesto aproximado: 300.000 €. {relleno}", "Test")
+    assert intent["message_quality"] == "muy_vago"
+
+
+def test_presupuesto_sin_saber_que_busca_se_capa_a_tibio():
+    # Presupuesto (desplegable) pero cero detalles del inmueble: hay que
+    # concretar el encargo antes de tratarlo como caliente.
+    res = _score("Quiero comprar. Presupuesto aproximado: 300.000 €. Busco algo bonito y luminoso para mudarme pronto con toda mi familia")
+    assert res["classification"] == "TIBIO"
+    assert res["score"] <= 7
+
+
+def test_encargo_completo_sigue_siendo_caliente():
+    # La regla anti-inflado NO debe tocar a los leads buenos de verdad.
+    res = _score(
+        "Busco un piso de 3 habitaciones en el centro de Valencia. "
+        "Tengo la hipoteca preaprobada y un presupuesto de hasta 320.000 €. "
+        "Me gustaría visitar esta misma semana."
+    )
+    assert res["classification"] == "CALIENTE"
+    assert res["score"] >= 9
+
+
+# ─────────────────────────────────────────────
 # Invariantes de score_lead (propiedades que deben cumplirse SIEMPRE)
 # ─────────────────────────────────────────────
 
