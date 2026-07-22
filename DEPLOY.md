@@ -61,14 +61,29 @@ Si alguna clave se ha compartido alguna vez, rótala antes de lanzar:
 
 Sin esto, los emails caen en spam y el producto pierde su valor.
 
-- [ ] Registrar el dominio (p. ej. `inmobia.es`).
-- [ ] Elegir proveedor: **Resend** o **Postmark** (recomendados) o SendGrid.
-- [ ] Verificar el dominio en el proveedor y añadir en tu DNS los registros:
-  - [ ] **SPF**
-  - [ ] **DKIM**
-  - [ ] **DMARC**
-- [ ] Configurar `FROM_EMAIL=contacto@inmobia.es` y `FROM_NAME=Inmobia`.
-- [ ] (Opcional) Enviarte un email de prueba y comprobar que llega a la bandeja, no a spam.
+> ⚠️ **`inmobia.es` NO es nuestro** (comprobado 2026-07-22: registrado por un
+> tercero en Strato). PROHIBIDO enviar email con remitente `@inmobia.es` —
+> sería suplantar un dominio ajeno. Todos los pasos siguientes son con el
+> dominio propio `<tudominio>` que se compre.
+
+- [ ] **Comprar el dominio propio** (10-15 €/año en Namecheap, IONOS, Porkbun…).
+      Candidatos con `.es` y `.com` libres a 2026-07-22: `inmoagil`, `inmoveloz`.
+- [ ] Elegir proveedor de envío: **Resend** (recomendado: gratis hasta 3.000
+      emails/mes, verificación de dominio sencilla) o Postmark/SendGrid.
+- [ ] En el proveedor: **Add domain** → `<tudominio>` → te dará 3-4 registros DNS.
+- [ ] En el panel DNS del registrador, añadir esos registros tal cual:
+  - [ ] **SPF** — TXT en `@` o en el subdominio que indique el proveedor
+        (p. ej. `v=spf1 include:amazonses.com ~all` en el caso de Resend).
+  - [ ] **DKIM** — 1-3 registros TXT/CNAME con nombres tipo `resend._domainkey`.
+  - [ ] **DMARC** — TXT en `_dmarc` con valor mínimo:
+        `v=DMARC1; p=none; rua=mailto:tu-email-personal` (empezar con `p=none`
+        para observar; subir a `p=quarantine` cuando todo llegue bien).
+- [ ] Esperar la verificación del proveedor (minutos u horas) hasta ver el dominio en verde.
+- [ ] Configurar en Render: `FROM_EMAIL=contacto@<tudominio>` y `FROM_NAME=<marca>`,
+      más la clave del proveedor (`SENDGRID_API_KEY` o SMTP del proveedor).
+- [ ] Actualizar `DASHBOARD_URL` y el resto de menciones al dominio (código y Vercel).
+- [ ] Enviarte un email de prueba (lead de ejemplo) y comprobar: llega a bandeja,
+      y en Gmail → "Mostrar original" dice `SPF: PASS`, `DKIM: PASS`, `DMARC: PASS`.
 
 ---
 

@@ -153,7 +153,12 @@ def _send_via_sendgrid(
         return False
 
     sender_name = from_name or os.getenv("FROM_NAME", "Inmobia")
-    from_email = os.getenv("FROM_EMAIL", "noreply@inmobia.es")
+    # Sin FROM_EMAIL no se envía: un remitente por defecto de un dominio que no
+    # es nuestro equivale a suplantarlo (spam seguro y problema legal).
+    from_email = os.getenv("FROM_EMAIL", "").strip()
+    if not from_email:
+        logger.error("FROM_EMAIL no configurado — no se envía el email (debe ser un dominio propio verificado)")
+        return False
 
     try:
         sg = sendgrid.SendGridAPIClient(api_key=api_key)
