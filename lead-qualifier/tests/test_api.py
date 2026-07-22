@@ -233,3 +233,14 @@ def test_webhook_fail_closed_con_stripe_activo_sin_secret(client, monkeypatch):
         "data": {"object": {"metadata": {"tenant_id": T, "plan": "agencia"}}},
     })
     assert r.status_code == 503
+
+
+# ── Auth: sin configurar, la API se cierra (no se abre) ───────────────────────
+
+def test_auth_fail_closed_sin_dev_mode(client, monkeypatch):
+    """Sin CLERK_JWKS_URL, el modo dev solo entra con DEV_MODE=1 explícito.
+    Si ambas faltan (p. ej. variable borrada en un deploy), la API responde 503
+    en vez de tratar a todo el mundo como 'dev-tenant'."""
+    monkeypatch.delenv("DEV_MODE", raising=False)
+    assert client.get("/leads").status_code == 503
+    assert client.get("/me").status_code == 503

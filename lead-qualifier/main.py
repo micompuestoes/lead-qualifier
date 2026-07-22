@@ -111,7 +111,16 @@ async def lifespan(app: FastAPI):
     logger.info("Cliente de Anthropic inicializado")
 
     if not os.getenv("CLERK_JWKS_URL"):
-        logger.warning("CLERK_JWKS_URL no definida — modo dev sin autenticación")
+        # Fail-closed: sin auth configurada, solo se arranca en modo dev EXPLÍCITO.
+        # Si CLERK_JWKS_URL desaparece en producción, mejor un deploy fallido y
+        # ruidoso que una API abierta a todo el mundo en silencio.
+        from security import is_dev_mode
+        if not is_dev_mode():
+            raise RuntimeError(
+                "CLERK_JWKS_URL no definida. Configúrala en producción, "
+                "o define DEV_MODE=1 para desarrollo local sin autenticación."
+            )
+        logger.warning("DEV_MODE=1 — modo dev sin autenticación (¡solo desarrollo!)")
     else:
         logger.info("Auth: Clerk JWT activo")
 

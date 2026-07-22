@@ -23,6 +23,7 @@ _VARS_PELIGROSAS = (
 
 def _aislar_entorno() -> None:
     os.environ["ANTHROPIC_API_KEY"] = "test-dummy"   # la IA cae al fallback determinista
+    os.environ["DEV_MODE"] = "1"                     # auth y cifrado en modo dev explícito
     for var in _VARS_PELIGROSAS:
         os.environ.pop(var, None)
 

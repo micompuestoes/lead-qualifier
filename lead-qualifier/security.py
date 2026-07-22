@@ -17,6 +17,16 @@ from fastapi import Request
 logger = logging.getLogger(__name__)
 
 
+def is_dev_mode() -> bool:
+    """
+    Modo desarrollo EXPLÍCITO (DEV_MODE=1): relaja auth y cifrado para trabajar
+    en local sin configurar Clerk ni claves. Nunca debe estar activo en
+    producción — por eso es opt-in y no se infiere de la ausencia de otras
+    variables (una variable borrada por accidente no debe abrir la API).
+    """
+    return os.getenv("DEV_MODE", "").strip().lower() in ("1", "true", "yes")
+
+
 # ─────────────────────────────────────────────
 # Cifrado Fernet para contraseñas IMAP
 # ─────────────────────────────────────────────
@@ -28,11 +38,22 @@ def _fernet() -> Fernet:
     Si no, deriva una del ADMIN_SECRET_KEY por compatibilidad con instalaciones antiguas.
     IMPORTANTE: si cambias ADMIN_SECRET_KEY, define FERNET_KEY con el valor antiguo
     antes de rotar, o las contraseñas IMAP almacenadas quedarán ilegibles.
+
+    Sin ninguna de las dos, solo en DEV_MODE se usa una clave insegura de
+    desarrollo; fuera de dev se rechaza (cifrar con una clave pública conocida
+    equivale a guardar las contraseñas en claro).
     """
     fernet_key = os.getenv("FERNET_KEY", "").strip()
     if fernet_key:
         return Fernet(fernet_key.encode())
-    secret = os.getenv("ADMIN_SECRET_KEY", "dev-insecure-key-change-in-prod")
+    secret = os.getenv("ADMIN_SECRET_KEY", "").strip()
+    if not secret:
+        if not is_dev_mode():
+            raise RuntimeError(
+                "Cifrado no configurado: define FERNET_KEY (recomendado) o "
+                "ADMIN_SECRET_KEY en las variables de entorno."
+            )
+        secret = "dev-insecure-key-change-in-prod"
     key = base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest())
     return Fernet(key)
 

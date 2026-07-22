@@ -5,7 +5,9 @@ autenticación multi-tenant (Clerk) y guards de plan y de administración.
 
 import logging
 import os
+import secrets
 from dataclasses import dataclass
+from typing import Optional
 
 import anthropic
 from fastapi import HTTPException, Request
@@ -13,7 +15,7 @@ from jose import JWTError, jwt
 
 import runtime
 from core.database import get_owner_for_member, get_tenant
-from security import obtener_jwks
+from security import is_dev_mode, obtener_jwks
 
 logger = logging.getLogger(__name__)
 
@@ -36,16 +38,38 @@ class Caller:
         return None if self.is_owner else self.user_id
 
 
+def _clerk_issuer() -> Optional[str]:
+    """
+    Issuer esperado en los JWT de Clerk. Se toma de CLERK_ISSUER o, si no está,
+    se deriva de CLERK_JWKS_URL (la instancia es la URL sin el sufijo well-known).
+    Verificarlo evita aceptar tokens emitidos por otra instancia de Clerk.
+    """
+    iss = os.getenv("CLERK_ISSUER", "").strip().rstrip("/")
+    if iss:
+        return iss
+    jwks_url = os.getenv("CLERK_JWKS_URL", "").strip()
+    sufijo = "/.well-known/jwks.json"
+    if jwks_url.endswith(sufijo):
+        return jwks_url[: -len(sufijo)]
+    return None  # URL no estándar: sin issuer que verificar
+
+
 async def get_caller(request: Request) -> Caller:
     """
     Resuelve la identidad del que llama a partir del JWT de Clerk y verifica
     que la cuenta esté activa.
 
-    Sin CLERK_JWKS_URL (entorno local sin auth), devuelve un dueño 'dev-tenant'
-    que lo ve todo, para no bloquear el desarrollo.
+    Sin CLERK_JWKS_URL solo se permite el paso en modo dev EXPLÍCITO
+    (DEV_MODE=1): devuelve un dueño 'dev-tenant' que lo ve todo. Fuera de dev,
+    una config de auth ausente cierra la API (503) en vez de abrirla a todos.
     """
     if not os.getenv("CLERK_JWKS_URL"):
-        return Caller(tenant_id="dev-tenant", user_id="dev-tenant", is_owner=True)
+        if is_dev_mode():
+            return Caller(tenant_id="dev-tenant", user_id="dev-tenant", is_owner=True)
+        raise HTTPException(
+            status_code=503,
+            detail="Autenticación no configurada. Define CLERK_JWKS_URL (o DEV_MODE=1 solo en desarrollo).",
+        )
 
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
@@ -54,10 +78,12 @@ async def get_caller(request: Request) -> Caller:
     token = auth_header[7:]
     try:
         jwks = await obtener_jwks()
-        # options: no verificar audiencia (Clerk no siempre la incluye en tokens de sesión)
+        # options: no verificar audiencia (Clerk no siempre la incluye en tokens de sesión).
+        # issuer sí se verifica: un token firmado por otra instancia de Clerk no vale.
         payload = jwt.decode(
             token, jwks,
             algorithms=["RS256"],
+            issuer=_clerk_issuer(),
             options={"verify_aud": False},
         )
         user_id: str = payload.get("sub", "")
@@ -111,7 +137,8 @@ def require_admin(request: Request) -> None:
         raise HTTPException(status_code=503, detail="Panel de admin no configurado")
 
     provided = request.headers.get("X-Admin-Key", "")
-    if provided != admin_key:
+    # compare_digest: comparación en tiempo constante (evita timing attacks)
+    if not secrets.compare_digest(provided.encode(), admin_key.encode()):
         raise HTTPException(status_code=403, detail="Clave de administrador inválida")
 
 
