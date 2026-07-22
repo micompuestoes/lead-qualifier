@@ -163,6 +163,15 @@ def test_equipo_asignacion_y_leaderboard(client):
     assert {a["agent_id"] for a in r["agents"]} == {T, "user_ana"}
 
 
+def test_asientos_agencia_con_minimo(client):
+    """Agencia factura por asiento con mínimo 2: nunca más barata que Pro."""
+    from routers.billing import _seat_count
+    # dev-tenant tiene 1 miembro (user_ana) + dueño = 2 asientos
+    assert _seat_count(T) == 2
+    # Un tenant sin equipo también factura el mínimo de 2
+    assert _seat_count("tenant-sin-equipo") == 2
+
+
 def test_visibilidad_por_agente_en_bd(client):
     visibles_ana = get_recent_leads(tenant_id=T, agent_id="user_ana")
     assert {l["id"] for l in visibles_ana} == {"S1"}

@@ -9,6 +9,7 @@ import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
+from config import MIN_AGENCY_SEATS
 from core.database import (
     add_notification, disable_imap, ensure_tenant, get_agent_ids, get_tenant,
     get_tenant_by_stripe_customer, registrar_stripe_event, set_tenant_plan,
@@ -37,8 +38,11 @@ def _get_price_id(plan: str) -> str:
 
 
 def _seat_count(tenant_id: str) -> int:
-    """Asientos facturables = nº de agentes (dueño + miembros del equipo)."""
-    return max(1, len(get_agent_ids(tenant_id)))
+    """
+    Asientos facturables del plan Agencia = nº de agentes (dueño + miembros),
+    con el mínimo de MIN_AGENCY_SEATS: Agencia nunca sale más barata que Pro.
+    """
+    return max(MIN_AGENCY_SEATS, len(get_agent_ids(tenant_id)))
 
 
 def sync_agency_seats(tenant_id: str) -> None:

@@ -16,6 +16,12 @@ NOTIFY_MIN_SCORE = 5
 # se reserva para leads CALIENTE (score >= 8): los que hay que atender ya.
 WHATSAPP_MIN_SCORE = 8
 
+# Mínimo de asientos facturables del plan Agencia (39€/agente). Garantiza que
+# Agencia (2 × 39 = 78€) nunca cueste menos que Pro (49€): sin esto, a un agente
+# solo le saldría más barato colarse en Agencia teniendo más funciones.
+# Si lo cambias, revisa el precio y la nota del plan en dashboard/lib/plans.ts.
+MIN_AGENCY_SEATS = 2
+
 # Rate limiting del formulario público (sliding window en memoria).
 # Por IP (anti-spam individual) y por api_key (cap de coste por agencia).
 RATE_IP_PER_MIN = 5
