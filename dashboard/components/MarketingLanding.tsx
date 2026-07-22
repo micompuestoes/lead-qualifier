@@ -137,11 +137,12 @@ export default function MarketingLanding() {
             fontSize: 'clamp(2.2rem, 6vw, 3.6rem)', lineHeight: 1.1, letterSpacing: '-0.025em',
             margin: '0 auto 22px', maxWidth: 820,
           }}>
-            Convierte cada consulta en una oportunidad real
+            Deja de perder clientes por responder tarde
           </h1>
-          <p style={{ fontSize: 'clamp(15px, 2.5vw, 18px)', lineHeight: 1.6, color: '#5a544c', maxWidth: 600, margin: '0 auto 34px' }}>
-            La inteligencia artificial cualifica tus leads inmobiliarios, prioriza los que van a cerrar
-            y redacta la respuesta perfecta. Tú solo cierras operaciones.
+          <p style={{ fontSize: 'clamp(15px, 2.5vw, 18px)', lineHeight: 1.6, color: '#5a544c', maxWidth: 620, margin: '0 auto 34px' }}>
+            El comprador escribe a varias agencias y se queda con la primera que le responde bien.
+            Inmobia cualifica cada consulta y envía una respuesta impecable en menos de un minuto,
+            24/7 — también el domingo por la noche.
           </p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
             <Link href="/sign-up" style={{
@@ -220,6 +221,66 @@ export default function MarketingLanding() {
             </p>
           </div>
         </div>
+      </section>
+
+      {/* ── Antes / después: el momento mágico ── */}
+      <section style={{ ...sectionPad, padding: '48px 24px 24px' }}>
+        <div style={{ textAlign: 'center', marginBottom: 36 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: GOLD, marginBottom: 12 }}>
+            Un ejemplo real
+          </p>
+          <h2 style={{ fontFamily: "'DM Serif Display', Georgia, serif", fontWeight: 400, fontSize: 'clamp(1.8rem, 4vw, 2.4rem)', letterSpacing: '-0.02em', margin: 0 }}>
+            De consulta a respuesta enviada, en un minuto
+          </h2>
+        </div>
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+          gap: 18, maxWidth: 920, margin: '0 auto', alignItems: 'stretch',
+        }}>
+          {/* Lo que recibe la agencia */}
+          <div style={{
+            background: '#fff', border: '1.5px solid rgba(200,169,110,0.18)', borderRadius: 16,
+            padding: 24, display: 'flex', flexDirection: 'column',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#8a8278' }}>
+                Consulta recibida
+              </span>
+              <span style={{ fontSize: 12, color: '#8a8278', fontFamily: 'monospace' }}>domingo · 21:47</span>
+            </div>
+            <p style={{ fontSize: 14, lineHeight: 1.7, color: '#5a544c', fontStyle: 'italic', flex: 1 }}>
+              «Hola, buscamos piso de 3 habitaciones por Chamberí, tenemos unos 480.000€ y la
+              hipoteca preaprobada. Nos gustaría visitar algo esta misma semana si puede ser.
+              Gracias, María.»
+            </p>
+          </div>
+          {/* Lo que envía Inmobia */}
+          <div style={{
+            background: '#fff', border: `2px solid ${GOLD}`, borderRadius: 16, padding: 24,
+            boxShadow: '0 12px 40px rgba(200,169,110,0.18)', display: 'flex', flexDirection: 'column',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#9a7a3a' }}>
+                Respuesta enviada por Inmobia
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', padding: '2px 8px', borderRadius: 6,
+                  background: 'rgba(180,83,9,0.08)', color: '#b45309', border: '1px solid rgba(180,83,9,0.25)',
+                }}>
+                  CALIENTE · 9/10
+                </span>
+                <span style={{ fontSize: 12, color: '#8a8278', fontFamily: 'monospace' }}>21:48</span>
+              </span>
+            </div>
+            <p style={{ fontSize: 14, lineHeight: 1.7, color: INK, flex: 1, whiteSpace: 'pre-line' }}>
+              {'Hola María,\n\nGracias por escribirnos. Con la hipoteca preaprobada y el presupuesto definido, estáis en el mejor momento para encontrar piso en Chamberí. Tenemos opciones de 3 habitaciones que encajan con lo que buscáis y me encantaría enseñároslas esta misma semana.\n\n¿Os viene bien una llamada mañana para organizar las visitas?\n\nUn saludo,\nTu agencia'}
+            </p>
+          </div>
+        </div>
+        <p style={{ textAlign: 'center', fontSize: 13, color: '#8a8278', marginTop: 18 }}>
+          Mientras tanto, en tu panel: María ya aparece como lead caliente, la primera de la lista para llamar el lunes.
+        </p>
       </section>
 
       {/* ── Ventajas ── */}
@@ -334,6 +395,51 @@ export default function MarketingLanding() {
         </div>
       </section>
 
+      {/* ── FAQ: las objeciones de siempre, respondidas ── */}
+      <section style={{ background: '#fff', borderTop: '1px solid rgba(200,169,110,0.18)' }}>
+        <div style={{ ...sectionPad, padding: '64px 24px', maxWidth: 760 }}>
+          <div style={{ textAlign: 'center', marginBottom: 36 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: GOLD, marginBottom: 12 }}>
+              Preguntas frecuentes
+            </p>
+            <h2 style={{ fontFamily: "'DM Serif Display', Georgia, serif", fontWeight: 400, fontSize: 'clamp(1.8rem, 4vw, 2.4rem)', letterSpacing: '-0.02em', margin: 0 }}>
+              Lo que toda agencia nos pregunta
+            </h2>
+          </div>
+          {[
+            {
+              q: '¿Necesito saber de tecnología?',
+              a: 'No. Te registras, copias tu enlace de formulario y lo pones en tu web (o conectas tu correo). No hay nada que instalar ni configurar.',
+            },
+            {
+              q: '¿Funciona con mi web actual?',
+              a: 'Sí. El formulario funciona como un enlace: sirve para cualquier web, para tu bio de Instagram o para enviarlo por WhatsApp. Y si no tienes web, con conectar tu correo basta.',
+            },
+            {
+              q: '¿Puedo revisar lo que envía la IA antes de que salga?',
+              a: 'Sí. Puedes activar el modo revisión: cada respuesta queda como borrador y no se envía hasta que tú la apruebes (o la edites). También puedes definir el tono de tu agencia y la IA lo respeta.',
+            },
+            {
+              q: '¿Qué pasa con los datos de mis clientes?',
+              a: 'Los leads son tuyos: puedes exportarlos a CSV o borrarlos cuando quieras, y el tratamiento cumple el RGPD. Nunca vendemos ni compartimos tus datos.',
+            },
+            {
+              q: '¿Puedo cancelar cuando quiera?',
+              a: 'Sí, desde tu panel y sin permanencia. Mantienes el acceso hasta el final del período ya pagado y tus leads no se borran.',
+            },
+          ].map(item => (
+            <details key={item.q} style={{
+              borderBottom: '1px solid rgba(200,169,110,0.2)', padding: '18px 4px',
+            }}>
+              <summary style={{ fontSize: 15.5, fontWeight: 600, cursor: 'pointer', listStyle: 'none' }}>
+                {item.q}
+              </summary>
+              <p style={{ fontSize: 14, lineHeight: 1.7, color: '#5a544c', marginTop: 10 }}>{item.a}</p>
+            </details>
+          ))}
+        </div>
+      </section>
+
       {/* ── CTA final ── */}
       <section style={{ ...sectionPad, padding: '0 24px 80px' }}>
         <div style={{
@@ -345,10 +451,11 @@ export default function MarketingLanding() {
             background: 'radial-gradient(circle, rgba(200,169,110,0.3) 0%, transparent 70%)', pointerEvents: 'none',
           }} />
           <h2 style={{ position: 'relative', fontFamily: "'DM Serif Display', Georgia, serif", fontWeight: 400, fontSize: 'clamp(1.8rem, 4vw, 2.6rem)', letterSpacing: '-0.02em', marginBottom: 14 }}>
-            Deja de perder clientes por responder tarde
+            El primero en responder se lleva la visita
           </h2>
           <p style={{ position: 'relative', fontSize: 16, color: 'rgba(245,240,232,0.65)', maxWidth: 520, margin: '0 auto 28px' }}>
-            Únete a las agencias que ya cualifican sus leads automáticamente con Inmobia.
+            Configúralo en cinco minutos y deja que Inmobia conteste por ti desde hoy.
+            Gratis hasta 10 leads al mes.
           </p>
           <Link href="/sign-up" style={{
             position: 'relative', display: 'inline-block', fontSize: 15, fontWeight: 600, color: INK, textDecoration: 'none',

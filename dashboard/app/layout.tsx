@@ -22,8 +22,8 @@ export const metadata: Metadata = {
   authors: [{ name: 'Inmobia' }],
   keywords: ['leads inmobiliarios', 'cualificación de leads', 'IA inmobiliaria', 'CRM inmobiliario'],
   openGraph: {
-    title: 'Inmobia — Cualificación de leads inmobiliarios con IA',
-    description: 'Convierte cada consulta en una oportunidad real.',
+    title: 'Inmobia — Deja de perder clientes por responder tarde',
+    description: 'IA que cualifica tus leads inmobiliarios y responde en menos de un minuto, 24/7.',
     type: 'website',
     locale: 'es_ES',
   },
