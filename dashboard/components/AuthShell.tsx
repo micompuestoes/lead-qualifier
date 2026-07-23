@@ -93,7 +93,7 @@ function BrandPanel({ mode }: { mode: 'sign-in' | 'sign-up' }) {
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12 }}>
         <Logo size={42} />
         <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em' }}>
-          Inmobia
+          Inmonia
         </span>
       </div>
 
@@ -228,7 +228,7 @@ export default function AuthShell({ mode }: { mode: 'sign-in' | 'sign-up' }) {
             display: 'none', alignItems: 'center', gap: 10, marginBottom: 28, justifyContent: 'center',
           }}>
             <Logo size={36} />
-            <span style={{ fontSize: 16, fontWeight: 600, color: c.text1 }}>Inmobia</span>
+            <span style={{ fontSize: 16, fontWeight: 600, color: c.text1 }}>Inmonia</span>
           </div>
 
           {/* Encabezado propio */}

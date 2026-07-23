@@ -11,7 +11,7 @@ const SECCIONES: LegalSection[] = [
         'Denominación social: 〔COMPLETAR: razón social〕',
         'NIF / CIF: 〔COMPLETAR: NIF〕',
         'Domicilio fiscal: 〔COMPLETAR: domicilio〕',
-        'Email de contacto: contacto@inmobia.es',
+        'Email de contacto: contacto@inmonia.es',
       ],
       'Antes de operar, sustituye los campos entre 〔corchetes〕 por tus datos reales.',
     ],
@@ -19,7 +19,7 @@ const SECCIONES: LegalSection[] = [
   {
     heading: 'Objeto del servicio',
     body: [
-      'Inmobia es una plataforma SaaS que utiliza inteligencia artificial para cualificar leads inmobiliarios, generar respuestas y ayudar a las agencias a priorizar sus contactos comerciales.',
+      'Inmonia es una plataforma SaaS que utiliza inteligencia artificial para cualificar leads inmobiliarios, generar respuestas y ayudar a las agencias a priorizar sus contactos comerciales.',
       'Al crear una cuenta y utilizar el servicio, aceptas estos Términos de Servicio en su totalidad.',
     ],
   },
@@ -84,7 +84,7 @@ export default function TerminosPage() {
     <LegalDoc
       title="Términos de Servicio"
       updated="1 de junio de 2026"
-      intro="Estos términos regulan el uso de Inmobia. Te recomendamos leerlos con atención antes de utilizar la plataforma."
+      intro="Estos términos regulan el uso de Inmonia. Te recomendamos leerlos con atención antes de utilizar la plataforma."
       sections={SECCIONES}
     />
   );

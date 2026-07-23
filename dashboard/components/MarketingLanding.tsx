@@ -100,7 +100,7 @@ export default function MarketingLanding() {
         <div style={{ ...sectionPad, display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
             <Logo size={34} />
-            <span style={{ fontSize: 17, fontWeight: 600 }}>Inmobia</span>
+            <span style={{ fontSize: 17, fontWeight: 600 }}>Inmonia</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Link href="/sign-in" style={{ fontSize: 14, fontWeight: 600, color: '#5a544c', textDecoration: 'none', padding: '8px 12px' }}>
@@ -141,7 +141,7 @@ export default function MarketingLanding() {
           </h1>
           <p style={{ fontSize: 'clamp(15px, 2.5vw, 18px)', lineHeight: 1.6, color: '#5a544c', maxWidth: 620, margin: '0 auto 34px' }}>
             El comprador escribe a varias agencias y se queda con la primera que le responde bien.
-            Inmobia cualifica cada consulta y envía una respuesta impecable en menos de un minuto,
+            Inmonia cualifica cada consulta y envía una respuesta impecable en menos de un minuto,
             24/7 — también el domingo por la noche.
           </p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -178,7 +178,7 @@ export default function MarketingLanding() {
                   <span key={col} style={{ width: 10, height: 10, borderRadius: '50%', background: col }} />
                 ))}
                 <span style={{ marginLeft: 'auto', fontSize: 11, color: '#8a8278', fontFamily: 'monospace' }}>
-                  app.inmobia.es/leads
+                  app.inmonia.es/leads
                 </span>
               </div>
               {/* Mini tarjetas de lead */}
@@ -254,14 +254,14 @@ export default function MarketingLanding() {
               Gracias, María.»
             </p>
           </div>
-          {/* Lo que envía Inmobia */}
+          {/* Lo que envía Inmonia */}
           <div style={{
             background: '#fff', border: `2px solid ${GOLD}`, borderRadius: 16, padding: 24,
             boxShadow: '0 12px 40px rgba(200,169,110,0.18)', display: 'flex', flexDirection: 'column',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#9a7a3a' }}>
-                Respuesta enviada por Inmobia
+                Respuesta enviada por Inmonia
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{
@@ -454,7 +454,7 @@ export default function MarketingLanding() {
             El primero en responder se lleva la visita
           </h2>
           <p style={{ position: 'relative', fontSize: 16, color: 'rgba(245,240,232,0.65)', maxWidth: 520, margin: '0 auto 28px' }}>
-            Configúralo en cinco minutos y deja que Inmobia conteste por ti desde hoy.
+            Configúralo en cinco minutos y deja que Inmonia conteste por ti desde hoy.
             Gratis hasta 10 leads al mes.
           </p>
           <Link href="/sign-up" style={{
@@ -471,13 +471,13 @@ export default function MarketingLanding() {
         <div style={{ ...sectionPad, padding: '28px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Logo size={28} />
-            <span style={{ fontSize: 14, fontWeight: 600 }}>Inmobia</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>Inmonia</span>
             <span style={{ fontSize: 13, color: '#8a8278' }}>· IA inmobiliaria</span>
           </div>
           <div style={{ display: 'flex', gap: 18, fontSize: 13 }}>
             <Link href="/terminos" style={{ color: '#5a544c', textDecoration: 'none' }}>Términos</Link>
             <Link href="/privacidad" style={{ color: '#5a544c', textDecoration: 'none' }}>Privacidad</Link>
-            <a href="mailto:contacto@inmobia.es" style={{ color: '#5a544c', textDecoration: 'none' }}>Contacto</a>
+            <a href="mailto:contacto@inmonia.es" style={{ color: '#5a544c', textDecoration: 'none' }}>Contacto</a>
           </div>
         </div>
       </footer>

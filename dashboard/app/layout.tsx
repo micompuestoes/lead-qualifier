@@ -13,16 +13,16 @@ import { ThemeProvider } from '@/components/ThemeProvider';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Inmobia — Cualificación de leads inmobiliarios con IA',
-    template: '%s · Inmobia',
+    default: 'Inmonia — Cualificación de leads inmobiliarios con IA',
+    template: '%s · Inmonia',
   },
   description:
     'La plataforma que cualifica tus leads inmobiliarios con inteligencia artificial, prioriza los que van a cerrar y redacta la respuesta perfecta.',
-  applicationName: 'Inmobia',
-  authors: [{ name: 'Inmobia' }],
+  applicationName: 'Inmonia',
+  authors: [{ name: 'Inmonia' }],
   keywords: ['leads inmobiliarios', 'cualificación de leads', 'IA inmobiliaria', 'CRM inmobiliario'],
   openGraph: {
-    title: 'Inmobia — Deja de perder clientes por responder tarde',
+    title: 'Inmonia — Deja de perder clientes por responder tarde',
     description: 'IA que cualifica tus leads inmobiliarios y responde en menos de un minuto, 24/7.',
     type: 'website',
     locale: 'es_ES',
@@ -38,7 +38,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <head>
           <script
             dangerouslySetInnerHTML={{
-              __html: `(function(){var t=localStorage.getItem('inmobia-theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();`,
+              __html: `(function(){var t=localStorage.getItem('inmonia-theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();`,
             }}
           />
         </head>

@@ -7,7 +7,7 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useTheme } from './ThemeProvider';
 
-const KEY = 'inmobia-tour-v1';
+const KEY = 'inmonia-tour-v1';
 
 interface Step {
   selector?: string;   // si falta, es un paso centrado (sin foco)
@@ -17,7 +17,7 @@ interface Step {
 
 const STEPS: Step[] = [
   {
-    title: 'Te damos la bienvenida a Inmobia',
+    title: 'Te damos la bienvenida a Inmonia',
     body: 'En unos segundos te enseñamos lo esencial para empezar a captar clientes. Puedes saltarlo cuando quieras.',
   },
   {

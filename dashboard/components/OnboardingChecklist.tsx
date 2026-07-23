@@ -41,7 +41,7 @@ export default function OnboardingChecklist({ steps }: { steps: OnbStep[] }) {
             fontFamily: "'DM Serif Display', Georgia, serif",
             fontSize: '1.35rem', color: c.text1, letterSpacing: '-0.02em', lineHeight: 1.2,
           }}>
-            Pon Inmobia a funcionar
+            Pon Inmonia a funcionar
           </h2>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>

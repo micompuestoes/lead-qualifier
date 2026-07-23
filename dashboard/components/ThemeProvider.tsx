@@ -130,7 +130,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>('light');
 
   useEffect(() => {
-    const saved   = localStorage.getItem('inmobia-theme') as Theme | null;
+    const saved   = localStorage.getItem('inmonia-theme') as Theme | null;
     const sysDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     const initial = saved ?? (sysDark ? 'dark' : 'light');
     applyTheme(initial);
@@ -144,7 +144,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   function toggle() {
     setTheme(prev => {
       const next = prev === 'light' ? 'dark' : 'light';
-      localStorage.setItem('inmobia-theme', next);
+      localStorage.setItem('inmonia-theme', next);
       applyTheme(next);
       return next;
     });

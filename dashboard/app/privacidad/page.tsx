@@ -11,9 +11,9 @@ const SECCIONES: LegalSection[] = [
         'Denominación social: 〔COMPLETAR: razón social〕',
         'NIF / CIF: 〔COMPLETAR: NIF〕',
         'Domicilio: 〔COMPLETAR: domicilio〕',
-        'Email de contacto: contacto@inmobia.es',
+        'Email de contacto: contacto@inmonia.es',
       ],
-      'Para cualquier consulta sobre privacidad puedes escribir a contacto@inmobia.es. Sustituye los campos entre 〔corchetes〕 por tus datos reales antes de operar.',
+      'Para cualquier consulta sobre privacidad puedes escribir a contacto@inmonia.es. Sustituye los campos entre 〔corchetes〕 por tus datos reales antes de operar.',
     ],
   },
   {
@@ -62,7 +62,7 @@ const SECCIONES: LegalSection[] = [
   {
     heading: 'Tus derechos',
     body: [
-      'Puedes ejercer tus derechos de acceso, rectificación, supresión, oposición, limitación y portabilidad escribiendo a contacto@inmobia.es.',
+      'Puedes ejercer tus derechos de acceso, rectificación, supresión, oposición, limitación y portabilidad escribiendo a contacto@inmonia.es.',
       'También tienes derecho a presentar una reclamación ante la Agencia Española de Protección de Datos (AEPD).',
     ],
   },

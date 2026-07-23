@@ -3,7 +3,7 @@
 import { ImageResponse } from 'next/og';
 
 export const runtime = 'edge';
-export const alt = 'Inmobia — Deja de perder clientes por responder tarde';
+export const alt = 'Inmonia — Deja de perder clientes por responder tarde';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -42,7 +42,7 @@ export default function OgImage() {
           >
             ✦
           </div>
-          <span style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-0.01em' }}>Inmobia</span>
+          <span style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-0.01em' }}>Inmonia</span>
         </div>
         <div style={{ display: 'flex', fontSize: 68, lineHeight: 1.12, letterSpacing: '-0.02em', maxWidth: 900 }}>
           Deja de perder clientes por responder tarde

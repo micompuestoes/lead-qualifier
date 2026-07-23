@@ -1,4 +1,4 @@
-// Badge de clasificación — iconos SVG propios, paleta Inmobia
+// Badge de clasificación — iconos SVG propios, paleta Inmonia
 import type { Clasificacion } from '@/types/lead';
 
 interface Props {

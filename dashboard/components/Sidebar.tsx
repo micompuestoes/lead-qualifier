@@ -124,7 +124,7 @@ const cuentaLinks: NavLink[] = [
 ];
 
 const BASE        = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
-const CACHE_KEY   = 'inmobia-perfil';
+const CACHE_KEY   = 'inmonia-perfil';
 const FETCH_MS    = 10_000;   // timeout para cada intento
 const RETRY_MS    = 20_000;   // espera entre reintentos si el backend está frío
 
@@ -302,7 +302,7 @@ export default function Sidebar() {
             fontSize: 15, fontWeight: 600, color: c.text1, letterSpacing: '-0.01em',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
-            {perfil.name || 'Inmobia'}
+            {perfil.name || 'Inmonia'}
           </span>
         </div>
 
@@ -348,7 +348,7 @@ export default function Sidebar() {
               {perfil.name || 'Tu agencia'}
             </p>
             <p style={{ fontSize: 11, marginTop: 2, transition: 'color 0.2s' }} className="truncate">
-              <span style={{ color: '#9a7a3a', fontWeight: 700 }}>Inmobia</span>
+              <span style={{ color: '#9a7a3a', fontWeight: 700 }}>Inmonia</span>
               <span style={{ color: c.text3 }}> · IA inmobiliaria</span>
             </p>
           </div>

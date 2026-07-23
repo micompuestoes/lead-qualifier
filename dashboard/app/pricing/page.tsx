@@ -22,7 +22,7 @@ export default function PricingPage() {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('inmobia-perfil');
+      const raw = localStorage.getItem('inmonia-perfil');
       if (raw) setPlanActual(JSON.parse(raw).plan ?? 'free');
     } catch {}
   }, []);

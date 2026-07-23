@@ -95,7 +95,7 @@ def _send_via_smtp(
     smtp_port = int(os.getenv("SMTP_PORT", "587"))
     smtp_user = os.getenv("SMTP_USER", "")
     smtp_password = os.getenv("SMTP_PASSWORD", "")
-    sender_name = from_name or os.getenv("FROM_NAME", "Inmobia")
+    sender_name = from_name or os.getenv("FROM_NAME", "Inmonia")
     from_email = os.getenv("FROM_EMAIL", smtp_user)
 
     if not smtp_user or not smtp_password:
@@ -152,7 +152,7 @@ def _send_via_sendgrid(
         )
         return False
 
-    sender_name = from_name or os.getenv("FROM_NAME", "Inmobia")
+    sender_name = from_name or os.getenv("FROM_NAME", "Inmonia")
     # Sin FROM_EMAIL no se envía: un remitente por defecto de un dominio que no
     # es nuestro equivale a suplantarlo (spam seguro y problema legal).
     from_email = os.getenv("FROM_EMAIL", "").strip()
@@ -282,7 +282,7 @@ Mensaje original:
 {urgencia}{dashboard_line}
 
 ---
-Mensaje automático de Inmobia. Puedes ajustar las notificaciones desde tu perfil.
+Mensaje automático de Inmonia. Puedes ajustar las notificaciones desde tu perfil.
 """
 
     subject = f"{icono} Nuevo lead [{score}/10] — {lead_name}"
@@ -298,7 +298,7 @@ Mensaje automático de Inmobia. Puedes ajustar las notificaciones desde tu perfi
 
 
 def send_weekly_digest(tenant_email: str, tenant_name: str, counts: dict, dashboard_url: str = "") -> bool:
-    """Resumen semanal de actividad — recuerda a la agencia el valor de Inmobia."""
+    """Resumen semanal de actividad — recuerda a la agencia el valor de Inmonia."""
     nuevos     = counts.get("nuevos", 0)
     calientes  = counts.get("calientes", 0)
     pendientes = counts.get("pendientes", 0)
@@ -312,20 +312,20 @@ def send_weekly_digest(tenant_email: str, tenant_name: str, counts: dict, dashbo
 
     body = f"""{saludo}
 
-Este es tu resumen de la semana en Inmobia:
+Este es tu resumen de la semana en Inmonia:
 
   • {nuevos} leads nuevos cualificados con IA
   • {calientes} leads calientes (listos para cerrar)
   • {pendientes} leads pendientes de contactar
 
-Inmobia te ha ahorrado aproximadamente {ahorro} de leer y responder mensajes.
+Inmonia te ha ahorrado aproximadamente {ahorro} de leer y responder mensajes.
 {f"Tienes {pendientes} leads esperando tu llamada — no dejes que se enfríen." if pendientes else "¡Buen trabajo, lo tienes todo al día!"}
 {dashboard_line}
 
 Un saludo,
-El equipo de Inmobia
+El equipo de Inmonia
 """
-    return send_email(tenant_email, tenant_name, "📊 Tu resumen semanal en Inmobia", body)
+    return send_email(tenant_email, tenant_name, "📊 Tu resumen semanal en Inmonia", body)
 
 
 def send_stale_leads_alert(tenant_email: str, tenant_name: str, leads: list, dashboard_url: str = "") -> bool:
@@ -349,7 +349,7 @@ para no dejar escapar la operación.
 {dashboard_line}
 
 Un saludo,
-El equipo de Inmobia
+El equipo de Inmonia
 """
     return send_email(tenant_email, tenant_name, f"⏰ Tienes {len(leads)} leads sin contactar", body)
 
@@ -361,7 +361,7 @@ def send_payment_failed(tenant_email: str, tenant_name: str, dashboard_url: str 
 
     body = f"""{saludo}
 
-No hemos podido procesar el pago de tu suscripción de Inmobia. Suele deberse a una
+No hemos podido procesar el pago de tu suscripción de Inmonia. Suele deberse a una
 tarjeta caducada o sin fondos.
 
 Para no perder el acceso a tus leads, actualiza tu método de pago en los próximos días.
@@ -370,6 +370,6 @@ Lo reintentaremos automáticamente.{portal_line}
 Si necesitas ayuda, responde a este correo y te echamos una mano.
 
 Un saludo,
-El equipo de Inmobia
+El equipo de Inmonia
 """
-    return send_email(tenant_email, tenant_name, "⚠️ Problema con tu pago en Inmobia", body)
+    return send_email(tenant_email, tenant_name, "⚠️ Problema con tu pago en Inmonia", body)

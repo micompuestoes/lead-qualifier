@@ -1,4 +1,4 @@
-// Indicador segmentado de puntuación 1–10 — paleta Inmobia
+// Indicador segmentado de puntuación 1–10 — paleta Inmonia
 
 interface Props {
   score: number | null;
