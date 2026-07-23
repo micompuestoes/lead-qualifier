@@ -67,9 +67,12 @@ function Logo({ size = 44 }: { size?: number }) {
       boxShadow: '0 6px 20px rgba(200,169,110,0.4)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
-      <svg width={size * 0.46} height={size * 0.46} viewBox="0 0 24 24" fill="none"
-        strokeWidth={2.2} stroke="#1a1814" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75" />
+      {/* Marca Inmuebia: casa (inmueble) con destello (IA) dentro */}
+      <svg width={size * 0.52} height={size * 0.52} viewBox="0 0 24 24" fill="none"
+        strokeWidth={2} stroke="#1a1814" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 11.25L12 3.75l9 7.5" />
+        <path d="M5.25 9.75v9.75c0 .414.336.75.75.75h12c.414 0 .75-.336.75-.75V9.75" />
+        <path d="M12 10.5l.95 2.05 2.05.95-2.05.95-.95 2.05-.95-2.05-2.05-.95 2.05-.95z" fill="#1a1814" stroke="none" />
       </svg>
     </div>
   );

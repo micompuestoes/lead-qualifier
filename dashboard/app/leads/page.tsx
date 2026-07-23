@@ -56,7 +56,7 @@ export default function LeadsPage() {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('inmonia-perfil');
+      const raw = localStorage.getItem('inmuebia-perfil');
       if (raw) setPlan(JSON.parse(raw).plan ?? 'free');
     } catch {}
   }, []);

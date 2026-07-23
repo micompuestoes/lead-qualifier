@@ -13,7 +13,7 @@ import type { Lead } from '@/types/lead';
 import { useTheme } from './ThemeProvider';
 import { formatearFechaRelativa } from '@/lib/utils';
 
-const SEEN_KEY = 'inmonia-notif-seen';
+const SEEN_KEY = 'inmuebia-notif-seen';
 
 const CLASIF_COLOR: Record<string, string> = { CALIENTE: '#c8796e', TIBIO: '#c8a96e', 'FRÍO': '#6ea8c8' };
 const CLASIF_LABEL: Record<string, string> = { CALIENTE: 'Caliente', TIBIO: 'Tibio', 'FRÍO': 'Frío' };
@@ -104,7 +104,7 @@ export default function NotificationBell({ placement = 'sidebar', enableAlerts =
       const uno = nuevos[0];
       const n = new Notification(
         nuevos.length > 1 ? `🔥 ${nuevos.length} nuevos leads calientes` : '🔥 Nuevo lead caliente',
-        { body: nuevos.length > 1 ? 'Entra para contactarlos cuanto antes.' : `${uno.name} — listo para contactar`, icon: '/favicon.ico', tag: 'inmonia-lead' },
+        { body: nuevos.length > 1 ? 'Entra para contactarlos cuanto antes.' : `${uno.name} — listo para contactar`, icon: '/icon.svg', tag: 'inmuebia-lead' },
       );
       n.onclick = () => { window.focus(); router.push(nuevos.length > 1 ? '/leads' : `/leads/${uno.id}`); n.close(); };
     } catch { /* ignore */ }

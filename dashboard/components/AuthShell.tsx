@@ -13,9 +13,12 @@ function Logo({ size = 40 }: { size?: number }) {
       boxShadow: '0 6px 20px rgba(200,169,110,0.45)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
-      <svg width={size * 0.46} height={size * 0.46} viewBox="0 0 24 24" fill="none"
-        strokeWidth={2.2} stroke="#1a1814" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+      {/* Marca Inmuebia: casa (inmueble) con destello (IA) dentro */}
+      <svg width={size * 0.52} height={size * 0.52} viewBox="0 0 24 24" fill="none"
+        strokeWidth={2} stroke="#1a1814" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 11.25L12 3.75l9 7.5" />
+        <path d="M5.25 9.75v9.75c0 .414.336.75.75.75h12c.414 0 .75-.336.75-.75V9.75" />
+        <path d="M12 10.5l.95 2.05 2.05.95-2.05.95-.95 2.05-.95-2.05-2.05-.95 2.05-.95z" fill="#1a1814" stroke="none" />
       </svg>
     </div>
   );
@@ -93,7 +96,7 @@ function BrandPanel({ mode }: { mode: 'sign-in' | 'sign-up' }) {
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12 }}>
         <Logo size={42} />
         <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em' }}>
-          Inmonia
+          Inmueb<span style={{ color: '#c8a96e' }}>ia</span>
         </span>
       </div>
 
@@ -228,7 +231,7 @@ export default function AuthShell({ mode }: { mode: 'sign-in' | 'sign-up' }) {
             display: 'none', alignItems: 'center', gap: 10, marginBottom: 28, justifyContent: 'center',
           }}>
             <Logo size={36} />
-            <span style={{ fontSize: 16, fontWeight: 600, color: c.text1 }}>Inmonia</span>
+            <span style={{ fontSize: 16, fontWeight: 600, color: c.text1 }}>Inmueb<span style={{ color: '#9a7a3a' }}>ia</span></span>
           </div>
 
           {/* Encabezado propio */}

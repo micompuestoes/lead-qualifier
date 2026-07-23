@@ -31,7 +31,7 @@ const FAQ = [
   },
   {
     q: '¿El email de respuesta lo envío yo?',
-    a: 'No. En cuanto entra un lead, Inmonia le envía automáticamente un email de respuesta redactado por la IA y firmado con el nombre de tu agencia. Cuando el cliente responda, su respuesta llegará a tu email. Tú solo haces el seguimiento.',
+    a: 'No. En cuanto entra un lead, Inmuebia le envía automáticamente un email de respuesta redactado por la IA y firmado con el nombre de tu agencia. Cuando el cliente responda, su respuesta llegará a tu email. Tú solo haces el seguimiento.',
   },
   {
     q: '¿Puedo editar el email antes de que se envíe?',
@@ -105,7 +105,7 @@ export default function AyudaPage() {
     <div style={{ padding: 32, maxWidth: 1080, margin: '0 auto' }}>
       <PageHeader
         eyebrow="Centro de ayuda"
-        title="Guía de Inmonia"
+        title="Guía de Inmuebia"
         description="Todo lo que necesitas para sacar partido a la plataforma. Si te pierdes, empieza por aquí."
       />
 
@@ -117,7 +117,7 @@ export default function AyudaPage() {
           {/* Primeros pasos */}
           <section id="empezar" style={card}>
             <p style={eyebrow}>Empezar</p>
-            <h2 style={h2}>Pon Inmonia a funcionar en 4 pasos</h2>
+            <h2 style={h2}>Pon Inmuebia a funcionar en 4 pasos</h2>
             <p style={{ ...p, marginBottom: 20 }}>Sigue este orden la primera vez. Lo tienes también como checklist en tu <Link href="/" style={{ color: '#9a7a3a', textDecoration: 'none', fontWeight: 600 }}>Inicio</Link>.</p>
             <Paso n={1} titulo="Configura tu empresa">
               Ve a <strong style={strong}>Perfil</strong> y pon el nombre de tu agencia y el email donde quieres recibir los avisos de leads.
@@ -142,7 +142,7 @@ export default function AyudaPage() {
               <strong style={strong}>1. Formulario público.</strong> El enlace de tu Perfil abre un formulario con tu marca. Compártelo en tu web, en tu bio de Instagram o por WhatsApp. Es la vía recomendada.
             </p>
             <p style={p}>
-              <strong style={strong}>2. Tu correo (Pro y Agencia).</strong> Al conectar tu bandeja, Inmonia revisa cada pocos minutos los emails nuevos de posibles clientes y los cualifica solos. Los correos automáticos y newsletters se ignoran.
+              <strong style={strong}>2. Tu correo (Pro y Agencia).</strong> Al conectar tu bandeja, Inmuebia revisa cada pocos minutos los emails nuevos de posibles clientes y los cualifica solos. Los correos automáticos y newsletters se ignoran.
             </p>
             <p style={{ ...p, marginBottom: 0 }}>
               <strong style={strong}>3. Manualmente.</strong> Desde <strong style={strong}>Nuevo lead</strong> puedes pegar el mensaje de un cliente y cualificarlo al instante. Ideal para probar o para contactos que te llegan por teléfono.
@@ -281,7 +281,7 @@ export default function AyudaPage() {
             <p style={{ fontSize: 13.5, color: c.text2, marginBottom: 16 }}>
               Escríbenos y te ayudamos personalmente.
             </p>
-            <a href="mailto:contacto@inmonia.es" style={{
+            <a href="mailto:contacto@inmuebia.es" style={{
               display: 'inline-flex', alignItems: 'center', gap: 8,
               padding: '10px 20px', borderRadius: 12, fontSize: 14, fontWeight: 600,
               background: c.card, color: c.text1, border: `1.5px solid ${c.inputBorder}`, textDecoration: 'none',
@@ -290,7 +290,7 @@ export default function AyudaPage() {
                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
                 <polyline points="22,6 12,13 2,6"/>
               </svg>
-              contacto@inmonia.es
+              contacto@inmuebia.es
             </a>
           </div>
         </div>

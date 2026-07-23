@@ -23,9 +23,12 @@ function Logo() {
       boxShadow: '0 4px 12px rgba(200,169,110,0.3)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" strokeWidth={2.2}
+      {/* Marca Inmuebia: casa (inmueble) con destello (IA) dentro */}
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" strokeWidth={2}
         stroke="#1a1814" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+        <path d="M3 11.25L12 3.75l9 7.5" />
+        <path d="M5.25 9.75v9.75c0 .414.336.75.75.75h12c.414 0 .75-.336.75-.75V9.75" />
+        <path d="M12 10.5l.95 2.05 2.05.95-2.05.95-.95 2.05-.95-2.05-2.05-.95 2.05-.95z" fill="#1a1814" stroke="none" />
       </svg>
     </div>
   );
@@ -47,7 +50,7 @@ export default function LegalDoc({ title, updated, intro, sections }: Props) {
       }}>
         <Link href="/leads" style={{ display: 'flex', alignItems: 'center', gap: 11, textDecoration: 'none' }}>
           <Logo />
-          <span style={{ fontSize: 15, fontWeight: 600, color: c.text1 }}>Inmonia</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color: c.text1 }}>Inmueb<span style={{ color: '#9a7a3a' }}>ia</span></span>
         </Link>
         <Link href="/leads" style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -123,8 +126,8 @@ export default function LegalDoc({ title, updated, intro, sections }: Props) {
         <div style={{ marginTop: 56, paddingTop: 24, borderTop: `1px solid ${c.divider}` }}>
           <p style={{ fontSize: 13, color: c.text3, marginBottom: 10 }}>
             ¿Dudas sobre este documento? Escríbenos a{' '}
-            <a href="mailto:contacto@inmonia.es" style={{ color: '#9a7a3a', textDecoration: 'none' }}>
-              contacto@inmonia.es
+            <a href="mailto:contacto@inmuebia.es" style={{ color: '#9a7a3a', textDecoration: 'none' }}>
+              contacto@inmuebia.es
             </a>.
           </p>
           <div style={{ display: 'flex', gap: 18 }}>

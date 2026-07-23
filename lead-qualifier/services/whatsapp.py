@@ -145,7 +145,7 @@ def send_hot_lead_alert(
         f"{classification} ({score}/10)",
         lead_name or "Sin nombre",
         lead_phone or "no facilitado",
-        dashboard_url or "tu panel de Inmonia",
+        dashboard_url or "tu panel de Inmuebia",
     ]
     enviado = _send_template(to, template, lang, params)
     if enviado:

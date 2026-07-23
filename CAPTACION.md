@@ -1,4 +1,4 @@
-# 📣 Guía de captación de clientes — Inmonia
+# 📣 Guía de captación de clientes — Inmuebia
 
 Tu producto está listo. Esto es lo que necesitas para conseguir las primeras agencias.
 La regla de oro: **constancia diaria**. 10-20 contactos al día durante semanas vencen a cualquier "campaña" puntual.
@@ -56,11 +56,11 @@ opinión — se corrige el producto o el mensaje, no se abandona a ciegas.
 
 > Hola [nombre],
 >
-> Soy [tu nombre], de Inmonia. Trabajo con inmobiliarias como la tuya en [ciudad].
+> Soy [tu nombre], de Inmuebia. Trabajo con inmobiliarias como la tuya en [ciudad].
 >
 > La mayoría de agentes pierde ventas por una razón simple: no responden a tiempo y no saben a qué contacto llamar primero.
 >
-> Inmonia usa IA para **cualificar automáticamente cada consulta** (detecta presupuesto, financiación y urgencia), te dice **a quién llamar primero** y **responde al cliente al instante** en tu nombre.
+> Inmuebia usa IA para **cualificar automáticamente cada consulta** (detecta presupuesto, financiación y urgencia), te dice **a quién llamar primero** y **responde al cliente al instante** en tu nombre.
 >
 > ¿Te enseño cómo funciona en 10 minutos esta semana? Hay un plan gratuito para que lo pruebes sin compromiso: [enlace]
 >
@@ -79,7 +79,7 @@ opinión — se corrige el producto o el mensaje, no se abandona a ciegas.
 
 ## 💚 Guion de WhatsApp / Instagram DM
 
-> ¡Hola! Te escribo porque ayudo a inmobiliarias a captar más con menos esfuerzo. Inmonia cualifica tus leads con IA y responde solo, así priorizas al que de verdad va a comprar. Hay plan gratis para probar 👉 [enlace]. ¿Te lo enseño?
+> ¡Hola! Te escribo porque ayudo a inmobiliarias a captar más con menos esfuerzo. Inmuebia cualifica tus leads con IA y responde solo, así priorizas al que de verdad va a comprar. Hay plan gratis para probar 👉 [enlace]. ¿Te lo enseño?
 
 ---
 
@@ -98,8 +98,8 @@ Si dudan de la IA: enséñales el **modo "revisar antes de enviar"** (ellos tien
 
 ## 🛡️ Objeciones típicas (y respuesta)
 
-- **"Es caro."** → Una sola operación son miles de euros de comisión. Inmonia cuesta menos que una cena al mes y evita que se te escape un cliente. Además tienes plan gratuito.
-- **"Ya tengo un CRM."** → Perfecto, Inmonia no lo sustituye: cualifica y responde por ti antes de que el lead se enfríe. Luego exportas a tu CRM en un clic.
+- **"Es caro."** → Una sola operación son miles de euros de comisión. Inmuebia cuesta menos que una cena al mes y evita que se te escape un cliente. Además tienes plan gratuito.
+- **"Ya tengo un CRM."** → Perfecto, Inmuebia no lo sustituye: cualifica y responde por ti antes de que el lead se enfríe. Luego exportas a tu CRM en un clic.
 - **"No me fío de la IA."** → Tú tienes la última palabra siempre. La IA solo prioriza y redacta el primer email; tú revisas y cierras.
 - **"No tengo tiempo de aprender otra herramienta."** → Se configura en 5 minutos y hay una guía dentro. Te acompaño en la primera demo.
 

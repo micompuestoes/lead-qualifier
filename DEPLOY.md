@@ -1,6 +1,6 @@
-# 🚀 Guía de despliegue — Inmonia
+# 🚀 Guía de despliegue — Inmuebia
 
-Checklist para poner Inmonia en producción y empezar a cobrar. Marca cada paso.
+Checklist para poner Inmuebia en producción y empezar a cobrar. Marca cada paso.
 
 > Arquitectura: **backend** FastAPI (Render/Railway) + **dashboard** Next.js (Vercel) +
 > **Clerk** (auth) + **Stripe** (pagos) + **PostgreSQL** + proveedor de email.
@@ -26,7 +26,7 @@ Si alguna clave se ha compartido alguna vez, rótala antes de lanzar:
 - [ ] Copiar **Publishable key** y **Secret key**.
 - [ ] Copiar la **JWKS URL** (`https://<tu-instancia>.clerk.accounts.dev/.well-known/jwks.json`).
 - [ ] Apunta tu `user_id` de Clerk (lo verás en tu perfil del dashboard) para `SUPER_ADMIN_USER_ID`.
-- [ ] **Renombrar la aplicación en Clerk a "Inmonia"** (Clerk → Settings) — así los emails y pantallas de Clerk no dicen "Lead Qualifier".
+- [ ] **Renombrar la aplicación en Clerk a "Inmuebia"** (Clerk → Settings) — así los emails y pantallas de Clerk no dicen "Lead Qualifier".
 - [ ] En Vercel, define `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in` y `NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up` para usar tus propias páginas (no la página alojada de Clerk).
 
 ---
@@ -63,16 +63,16 @@ Sin esto, los emails caen en spam y el producto pierde su valor.
 
 > ℹ️ Historia de la marca: el proyecto se llamó "Inmobia", pero `inmobia.es`
 > resultó ser de un tercero (comprobado 2026-07-22) y sus variantes .com/.app/.io
-> estaban cogidas, así que el 2026-07-22 se renombró a **Inmonia**
-> (`inmonia.es` y `inmonia.com` libres en ese momento). Regla permanente:
+> estaban cogidas, así que el 2026-07-22 se renombró a **Inmuebia**
+> (`inmuebia.es` y `inmuebia.com` libres en ese momento). Regla permanente:
 > JAMÁS enviar email con remitente de un dominio que no sea nuestro.
 
-- [ ] **Comprar `inmonia.es` y `inmonia.com`** (10-15 €/año cada uno en
+- [ ] **Comprar `inmuebia.es` y `inmuebia.com`** (10-15 €/año cada uno en
       Namecheap, IONOS, Porkbun…). El `.es` como principal, el `.com` redirigido.
-- [ ] Vistazo rápido al buscador de marcas de la OEPM (oepm.es) por "inmonia".
+- [ ] Vistazo rápido al buscador de marcas de la OEPM (oepm.es) por "inmuebia".
 - [ ] Elegir proveedor de envío: **Resend** (recomendado: gratis hasta 3.000
       emails/mes, verificación de dominio sencilla) o Postmark/SendGrid.
-- [ ] En el proveedor: **Add domain** → `inmonia.es` → te dará 3-4 registros DNS.
+- [ ] En el proveedor: **Add domain** → `inmuebia.es` → te dará 3-4 registros DNS.
 - [ ] En el panel DNS del registrador, añadir esos registros tal cual:
   - [ ] **SPF** — TXT en `@` o en el subdominio que indique el proveedor
         (p. ej. `v=spf1 include:amazonses.com ~all` en el caso de Resend).
@@ -81,7 +81,7 @@ Sin esto, los emails caen en spam y el producto pierde su valor.
         `v=DMARC1; p=none; rua=mailto:tu-email-personal` (empezar con `p=none`
         para observar; subir a `p=quarantine` cuando todo llegue bien).
 - [ ] Esperar la verificación del proveedor (minutos u horas) hasta ver el dominio en verde.
-- [ ] Configurar en Render: `FROM_EMAIL=contacto@inmonia.es` y `FROM_NAME=Inmonia`,
+- [ ] Configurar en Render: `FROM_EMAIL=contacto@inmuebia.es` y `FROM_NAME=Inmuebia`,
       más la clave del proveedor (`SENDGRID_API_KEY` o SMTP del proveedor).
 - [ ] Actualizar `DASHBOARD_URL` y el resto de menciones al dominio (código y Vercel).
 - [ ] Enviarte un email de prueba (lead de ejemplo) y comprobar: llega a bandeja,
@@ -114,7 +114,7 @@ Sin esto, los emails caen en spam y el producto pierde su valor.
   - [ ] `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` y `CLERK_SECRET_KEY`
   - [ ] `ADMIN_SECRET_KEY` (la **misma** que el backend) y `SUPER_ADMIN_USER_ID`
   - [ ] (Opcional) `NEXT_PUBLIC_SENTRY_DSN` y `SENTRY_DSN`
-- [ ] Apuntar el dominio (p. ej. `app.inmonia.es`) a Vercel.
+- [ ] Apuntar el dominio (p. ej. `app.inmuebia.es`) a Vercel.
 
 ---
 

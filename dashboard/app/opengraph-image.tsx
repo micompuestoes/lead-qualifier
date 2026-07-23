@@ -3,7 +3,7 @@
 import { ImageResponse } from 'next/og';
 
 export const runtime = 'edge';
-export const alt = 'Inmonia — Deja de perder clientes por responder tarde';
+export const alt = 'Inmuebia — Deja de perder clientes por responder tarde';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -40,9 +40,17 @@ export default function OgImage() {
               color: '#1a1814',
             }}
           >
-            ✦
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#1a1814"
+              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 11.25L12 3.75l9 7.5" />
+              <path d="M5.25 9.75v9.75c0 .414.336.75.75.75h12c.414 0 .75-.336.75-.75V9.75" />
+              <path d="M12 10.5l.95 2.05 2.05.95-2.05.95-.95 2.05-.95-2.05-2.05-.95 2.05-.95z" fill="#1a1814" stroke="none" />
+            </svg>
           </div>
-          <span style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-0.01em' }}>Inmonia</span>
+          <div style={{ display: 'flex', fontSize: 36, fontWeight: 700, letterSpacing: '-0.01em' }}>
+            <span>Inmueb</span>
+            <span style={{ color: GOLD }}>ia</span>
+          </div>
         </div>
         <div style={{ display: 'flex', fontSize: 68, lineHeight: 1.12, letterSpacing: '-0.02em', maxWidth: 900 }}>
           Deja de perder clientes por responder tarde
