@@ -368,6 +368,20 @@ def set_tenant_plan(
     logger.info("Plan actualizado: tenant %s → %s", tenant_id, plan)
 
 
+def admin_override_plan(tenant_id: str, plan: str) -> None:
+    """
+    Cambio de plan MANUAL por el admin (red de seguridad si el webhook de Stripe
+    falla o no llega). A diferencia de set_tenant_plan, NO toca los IDs de Stripe:
+    así un cliente que sigue pagando no pierde su vinculación con la suscripción.
+    """
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE tenants SET plan=:plan WHERE id=:id"),
+            {"plan": plan, "id": tenant_id},
+        )
+    logger.info("Plan (override admin): tenant %s → %s", tenant_id, plan)
+
+
 def get_tenant_by_stripe_customer(customer_id: str) -> Optional[dict]:
     """Busca un tenant por su Stripe customer_id. Usado en webhooks."""
     with engine.connect() as conn:

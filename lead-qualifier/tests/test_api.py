@@ -253,3 +253,30 @@ def test_auth_fail_closed_sin_dev_mode(client, monkeypatch):
     monkeypatch.delenv("DEV_MODE", raising=False)
     assert client.get("/leads").status_code == 503
     assert client.get("/me").status_code == 503
+
+
+# ── Admin: cambio de plan manual (red de seguridad si el webhook falla) ───────
+
+def test_admin_override_plan_conserva_stripe(client, monkeypatch):
+    monkeypatch.setenv("ADMIN_SECRET_KEY", "clave-admin-larga-de-test")
+    # El tenant tiene una suscripción de Stripe vinculada.
+    set_tenant_plan(T, "pro", "sub_manual", "cus_manual")
+
+    # Sin la clave de admin → 403.
+    r = client.patch(f"/admin/tenants/{T}/plan", json={"plan": "agencia"})
+    assert r.status_code == 403
+
+    # Con la clave → cambia el plan y NO borra los IDs de Stripe.
+    h = {"X-Admin-Key": "clave-admin-larga-de-test"}
+    r = client.patch(f"/admin/tenants/{T}/plan", json={"plan": "agencia"}, headers=h)
+    assert r.status_code == 200
+    t = get_tenant(T)
+    assert t["plan"] == "agencia"
+    assert t["stripe_subscription_id"] == "sub_manual"
+    assert t["stripe_customer_id"] == "cus_manual"
+
+    # Plan inválido → 422 (lo rechaza el Literal de Pydantic).
+    r = client.patch(f"/admin/tenants/{T}/plan", json={"plan": "premium"}, headers=h)
+    assert r.status_code == 422
+
+    set_tenant_plan(T, "free", None, "cus_manual")  # dejar el estado limpio
