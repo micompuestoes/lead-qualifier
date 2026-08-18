@@ -93,6 +93,16 @@ def test_sin_zona():
     assert analyze_intent("Busco un piso luminoso.", "Test")["has_zone"] is False
 
 
+@pytest.mark.parametrize("mensaje", [
+    "Quiero comprar en Enero un piso.",
+    "Me gustaría cerrar la compra para Septiembre.",
+    "Podríamos vernos en Navidad para verlo.",
+])
+def test_zona_no_confunde_temporal_con_lugar(mensaje):
+    # Meses/fechas capitalizados tras preposición NO son una zona geográfica.
+    assert analyze_intent(mensaje, "Test")["has_zone"] is False
+
+
 @pytest.mark.parametrize("mensaje, rooms", [
     ("Busco un piso de 3 habitaciones.", 3),
     ("Quiero algo de tres dormitorios.", 3),

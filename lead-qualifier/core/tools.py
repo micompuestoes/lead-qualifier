@@ -188,9 +188,24 @@ def _detectar_zona(message: str, msg_norm: str) -> bool:
         r"\b(?:en|por|cerca de|junto a|zona de|zona del|barrio de|barrio del|"
         r"distrito de|distrito del|en la calle|calle|avenida)\s+"
         r"(?:el\s+|la\s+|los\s+|las\s+|del\s+|de la\s+)?"
-        r"[A-ZÁÉÍÓÚÑ][\wáéíóúñ]{2,}"
+        r"([A-ZÁÉÍÓÚÑ][\wáéíóúñ]{2,})"
     )
-    return bool(re.search(patron, message))
+    m = re.search(patron, message)
+    if not m:
+        return False
+    # Descartar palabras capitalizadas que NO son lugares: meses y días suelen ir
+    # tras "en" ("comprar en Enero") y darían un falso positivo de zona.
+    return _normalizar(m.group(1)) not in NO_LUGARES
+
+
+# Palabras capitalizadas frecuentes que NO son ubicaciones (evita falsos positivos
+# tipo "en Enero", "para Septiembre"). Comparadas ya normalizadas (sin acentos).
+NO_LUGARES = {
+    "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto",
+    "septiembre", "setiembre", "octubre", "noviembre", "diciembre",
+    "lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo",
+    "navidad", "verano", "invierno", "primavera", "otono",
+}
 
 
 def _detectar_habitaciones(msg: str) -> int | None:

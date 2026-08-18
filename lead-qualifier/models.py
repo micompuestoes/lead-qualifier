@@ -22,31 +22,6 @@ class LeadInput(BaseModel):
     message: str = Field(..., min_length=5, max_length=2000, description="Mensaje del lead")
 
 
-class IntentAnalysis(BaseModel):
-    """Resultado del análisis de intención del mensaje."""
-    intention: str
-    urgency: str  # alta, media, baja
-    keywords: List[str]
-    message_quality: str  # claro, vago, muy_vago
-
-
-class CompanyInfo(BaseModel):
-    """Información inferida del dominio de email."""
-    domain: str
-    is_personal_email: bool  # Gmail, Hotmail, Yahoo, etc.
-    company_name: Optional[str] = None
-    estimated_sector: Optional[str] = None
-    estimated_size: Optional[str] = None  # micro, pequeña, mediana, grande
-
-
-class LeadScore(BaseModel):
-    """Puntuación y clasificación del lead."""
-    score: int = Field(..., ge=1, le=10)
-    classification: Clasificacion
-    reasoning: str
-    recommended_actions: List[str]
-
-
 class LeadOutput(BaseModel):
     """Respuesta completa que devuelve la API al procesar un lead."""
     lead_id: str
@@ -58,19 +33,3 @@ class LeadOutput(BaseModel):
     # False → el email quedó como borrador (el tenant revisa antes de enviar)
     email_sent: Optional[bool] = None
     processed_at: datetime
-
-
-class LeadRecord(BaseModel):
-    """Registro completo almacenado en base de datos."""
-    id: str
-    name: str
-    email: str
-    phone: Optional[str]
-    message: str
-    classification: Optional[str]
-    score: Optional[int]
-    reasoning: Optional[str]
-    generated_email: Optional[str]
-    recommended_actions: Optional[str]  # JSON string en BD
-    created_at: datetime
-    processed_at: Optional[datetime]

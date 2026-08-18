@@ -96,7 +96,13 @@ def _send_via_smtp(
     smtp_user = os.getenv("SMTP_USER", "")
     smtp_password = os.getenv("SMTP_PASSWORD", "")
     sender_name = from_name or os.getenv("FROM_NAME", "Inmuebia")
-    from_email = os.getenv("FROM_EMAIL", smtp_user)
+    # Fail-closed igual que el backend SendGrid: sin un FROM_EMAIL de dominio propio
+    # verificado no se envía. Antes se caía a SMTP_USER, pero con proveedores como
+    # Resend ese valor es literalmente "resend" (no un email) → remitente inválido.
+    from_email = os.getenv("FROM_EMAIL", "").strip()
+    if "@" not in from_email:
+        logger.error("FROM_EMAIL no configurado o inválido — no se envía (debe ser un email de dominio propio verificado)")
+        return False
 
     if not smtp_user or not smtp_password:
         logger.error("SMTP_USER y SMTP_PASSWORD son obligatorios para enviar emails")
