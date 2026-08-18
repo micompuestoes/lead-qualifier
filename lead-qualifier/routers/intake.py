@@ -38,6 +38,27 @@ class PublicLeadInput(LeadInput):
     website: Optional[str] = None
 
 
+@router.get("/form-config/{api_key}")
+def public_form_config(api_key: str):
+    """
+    Devuelve la personalización del formulario público (marca de la agencia).
+    Sin autenticación: el formulario la consulta al cargar. Solo expone campos
+    de marca — nada sensible. Si la cuenta está cancelada o la key no existe,
+    devuelve la configuración por defecto (el formulario decide qué hacer).
+    """
+    tenant = get_tenant_by_api_key(api_key)
+    if not tenant or tenant.get("status") == "cancelled":
+        return {"found": False}
+    return {
+        "found": True,
+        "agency_name":   tenant.get("name") or "",
+        "brand_color":   tenant.get("brand_color") or "",
+        "logo_url":      tenant.get("logo_url") or "",
+        "form_title":    tenant.get("form_title") or "",
+        "form_subtitle": tenant.get("form_subtitle") or "",
+    }
+
+
 @router.post("/intake/{api_key}", status_code=200)
 def public_intake(api_key: str, lead: PublicLeadInput, request: Request, background_tasks: BackgroundTasks):
     """

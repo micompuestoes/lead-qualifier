@@ -4,9 +4,17 @@
 // No requiere login — cualquier visitante de la web de la inmobiliaria puede rellenarlo.
 // URL: /form/lq_xxxxxxxxxxxxxxxxxx
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTheme } from '@/components/ThemeProvider';
 import PhoneInput from '@/components/PhoneInput';
+
+interface Branding {
+  agency_name: string;
+  brand_color: string;
+  logo_url: string;
+  form_title: string;
+  form_subtitle: string;
+}
 
 interface FormState {
   name: string;
@@ -59,23 +67,14 @@ function mensajeError(detail: unknown, fallback: string): string {
   return fallback;
 }
 
-function Logo({ size = 44 }: { size?: number }) {
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: size * 0.28, flexShrink: 0,
-      background: 'linear-gradient(135deg, #d4b87a 0%, #c8a96e 45%, #a8895a 100%)',
-      boxShadow: '0 6px 20px rgba(200,169,110,0.4)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-    }}>
-      {/* Marca Inmuebia: casa (inmueble) con destello (IA) dentro */}
-      <svg width={size * 0.52} height={size * 0.52} viewBox="0 0 24 24" fill="none"
-        strokeWidth={2} stroke="#1a1814" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 11.25L12 3.75l9 7.5" />
-        <path d="M5.25 9.75v9.75c0 .414.336.75.75.75h12c.414 0 .75-.336.75-.75V9.75" />
-        <path d="M12 10.5l.95 2.05 2.05.95-2.05.95-.95 2.05-.95-2.05-2.05-.95 2.05-.95z" fill="#1a1814" stroke="none" />
-      </svg>
-    </div>
-  );
+// Elige texto negro o blanco según la luminancia del color de marca, para que
+// el botón sea legible con cualquier color que ponga la agencia.
+function contrastText(hex: string): string {
+  const h = hex.replace('#', '');
+  if (h.length !== 6) return '#1a1814';
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum > 0.62 ? '#1a1814' : '#ffffff';
 }
 
 export default function FormularioPublico({ params }: { params: { token: string } }) {
@@ -88,6 +87,14 @@ export default function FormularioPublico({ params }: { params: { token: string 
   const [operacion, setOperacion]     = useState('');
   const [presupuesto, setPresupuesto] = useState('');
   const [acepto, setAcepto]           = useState(false);   // consentimiento RGPD
+  const [brand, setBrand]             = useState<Branding | null>(null);
+
+  // Color de marca de la agencia (con dorado Inmuebia como respaldo).
+  const accent = (brand?.brand_color && brand.brand_color.trim()) || '#c8a96e';
+  const titulo = (brand?.form_title && brand.form_title.trim()) || '¿Buscas tu próxima propiedad?';
+  const subtitulo = (brand?.form_subtitle && brand.form_subtitle.trim())
+    || 'Cuéntanos qué necesitas y te contactamos en menos de 24 horas.';
+  const onAccent = contrastText(accent);   // color de texto legible sobre el color de marca
 
   const RANGOS_COMPRA = ['Hasta 100.000 €', '100.000 – 200.000 €', '200.000 – 300.000 €', '300.000 – 500.000 €', 'Más de 500.000 €'];
   const RANGOS_ALQUILER = ['Hasta 600 €/mes', '600 – 900 €/mes', '900 – 1.200 €/mes', 'Más de 1.200 €/mes'];
@@ -102,6 +109,16 @@ export default function FormularioPublico({ params }: { params: { token: string 
   }
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+
+  // Carga la personalización de la agencia (logo, color, textos) al abrir el formulario.
+  useEffect(() => {
+    let vivo = true;
+    fetch(`${apiBase}/form-config/${params.token}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => { if (vivo && data && data.found) setBrand(data as Branding); })
+      .catch(() => { /* si falla, se usa la marca por defecto */ });
+    return () => { vivo = false; };
+  }, [apiBase, params.token]);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -234,7 +251,7 @@ export default function FormularioPublico({ params }: { params: { token: string 
           <button onClick={() => setPaso('formulario')}
             style={{
               padding: '10px 22px', borderRadius: 11, fontSize: 13, fontWeight: 600,
-              background: '#c8a96e', color: '#1a1814', border: 'none', cursor: 'pointer',
+              background: accent, color: onAccent, border: 'none', cursor: 'pointer',
             }}>
             Intentar de nuevo
           </button>
@@ -249,19 +266,44 @@ export default function FormularioPublico({ params }: { params: { token: string 
     <div style={pageStyle}>
       <div style={cardStyle} className="animate-fade-up">
 
-        {/* Cabecera */}
+        {/* Cabecera — marca de la agencia */}
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ display: 'inline-flex', marginBottom: 16 }}>
-            <Logo />
+          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+            {brand?.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={brand.logo_url} alt={brand.agency_name || 'Logo'}
+                style={{ maxHeight: 54, maxWidth: 220, objectFit: 'contain' }} />
+            ) : (
+              <div style={{
+                width: 48, height: 48, borderRadius: 14, flexShrink: 0,
+                background: accent, boxShadow: `0 6px 20px ${accent}55`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {/* Icono neutro de inmueble (sin la marca Inmuebia) */}
+                <svg width="25" height="25" viewBox="0 0 24 24" fill="none"
+                  stroke={onAccent} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 11.25L12 3.75l9 7.5" />
+                  <path d="M5.25 9.75v9.75c0 .414.336.75.75.75h12c.414 0 .75-.336.75-.75V9.75" />
+                </svg>
+              </div>
+            )}
           </div>
+          {brand?.agency_name && !brand?.logo_url && (
+            <p style={{
+              fontSize: 12, fontWeight: 700, letterSpacing: '0.08em',
+              textTransform: 'uppercase', color: accent, marginBottom: 8,
+            }}>
+              {brand.agency_name}
+            </p>
+          )}
           <h1 style={{
             fontFamily: "'DM Serif Display', Georgia, serif", fontSize: '1.75rem',
             color: c.text1, marginBottom: 8, letterSpacing: '-0.02em', lineHeight: 1.2,
           }}>
-            ¿Buscas tu próxima propiedad?
+            {titulo}
           </h1>
           <p style={{ fontSize: 14, color: c.text2, lineHeight: 1.55 }}>
-            Cuéntanos qué necesitas y te contactamos en menos de 24 horas.
+            {subtitulo}
           </p>
         </div>
 
@@ -310,9 +352,9 @@ export default function FormularioPublico({ params }: { params: { token: string 
                     style={{
                       flex: 1, padding: '9px 8px', borderRadius: 10, fontSize: 13.5,
                       fontWeight: sel ? 600 : 500, cursor: 'pointer', transition: 'all 0.15s',
-                      background: sel ? '#c8a96e' : 'transparent',
-                      color: sel ? '#1a1814' : c.text2,
-                      border: sel ? '1.5px solid #c8a96e' : `1.5px solid ${c.inputBorder}`,
+                      background: sel ? accent : 'transparent',
+                      color: sel ? onAccent : c.text2,
+                      border: sel ? `1.5px solid ${accent}` : `1.5px solid ${c.inputBorder}`,
                     }}>
                     {op}
                   </button>
@@ -370,7 +412,7 @@ export default function FormularioPublico({ params }: { params: { token: string 
               checked={acepto}
               onChange={e => setAcepto(e.target.checked)}
               required
-              style={{ marginTop: 2, width: 15, height: 15, accentColor: '#c8a96e', cursor: 'pointer', flexShrink: 0 }}
+              style={{ marginTop: 2, width: 15, height: 15, accentColor: accent, cursor: 'pointer', flexShrink: 0 }}
             />
             <span style={{ fontSize: 12.5, lineHeight: 1.5, color: c.text2 }}>
               He leído y acepto la{' '}
@@ -385,10 +427,10 @@ export default function FormularioPublico({ params }: { params: { token: string 
             style={{
               width: '100%', padding: '13px', borderRadius: 12, fontSize: 14, fontWeight: 600,
               border: 'none', marginTop: 4,
-              background: completo ? '#c8a96e' : 'rgba(200,169,110,0.4)',
-              color: '#1a1814',
+              background: completo ? accent : `${accent}66`,
+              color: completo ? onAccent : `${onAccent}99`,
               cursor: completo ? 'pointer' : 'not-allowed',
-              boxShadow: completo ? '0 2px 16px rgba(200,169,110,0.4)' : 'none',
+              boxShadow: completo ? `0 2px 16px ${accent}66` : 'none',
               transition: 'all 0.15s',
             }}>
             Enviar consulta

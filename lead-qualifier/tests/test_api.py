@@ -207,6 +207,30 @@ def test_intake_publico_sin_fuga_y_honeypot(client):
     }).status_code == 404
 
 
+def test_form_branding_y_config_publica(client):
+    # Guardar la marca del formulario.
+    r = client.post("/me/form-branding", json={
+        "brand_color": "#1a73e8", "logo_url": "https://x.es/logo.png",
+        "form_title": "Vende con nosotros", "form_subtitle": "Te llamamos hoy",
+    })
+    assert r.status_code == 200 and r.json()["brand_color"] == "#1a73e8"
+
+    # Color inválido → 400 (no debe llegar CSS raro al formulario).
+    assert client.post("/me/form-branding", json={"brand_color": "azul"}).status_code == 400
+    # Logo que no es URL → 400.
+    assert client.post("/me/form-branding", json={"logo_url": "javascript:alert(1)"}).status_code == 400
+
+    # El endpoint publico del formulario refleja la marca por api_key.
+    ak = get_tenant(T)["api_key"]
+    fc = client.get(f"/form-config/{ak}").json()
+    assert fc["found"] is True
+    assert fc["brand_color"] == "#1a73e8"
+    assert fc["form_title"] == "Vende con nosotros"
+
+    # api_key inexistente → found False (el formulario usa la marca por defecto).
+    assert client.get("/form-config/lq_inexistente").json()["found"] is False
+
+
 # ── Webhook de Stripe: procesa una vez, ignora reintentos ─────────────────────
 
 def test_webhook_stripe_idempotente(client):

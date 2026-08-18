@@ -2,14 +2,15 @@
 
 import logging
 import os
+import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from core.database import (
     count_unread_notifications, ensure_tenant, get_notifications, get_tenant,
-    mark_notifications_read, update_ai_settings, update_tenant_profile,
-    update_whatsapp_config,
+    mark_notifications_read, update_ai_settings, update_form_branding,
+    update_tenant_profile, update_whatsapp_config,
 )
 from deps import get_tenant_id
 from services.whatsapp import normalize_phone
@@ -18,10 +19,19 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["perfil"])
 
+_HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
+
 
 class ActualizarPerfilInput(BaseModel):
     name: str
     notify_email: str
+
+
+class FormBrandingInput(BaseModel):
+    brand_color: str = ""    # hex #rrggbb; vacío = usar el color por defecto
+    logo_url: str = ""       # URL de la imagen del logo (opcional)
+    form_title: str = ""     # título del formulario (opcional)
+    form_subtitle: str = ""  # subtítulo del formulario (opcional)
 
 
 class WhatsappConfigInput(BaseModel):
@@ -57,6 +67,10 @@ async def get_my_profile(tenant_id: str = Depends(get_tenant_id)):
         "auto_send_email":  True if tenant.get("auto_send_email") is None else bool(tenant.get("auto_send_email")),
         "brand_voice":      tenant.get("brand_voice") or "",
         "followup_enabled": bool(tenant.get("followup_enabled")),
+        "brand_color":      tenant.get("brand_color") or "",
+        "logo_url":         tenant.get("logo_url") or "",
+        "form_title":       tenant.get("form_title") or "",
+        "form_subtitle":    tenant.get("form_subtitle") or "",
     }
 
 
@@ -104,6 +118,35 @@ async def save_ai_settings(
     return {
         "ok": True, "auto_send_email": body.auto_send, "brand_voice": voz,
         "followup_enabled": body.followup_enabled,
+    }
+
+
+@router.post("/me/form-branding")
+async def save_form_branding(
+    body: FormBrandingInput,
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """
+    Personaliza el formulario público de la agencia: color de marca, logo y textos.
+    El color se valida como hex #rrggbb (evita valores raros en el CSS del formulario).
+    """
+    ensure_tenant(tenant_id)
+
+    color = body.brand_color.strip()
+    if color and not _HEX_COLOR.match(color):
+        raise HTTPException(status_code=400, detail="El color debe ser un hex tipo #1a73e8.")
+
+    logo = body.logo_url.strip()[:500]
+    if logo and not logo.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="El logo debe ser una URL (https://…).")
+
+    titulo = body.form_title.strip()[:120]
+    sub    = body.form_subtitle.strip()[:200]
+
+    update_form_branding(tenant_id, color or None, logo or None, titulo or None, sub or None)
+    return {
+        "ok": True, "brand_color": color, "logo_url": logo,
+        "form_title": titulo, "form_subtitle": sub,
     }
 
 

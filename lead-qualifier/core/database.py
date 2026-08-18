@@ -141,6 +141,11 @@ def init_db() -> None:
         # Seguimiento automático: recordatorio al lead si sigue pendiente (opt-in)
         "ALTER TABLE tenants ADD COLUMN followup_enabled INTEGER DEFAULT 0",
         "ALTER TABLE leads ADD COLUMN followup_sent_at TEXT",
+        # Marca del formulario público (personalización por agencia)
+        "ALTER TABLE tenants ADD COLUMN brand_color TEXT",
+        "ALTER TABLE tenants ADD COLUMN logo_url TEXT",
+        "ALTER TABLE tenants ADD COLUMN form_title TEXT",
+        "ALTER TABLE tenants ADD COLUMN form_subtitle TEXT",
     ]:
         try:
             with engine.begin() as conn:
@@ -331,6 +336,28 @@ def update_ai_settings(tenant_id: str, auto_send: bool, brand_voice: str,
         )
     logger.info("Ajustes de IA actualizados para tenant %s (auto_send=%s, followup=%s)",
                 tenant_id, auto_send, followup_enabled)
+
+
+def update_form_branding(
+    tenant_id: str,
+    brand_color: Optional[str],
+    logo_url: Optional[str],
+    form_title: Optional[str],
+    form_subtitle: Optional[str],
+) -> None:
+    """Guarda la personalización del formulario público (color, logo y textos)."""
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                UPDATE tenants
+                SET brand_color = :color, logo_url = :logo,
+                    form_title = :titulo, form_subtitle = :sub
+                WHERE id = :id
+            """),
+            {"color": brand_color or None, "logo": logo_url or None,
+             "titulo": form_title or None, "sub": form_subtitle or None, "id": tenant_id},
+        )
+    logger.info("Marca del formulario actualizada para tenant %s", tenant_id)
 
 
 def update_whatsapp_config(tenant_id: str, number: Optional[str], enabled: bool) -> None:
