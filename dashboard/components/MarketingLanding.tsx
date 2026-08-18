@@ -47,7 +47,7 @@ const VENTAJAS = [
   },
   {
     titulo: 'Capta desde tu web',
-    desc: 'Un formulario con tu marca que convierte cada visita en un lead cualificado en tu panel.',
+    desc: 'Un formulario con tu marca —o el plugin de WordPress— que convierte cada visita en un lead cualificado en tu panel.',
     icon: <><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></>,
   },
   {
@@ -417,6 +417,10 @@ export default function MarketingLanding() {
             {
               q: '¿Funciona con mi web actual?',
               a: 'Sí. El formulario funciona como un enlace: sirve para cualquier web, para tu bio de Instagram o para enviarlo por WhatsApp. Y si no tienes web, con conectar tu correo basta.',
+            },
+            {
+              q: '¿Tengo mi web en WordPress?',
+              a: 'Genial. Tenemos un plugin gratuito para WordPress: lo instalas, pegas tu clave y el formulario aparece en cualquier página con un simple shortcode. Lo personalizas con los colores de tu agencia y es white-label — tus clientes no ven la marca Inmuebia por ningún lado.',
             },
             {
               q: '¿Puedo revisar lo que envía la IA antes de que salga?',
