@@ -18,10 +18,6 @@ interface Perfil {
   whatsapp_enabled?: boolean;
   auto_send_email?: boolean;
   brand_voice?: string;
-  brand_color?: string;
-  logo_url?: string;
-  form_title?: string;
-  form_subtitle?: string;
 }
 
 interface TeamMember {
@@ -64,9 +60,6 @@ export default function PerfilPage() {
 
   const [aiForm, setAiForm]       = useState({ auto_send: true, brand_voice: '', followup_enabled: false });
   const [aiGuardando, setAiGuardando] = useState(false);
-
-  const [brandForm, setBrandForm] = useState({ brand_color: '', logo_url: '', form_title: '', form_subtitle: '' });
-  const [brandGuardando, setBrandGuardando] = useState(false);
 
   const [equipo, setEquipo]               = useState<TeamMember[]>([]);
   const [nuevoMiembro, setNuevoMiembro]   = useState('');
@@ -176,12 +169,6 @@ export default function PerfilPage() {
           brand_voice: data.brand_voice ?? '',
           followup_enabled: !!data.followup_enabled,
         });
-        setBrandForm({
-          brand_color: data.brand_color ?? '',
-          logo_url: data.logo_url ?? '',
-          form_title: data.form_title ?? '',
-          form_subtitle: data.form_subtitle ?? '',
-        });
         if (resImap.ok) setImap(await resImap.json());
         if (resTeam.ok) { const t = await resTeam.json(); setEquipo(t.members ?? []); }
       } catch {
@@ -240,32 +227,6 @@ export default function PerfilPage() {
       addToast(err instanceof Error ? err.message : 'Error al guardar', 'error');
     } finally {
       setAiGuardando(false);
-    }
-  }
-
-  async function guardarBranding(e: React.FormEvent) {
-    e.preventDefault();
-    setBrandGuardando(true);
-    try {
-      const token = await getToken();
-      const res = await fetch(`${apiBase}/me/form-branding`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body:    JSON.stringify(brandForm),
-      });
-      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail ?? 'Error al guardar'); }
-      const data = await res.json();
-      setBrandForm({
-        brand_color: data.brand_color ?? '',
-        logo_url: data.logo_url ?? '',
-        form_title: data.form_title ?? '',
-        form_subtitle: data.form_subtitle ?? '',
-      });
-      addToast('Marca del formulario guardada', 'success');
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Error al guardar', 'error');
-    } finally {
-      setBrandGuardando(false);
     }
   }
 
@@ -626,114 +587,6 @@ export default function PerfilPage() {
               style={{ ...btnPrimary, opacity: aiGuardando ? 0.6 : 1 }}>
               {aiGuardando ? 'Guardando…' : 'Guardar preferencias'}
             </button>
-          </form>
-        </div>
-
-        {/* ── Marca de tu formulario ── */}
-        <div style={card}>
-          <h2 className="text-base font-semibold mb-1" style={{ color: c.text1 }}>
-            Personaliza tu formulario
-          </h2>
-          <p className="text-sm mb-5" style={{ color: c.text2 }}>
-            Da al formulario público la imagen de tu agencia: tu logo, tu color y tus textos.
-            Así encaja con tu web y tus clientes ven tu marca, no la nuestra.
-          </p>
-
-          <form onSubmit={guardarBranding} className="space-y-4">
-            {/* Color de marca */}
-            <div>
-              <label style={labelStyle}>Color de marca</label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  value={brandForm.brand_color || '#c8a96e'}
-                  onChange={e => setBrandForm(p => ({ ...p, brand_color: e.target.value }))}
-                  style={{ width: 46, height: 40, borderRadius: 10, border: `1.5px solid ${c.inputBorder}`, background: 'transparent', cursor: 'pointer', padding: 2 }}
-                />
-                <input
-                  type="text"
-                  value={brandForm.brand_color}
-                  onChange={e => setBrandForm(p => ({ ...p, brand_color: e.target.value }))}
-                  onFocus={() => setFocusedInput('brand-color')}
-                  onBlur={() => setFocusedInput(null)}
-                  placeholder="#c8a96e"
-                  style={{ ...inputStyleFor('brand-color'), maxWidth: 160 }}
-                />
-                {brandForm.brand_color && (
-                  <button type="button" onClick={() => setBrandForm(p => ({ ...p, brand_color: '' }))}
-                    className="text-xs" style={{ color: c.text3, textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer' }}>
-                    restablecer
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Logo */}
-            <div>
-              <label style={labelStyle}>
-                Logo <span style={{ color: c.text3, textTransform: 'none', fontWeight: 400, marginLeft: 6 }}>· opcional, URL de la imagen</span>
-              </label>
-              <input
-                type="url"
-                value={brandForm.logo_url}
-                onChange={e => setBrandForm(p => ({ ...p, logo_url: e.target.value }))}
-                onFocus={() => setFocusedInput('logo-url')}
-                onBlur={() => setFocusedInput(null)}
-                placeholder="https://tuweb.es/logo.png"
-                style={inputStyleFor('logo-url')}
-              />
-              {brandForm.logo_url && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={brandForm.logo_url} alt="Vista previa del logo" style={{ maxHeight: 40, marginTop: 10, objectFit: 'contain' }} />
-              )}
-            </div>
-
-            {/* Título */}
-            <div>
-              <label style={labelStyle}>
-                Título del formulario <span style={{ color: c.text3, textTransform: 'none', fontWeight: 400, marginLeft: 6 }}>· opcional</span>
-              </label>
-              <input
-                type="text"
-                value={brandForm.form_title}
-                onChange={e => setBrandForm(p => ({ ...p, form_title: e.target.value }))}
-                onFocus={() => setFocusedInput('form-title')}
-                onBlur={() => setFocusedInput(null)}
-                maxLength={120}
-                placeholder="¿Buscas tu próxima propiedad?"
-                style={inputStyleFor('form-title')}
-              />
-            </div>
-
-            {/* Subtítulo */}
-            <div>
-              <label style={labelStyle}>
-                Subtítulo <span style={{ color: c.text3, textTransform: 'none', fontWeight: 400, marginLeft: 6 }}>· opcional</span>
-              </label>
-              <input
-                type="text"
-                value={brandForm.form_subtitle}
-                onChange={e => setBrandForm(p => ({ ...p, form_subtitle: e.target.value }))}
-                onFocus={() => setFocusedInput('form-subtitle')}
-                onBlur={() => setFocusedInput(null)}
-                maxLength={200}
-                placeholder="Cuéntanos qué necesitas y te contactamos en menos de 24 horas."
-                style={inputStyleFor('form-subtitle')}
-              />
-            </div>
-
-            <div className="flex items-center gap-3 flex-wrap">
-              <button type="submit" disabled={brandGuardando}
-                style={{ ...btnPrimary, opacity: brandGuardando ? 0.6 : 1 }}>
-                {brandGuardando ? 'Guardando…' : 'Guardar marca'}
-              </button>
-              {perfil?.api_key && (
-                <a href={`/form/${perfil.api_key}`} target="_blank" rel="noopener noreferrer"
-                  className="text-sm font-semibold" style={{ color: '#9a7a3a', textDecoration: 'none' }}>
-                  Ver mi formulario →
-                </a>
-              )}
-            </div>
           </form>
         </div>
 
