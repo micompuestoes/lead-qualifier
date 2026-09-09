@@ -2,7 +2,8 @@
 # Instalar con: pip install -r requirements.txt
 
 # ── Core ──────────────────────────────────────
-anthropic>=0.40.0          # Claude API y tool use
+anthropic>=0.40.0,<1.0.0   # Claude API y tool use — <1.0.0: la 1.x exige httpx2,
+                            # incompatible con el http_client de truststore en core/agent.py
 fastapi[all]>=0.115.0      # Framework HTTP (incluye uvicorn, pydantic, etc.)
 uvicorn[standard]>=0.32.0  # Servidor ASGI
 pydantic[email]>=2.9.0     # Validación de modelos con soporte de email

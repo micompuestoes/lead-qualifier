@@ -39,8 +39,9 @@ lead-qualifier/
 │   ├── ads.py           # /generate-ad  (Agencia)
 │   ├── admin.py         # /admin/*  (protegido por X-Admin-Key)
 │   └── health.py        # /health
+├── scripts/
+│   └── smoke_agent.py   # Script de prueba manual del agente (requiere ANTHROPIC_API_KEY)
 └── tests/
-    └── test_agent.py    # Script de prueba manual del agente (requiere ANTHROPIC_API_KEY)
 ```
 
 ### Flujo de cualificación
@@ -119,10 +120,12 @@ Se ejecuta automáticamente en cada push/PR vía GitHub Actions
 ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)), junto al typecheck
 del dashboard.
 
-**Script de humo del agente completo** ([`tests/test_agent.py`](tests/test_agent.py)) —
+**Script de humo del agente completo** ([`scripts/smoke_agent.py`](scripts/smoke_agent.py)) —
 ejecuta el pipeline entero (incluida la llamada a Claude) sobre un lead de
-ejemplo. Necesita `ANTHROPIC_API_KEY` válida y se ejecuta a mano:
+ejemplo. Necesita `ANTHROPIC_API_KEY` válida y se ejecuta a mano. Vive fuera de
+`tests/` a propósito: así un `pytest tests/` (o un `testpaths` mal ajustado)
+nunca dispara por accidente una llamada real y facturable a Claude.
 
 ```bash
-python tests/test_agent.py
+python scripts/smoke_agent.py
 ```

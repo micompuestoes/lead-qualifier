@@ -344,6 +344,7 @@ export default function LeadsPage() {
             onFocus={() => setBusquedaFocus(true)}
             onBlur={() => setBusquedaFocus(false)}
             placeholder="Buscar leads…"
+            aria-label="Buscar leads"
             style={{
               width: '100%', padding: '8px 12px 8px 34px',
               borderRadius: 11, fontSize: 13, outline: 'none',
@@ -354,7 +355,7 @@ export default function LeadsPage() {
             }}
           />
           {busqueda && (
-            <button onClick={() => setBusqueda('')}
+            <button onClick={() => setBusqueda('')} aria-label="Limpiar búsqueda"
               style={{
                 position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
                 background: 'none', border: 'none', cursor: 'pointer',

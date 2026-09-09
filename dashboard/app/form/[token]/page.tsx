@@ -24,7 +24,7 @@ interface FormState {
   website: string;   // honeypot anti-bots (oculto)
 }
 
-type Paso = 'formulario' | 'enviando' | 'ok' | 'error';
+type Paso = 'formulario' | 'enviando' | 'ok' | 'error' | 'token-invalido';
 
 // Validación en cliente (en español) — evita que el usuario vea errores del servidor
 function validar(f: FormState): string | null {
@@ -110,13 +110,20 @@ export default function FormularioPublico({ params }: { params: { token: string 
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
-  // Carga la personalización de la agencia (logo, color, textos) al abrir el formulario.
+  // Carga la personalización de la agencia (logo, color, textos) al abrir el
+  // formulario. De paso, si el token no existe (found: false), lo avisamos
+  // ANTES de que el visitante rellene todo el formulario — antes solo se
+  // enteraba al enviar, tras escribir su consulta entera.
   useEffect(() => {
     let vivo = true;
     fetch(`${apiBase}/form-config/${params.token}`)
       .then(r => (r.ok ? r.json() : null))
-      .then(data => { if (vivo && data && data.found) setBrand(data as Branding); })
-      .catch(() => { /* si falla, se usa la marca por defecto */ });
+      .then(data => {
+        if (!vivo || !data) return;
+        if (data.found) setBrand(data as Branding);
+        else setPaso('token-invalido');
+      })
+      .catch(() => { /* fallo de red: no bloqueamos el formulario por esto */ });
     return () => { vivo = false; };
   }, [apiBase, params.token]);
 
@@ -221,6 +228,35 @@ export default function FormularioPublico({ params }: { params: { token: string 
           </p>
           <p style={{ fontSize: 12.5, color: c.text3 }}>
             Te hemos enviado una confirmación a <strong style={{ color: c.text2 }}>{form.email}</strong>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Token inválido: se detecta al cargar, antes de que el visitante escriba nada ──
+  if (paso === 'token-invalido') {
+    return (
+      <div style={pageStyle}>
+        <div style={{ ...cardStyle, textAlign: 'center' }}>
+          <div style={{
+            width: 64, height: 64, borderRadius: '50%', margin: '0 auto 20px',
+            background: 'rgba(180,83,9,0.1)', border: '1.5px solid rgba(180,83,9,0.25)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#b45309" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            </svg>
+          </div>
+          <h2 style={{
+            fontFamily: "'DM Serif Display', Georgia, serif", fontSize: '1.5rem',
+            color: c.text1, marginBottom: 10,
+          }}>
+            Este formulario no está disponible
+          </h2>
+          <p style={{ fontSize: 13.5, color: c.text2, lineHeight: 1.6 }}>
+            El enlace no es correcto o ya no está activo. Contacta directamente
+            con la inmobiliaria para que te faciliten la forma de escribirles.
           </p>
         </div>
       </div>

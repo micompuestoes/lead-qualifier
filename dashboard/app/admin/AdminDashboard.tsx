@@ -185,6 +185,7 @@ export default function AdminDashboard({ tenants: inicial, error }: { tenants: T
             onFocus={() => setQueryFocus(true)}
             onBlur={() => setQueryFocus(false)}
             placeholder="Buscar por empresa, email o ID…"
+            aria-label="Buscar por empresa, email o ID"
             style={{
               width: '100%', padding: '9px 12px 9px 36px', borderRadius: 11, fontSize: 13,
               outline: 'none', background: c.input, color: c.text1,
@@ -194,7 +195,7 @@ export default function AdminDashboard({ tenants: inicial, error }: { tenants: T
             }}
           />
           {query && (
-            <button onClick={() => setQuery('')}
+            <button onClick={() => setQuery('')} aria-label="Limpiar búsqueda"
               style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: c.text2, display: 'flex', padding: 2 }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
