@@ -11,9 +11,10 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
   }
 
-  // Solo el super admin (si está configurado)
+  // Solo el super admin. Si la variable no está configurada, denegar siempre
+  // (fail-closed) en vez de dejar pasar a cualquier usuario autenticado.
   const superAdminId = process.env.SUPER_ADMIN_USER_ID?.trim();
-  if (superAdminId && userId !== superAdminId) {
+  if (!superAdminId || userId !== superAdminId) {
     return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 });
   }
 

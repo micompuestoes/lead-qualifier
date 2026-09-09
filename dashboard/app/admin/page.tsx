@@ -32,8 +32,10 @@ export default async function AdminPage() {
   // Solo el owner puede acceder. Configura SUPER_ADMIN_USER_ID en Vercel.
   // trim(): un espacio o salto de línea colado al pegar la variable no debe
   // dejar fuera al admin legítimo.
+  // Fail-closed: si la variable no está configurada, se deniega el acceso
+  // a todo el mundo en vez de dejar pasar a cualquier usuario autenticado.
   const superAdminId = process.env.SUPER_ADMIN_USER_ID?.trim();
-  if (superAdminId && userId !== superAdminId) {
+  if (!superAdminId || userId !== superAdminId) {
     // Autodiagnóstico para configurar el acceso sin adivinar: el id del
     // visitante (dato suyo, no sensible) y el valor que el servidor tiene
     // configurado, ENMASCARADO (suficiente para detectar valores viejos,
@@ -53,7 +55,7 @@ export default async function AdminPage() {
             <br />
             Valor configurado en el servidor:{' '}
             <code style={{ fontFamily: 'monospace', background: 'rgba(122,116,104,0.1)', padding: '2px 6px', borderRadius: 6 }}>
-              {mask(superAdminId)}
+              {superAdminId ? mask(superAdminId) : '(sin configurar)'}
             </code>
             <br />
             Si eres el administrador, pon tu ID exacto en{' '}

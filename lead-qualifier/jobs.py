@@ -22,6 +22,7 @@ from core.database import (
     mark_followup_sent, update_imap_last_sync,
 )
 from models import LeadInput
+from pydantic import ValidationError
 from notifications import notificar_tenant
 from security import descifrar
 from services.email_imap import obtener_no_leidos
@@ -179,20 +180,27 @@ async def _sync_imap_tenant(t: dict) -> None:
     """Descarga emails no leídos del tenant y los cualifica como leads."""
     password = descifrar(t["password_enc"])
     loop = asyncio.get_event_loop()
-
-    # La I/O IMAP es bloqueante → correr en thread pool
-    emails = await loop.run_in_executor(
-        None, obtener_no_leidos, t["host"], t["port"], t["user"], password
-    )
-
-    if emails:
-        logger.info("IMAP tenant %s — %d email(s) nuevos", t["id"], len(emails))
-
     client = runtime.anthropic_client
     tenant_full = get_tenant(t["id"]) or {}
-    for datos in emails:
+
+    def _procesar(datos: dict) -> bool:
+        """
+        Cualifica un email ya parseado. Devuelve True si el email debe
+        marcarse como leído (procesado con éxito, o con datos que nunca
+        van a validar y no tiene sentido reintentar). Devuelve False ante
+        un fallo transitorio (IA, red, DB...) para que el email quede sin
+        leer y se reintente en el siguiente sync — así no se pierde el lead.
+        """
         try:
             lead_input = LeadInput(**datos)
+        except ValidationError as exc:
+            logger.error(
+                "Email de %s descartado — datos inválidos para un lead: %s",
+                datos.get("email"), exc,
+            )
+            return True  # no reintentar: nunca va a validar
+
+        try:
             # auto_send=False: la respuesta a un email de la bandeja NO se envía
             # automáticamente (saldría desde otro remitente); queda como borrador
             # listo para revisar y enviar desde el dashboard con un clic.
@@ -212,7 +220,19 @@ async def _sync_imap_tenant(t: dict) -> None:
                 "Lead IMAP cualificado: %s — score %s (%s)",
                 datos["email"], result.get("score"), result.get("classification"),
             )
+            return True
         except Exception as exc:
             logger.error("Error cualificando email de %s: %s", datos.get("email"), exc)
+            return False
+
+    # La I/O IMAP es bloqueante → correr en thread pool. La cualificación
+    # (`_procesar`) corre en ese mismo hilo, por email, antes de decidir si
+    # se marca como leído.
+    emails = await loop.run_in_executor(
+        None, obtener_no_leidos, t["host"], t["port"], t["user"], password, _procesar
+    )
+
+    if emails:
+        logger.info("IMAP tenant %s — %d email(s) cualificado(s)", t["id"], len(emails))
 
     update_imap_last_sync(t["id"])

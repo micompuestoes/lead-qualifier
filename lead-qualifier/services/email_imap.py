@@ -13,6 +13,7 @@ import imaplib
 import logging
 from email.header import decode_header
 from email.utils import parseaddr
+from typing import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -111,15 +112,25 @@ def parsear_email_raw(raw: bytes) -> dict | None:
             return None
 
         nombre = _decodificar_header(nombre_raw) or addr.split("@")[0]
+        if len(nombre) < 2:
+            # LeadInput exige name >= 2 caracteres — una parte local de 1
+            # carácter (ej. "a@dominio.com") no debe descartar el lead.
+            nombre = addr
         asunto = _decodificar_header(msg.get("Subject", ""))
         cuerpo = _extraer_cuerpo(msg)
 
         if not cuerpo and not asunto:
             return None
 
-        # Montamos el mensaje para el qualifier: asunto + cuerpo
+        # Montamos el mensaje para el qualifier: asunto + cuerpo.
+        # Cap alineado con LeadInput.message (max_length=2000): un mensaje
+        # más largo que el límite de validación provocaría un ValidationError
+        # aguas abajo y, sin este alineamiento, se perdería el lead.
         mensaje = f"Asunto: {asunto}\n\n{cuerpo}" if asunto else cuerpo
-        mensaje = mensaje[:3000]  # cap para no saturar el contexto del modelo
+        mensaje = mensaje[:2000]
+        if len(mensaje) < 5:
+            # LeadInput exige message >= 5 caracteres.
+            mensaje = mensaje.ljust(5, ".")
 
         return {"name": nombre, "email": addr, "message": mensaje}
 
@@ -138,11 +149,20 @@ def conectar(host: str, port: int, user: str, password: str) -> imaplib.IMAP4_SS
 
 
 def obtener_no_leidos(
-    host: str, port: int, user: str, password: str
+    host: str, port: int, user: str, password: str,
+    procesar: Callable[[dict], bool] | None = None,
 ) -> list[dict]:
     """
-    Conecta, obtiene todos los emails no leídos, los marca como leídos
-    y devuelve lista de {name, email, message}.
+    Conecta, obtiene todos los emails no leídos y, por cada uno que se
+    parsea correctamente, llama a `procesar(datos)` (si se pasa).
+
+    Un email solo se marca como \\Seen si `procesar` devuelve True (o si no
+    se pasa `procesar`, comportamiento antiguo). Si `procesar` devuelve
+    False o lanza una excepción no controlada por él mismo, el email queda
+    SIN LEER para reintentarse en el siguiente sync — así un fallo transitorio
+    (API caída, red, etc.) al cualificar el lead no lo pierde para siempre.
+
+    Devuelve la lista de {name, email, message} procesados con éxito.
     """
     resultados: list[dict] = []
     imap = None
@@ -159,10 +179,21 @@ def obtener_no_leidos(
                 _, data = imap.fetch(num, "(RFC822)")
                 raw = data[0][1]
                 parsed = parsear_email_raw(raw)
-                if parsed:
-                    resultados.append(parsed)
-                    # Marcar como leído para no procesar dos veces
+                if not parsed:
+                    # No es un lead válido (automático, vacío...): no hay
+                    # nada que reintentar, se marca leído para no repasarlo.
                     imap.store(num, "+FLAGS", "\\Seen")
+                    continue
+
+                ok = procesar(parsed) if procesar else True
+                if ok:
+                    resultados.append(parsed)
+                    imap.store(num, "+FLAGS", "\\Seen")
+                else:
+                    logger.warning(
+                        "No se pudo procesar el email de %s — queda sin leer, se reintentará",
+                        parsed.get("email"),
+                    )
             except Exception as exc:
                 logger.error("Error procesando email #%s: %s", num, exc)
 
