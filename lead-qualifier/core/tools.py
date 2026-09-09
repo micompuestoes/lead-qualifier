@@ -149,6 +149,14 @@ def _detectar_financiacion(msg: str) -> str:
                               "no necesito financiacion", "dispongo del", "tengo el dinero",
                               "liquidez", "en efectivo")):
         return "contado"
+
+    # Negación ("no tengo la hipoteca aprobada", "aún no tengo hipoteca concedida"):
+    # se comprueba ANTES que la afirmación positiva de abajo, porque frases como
+    # "no tengo la hipoteca aprobada" contienen literalmente la subcadena
+    # "hipoteca aprobada" y el `any(...)` de más abajo la daría por buena.
+    if re.search(r"\bno\b[^.,;]{0,20}\bhipoteca\b[^.,;]{0,15}\b(?:aprobada|preaprobada|concedida)\b", msg):
+        return "necesita"
+
     if any(w in msg for w in ("hipoteca aprobada", "hipoteca preaprobada", "hipoteca concedida",
                               "financiacion aprobada", "preaprobada", "banco me ha concedido",
                               "tengo la hipoteca")):
@@ -244,11 +252,25 @@ def analyze_intent(message: str, name: str) -> dict:
         "esta semana", "hoy", "ya mismo", "rapido", "con prisa", "me mudo",
         "antes de fin de mes", "esta misma semana", "asap",
     ))
+    # Declaración explícita de que NO hay prisa: es una señal negativa real (el
+    # contacto lo dice a propósito), no solo ausencia de señal positiva. Debe
+    # prevalecer sobre indicios más débiles como "estoy mirando opciones".
+    urgency_explicit_low = any(w in msg for w in (
+        "no tengo prisa", "no tenemos prisa", "sin prisa", "no hay prisa",
+        "no corre prisa", "sin urgencia", "no es urgente", "no urge", "con calma",
+    ))
     urgency_medium = any(w in msg for w in (
         "proximamente", "en breve", "este mes", "proximos meses", "este ano",
         "estoy mirando", "estamos mirando", "valorando", "planeando", "pensando en",
     ))
-    urgency = "alta" if urgency_high else ("media" if urgency_medium else "baja")
+    if urgency_high:
+        urgency = "alta"
+    elif urgency_explicit_low:
+        urgency = "baja"
+    elif urgency_medium:
+        urgency = "media"
+    else:
+        urgency = "baja"
 
     # ── Palabras clave inmobiliarias (señal de concreción) ──
     keyword_indicators = [
@@ -318,6 +340,7 @@ def analyze_intent(message: str, name: str) -> dict:
         "budget_text":      presupuesto["texto"] if presupuesto else None,
         "financing":        financiacion,
         "urgency":          urgency,
+        "urgency_explicit_low": urgency_explicit_low,
         "keywords":         keywords,
         "message_quality":  quality,
         "word_count":       word_count,
@@ -389,6 +412,7 @@ def score_lead(intent_analysis: dict, company_info: dict) -> dict:
     operation    = intent_analysis.get("operation", "INFORMACION")
     quality      = intent_analysis.get("message_quality", "vago")
     urgency      = intent_analysis.get("urgency", "baja")
+    urgency_explicit_low = intent_analysis.get("urgency_explicit_low", False)
     budget       = intent_analysis.get("budget")
     financing    = intent_analysis.get("financing", "desconocido")
     has_zone     = intent_analysis.get("has_zone", False)
@@ -478,6 +502,12 @@ def score_lead(intent_analysis: dict, company_info: dict) -> dict:
     # presupuesto, financiación resuelta o urgencia explícita. Si no, es un buen
     # lead que hay que cualificar primero (TIBIO), no se marca como caliente.
     readiness = bool(budget) or financing in ("contado", "hipoteca_aprobada") or urgency == "alta"
+    # Excepción: decir "no tengo prisa" es una señal negativa real, no solo
+    # ausencia de señal positiva. Si además la financiación no está resuelta,
+    # tener presupuesto por sí solo no basta para tratarlo como listo para
+    # cerrar ya — hay que nutrirlo, no lanzarse a llamar hoy mismo.
+    if urgency_explicit_low and financing not in ("contado", "hipoteca_aprobada"):
+        readiness = False
     if operation in ("COMPRA", "ALQUILER") and not readiness and score > 7:
         score = 7
         reasons.append("falta confirmar capacidad (presupuesto/financiación/plazo) antes de priorizar")

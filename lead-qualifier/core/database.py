@@ -249,10 +249,18 @@ def _generar_api_key() -> str:
 
 
 def ensure_tenant(tenant_id: str, email: str = "", name: str = "") -> None:
-    """Crea el tenant si no existe. Seguro de llamar en cada request."""
+    """
+    Crea el tenant si no existe. Seguro de llamar en cada request.
+
+    Si ya existe pero le falta el email (cuentas creadas antes de que
+    `get_caller` empezara a pasarlo, p. ej. sin el claim "email" en el JWT de
+    Clerk), lo autocompleta la primera vez que llega uno — así una cuenta
+    antigua no se queda con "Email de acceso" y el email de notificaciones
+    vacíos para siempre.
+    """
     with engine.begin() as conn:
         existing = conn.execute(
-            text("SELECT id FROM tenants WHERE id = :id"),
+            text("SELECT id, email FROM tenants WHERE id = :id"),
             {"id": tenant_id},
         ).fetchone()
 
@@ -276,6 +284,17 @@ def ensure_tenant(tenant_id: str, email: str = "", name: str = "") -> None:
                 },
             )
             logger.info("Tenant creado: %s (%s) api_key=%s...", tenant_id, email, api_key[:12])
+        elif email and not (existing.email or "").strip():
+            conn.execute(
+                text("""
+                    UPDATE tenants
+                    SET email = :email,
+                        notify_email = CASE WHEN COALESCE(notify_email, '') = '' THEN :email ELSE notify_email END
+                    WHERE id = :id
+                """),
+                {"id": tenant_id, "email": email},
+            )
+            logger.info("Tenant %s: email autocompletado (%s)", tenant_id, email)
 
 
 def get_tenant(tenant_id: str) -> Optional[dict]:

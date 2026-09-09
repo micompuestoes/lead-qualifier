@@ -227,7 +227,7 @@ export default function FormularioPublico({ params }: { params: { token: string 
             Hemos recibido tu mensaje. En breve un agente se pondrá en contacto contigo.
           </p>
           <p style={{ fontSize: 12.5, color: c.text3 }}>
-            Te hemos enviado una confirmación a <strong style={{ color: c.text2 }}>{form.email}</strong>
+            Te responderemos a <strong style={{ color: c.text2 }}>{form.email}</strong>
           </p>
         </div>
       </div>

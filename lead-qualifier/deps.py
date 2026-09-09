@@ -14,7 +14,7 @@ from fastapi import HTTPException, Request
 from jose import JWTError, jwt
 
 import runtime
-from core.database import get_owner_for_member, get_tenant
+from core.database import ensure_tenant, get_owner_for_member, get_tenant
 from security import is_dev_mode, obtener_jwks
 
 logger = logging.getLogger(__name__)
@@ -97,6 +97,19 @@ async def get_caller(request: Request) -> Caller:
 
         # Verificar estado del tenant
         tenant = get_tenant(tenant_id)
+
+        # Autocompletar el email del dueño la primera vez que se ve (cuenta
+        # nueva, o antigua creada antes de que hubiera email disponible aquí).
+        # Requiere el claim personalizado "email" en la plantilla de sesión de
+        # Clerk: la sesión estándar solo trae "sub". Sin esto, "Email de
+        # acceso" y el email de notificaciones por defecto quedaban vacíos
+        # para siempre porque nada los rellenaba nunca.
+        if is_owner and (tenant is None or not (tenant.get("email") or "").strip()):
+            email = str(payload.get("email") or "").strip()
+            if email:
+                ensure_tenant(tenant_id, email=email)
+                tenant = get_tenant(tenant_id)
+
         if tenant and tenant.get("status") == "cancelled":
             raise HTTPException(
                 status_code=403,

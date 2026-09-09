@@ -196,8 +196,12 @@ export default function AuthShell({ mode }: { mode: 'sign-in' | 'sign-up' }) {
       headerSubtitle:    'hidden',
       socialButtonsBlockButton:
         'border rounded-xl transition-all hover:opacity-90',
+      // Sin hover:bg ni shadow propios: Clerk ya aplica su propio hover
+      // (aclara colorPrimary + difumina un brillo interno) y su propio
+      // box-shadow con el color de marca. Forzar un hover más oscuro aquí
+      // chocaba con eso y el botón se veía apagado al pasar el ratón.
       formButtonPrimary:
-        'bg-[#c8a96e] hover:bg-[#bd9c5d] text-[#1a1814] font-semibold text-sm normal-case rounded-xl shadow-[0_2px_14px_rgba(200,169,110,0.4)] transition-all',
+        'bg-[#c8a96e] text-[#1a1814] font-semibold text-sm normal-case rounded-xl transition-all',
       formFieldInput:    'rounded-xl',
       footerActionLink:  'text-[#9a7a3a] hover:text-[#c8a96e] font-semibold',
       footer:            'mt-2',

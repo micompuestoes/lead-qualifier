@@ -241,6 +241,33 @@ def test_presupuesto_sin_saber_que_busca_se_capa_a_tibio():
     assert res["score"] <= 7
 
 
+def test_negacion_hipoteca_aprobada_no_se_confunde_con_positivo():
+    # "no tengo la hipoteca aprobada" contiene literalmente la subcadena
+    # "hipoteca aprobada": no debe leerse como financiación ya resuelta.
+    intent = analyze_intent("Todavía no tengo la hipoteca aprobada para la compra.", "Test")
+    assert intent["financing"] == "necesita"
+
+
+def test_urgencia_baja_explicita_prevalece_sobre_estoy_mirando():
+    intent = analyze_intent("Estoy mirando opciones, no tengo prisa.", "Test")
+    assert intent["urgency"] == "baja"
+    assert intent["urgency_explicit_low"] is True
+
+
+def test_comprador_concreto_sin_prisa_ni_financiacion_no_es_caliente():
+    # Caso real: presupuesto y encargo bien concretado, pero el propio contacto
+    # dice explícitamente que no tiene la hipoteca aprobada y que no tiene
+    # prisa. Tener presupuesto y saber qué busca no debe bastar para CALIENTE
+    # cuando el propio lead dice que no está listo para cerrar ahora.
+    res = _score(
+        "Busco un piso de 2 habitaciones en Sevilla capital, zona centro, "
+        "presupuesto máximo 180.000 euros. Todavía no tengo la hipoteca aprobada, "
+        "estoy mirando opciones y no tengo prisa, quizá me decida en unos meses."
+    )
+    assert res["classification"] == "TIBIO"
+    assert res["score"] == 7
+
+
 def test_encargo_completo_sigue_siendo_caliente():
     # La regla anti-inflado NO debe tocar a los leads buenos de verdad.
     res = _score(
