@@ -8,12 +8,11 @@ const SECCIONES: LegalSection[] = [
     body: [
       'Este servicio es titularidad de:',
       [
-        'Denominación social: 〔COMPLETAR: razón social〕',
-        'NIF / CIF: 〔COMPLETAR: NIF〕',
-        'Domicilio fiscal: 〔COMPLETAR: domicilio〕',
+        'Denominación social: Daniel Lázaro García',
+        'NIF / CIF: pendiente de publicación',
+        'Domicilio fiscal: pendiente de publicación',
         'Email de contacto: contacto@inmuebia.es',
       ],
-      'Antes de operar, sustituye los campos entre 〔corchetes〕 por tus datos reales.',
     ],
   },
   {

@@ -8,12 +8,12 @@ const SECCIONES: LegalSection[] = [
     body: [
       'El responsable del tratamiento de los datos personales es:',
       [
-        'Denominación social: 〔COMPLETAR: razón social〕',
-        'NIF / CIF: 〔COMPLETAR: NIF〕',
-        'Domicilio: 〔COMPLETAR: domicilio〕',
+        'Denominación social: Daniel Lázaro García',
+        'NIF / CIF: pendiente de publicación',
+        'Domicilio: pendiente de publicación',
         'Email de contacto: contacto@inmuebia.es',
       ],
-      'Para cualquier consulta sobre privacidad puedes escribir a contacto@inmuebia.es. Sustituye los campos entre 〔corchetes〕 por tus datos reales antes de operar.',
+      'Para cualquier consulta sobre privacidad puedes escribir a contacto@inmuebia.es.',
     ],
   },
   {
