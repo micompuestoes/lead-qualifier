@@ -304,3 +304,105 @@ def test_admin_override_plan_conserva_stripe(client, monkeypatch):
     assert r.status_code == 422
 
     set_tenant_plan(T, "free", None, "cus_manual")  # dejar el estado limpio
+
+
+def test_admin_lista_y_detalle_de_tenants(client, monkeypatch):
+    monkeypatch.setenv("ADMIN_SECRET_KEY", "clave-admin-larga-de-test")
+    h = {"X-Admin-Key": "clave-admin-larga-de-test"}
+
+    # Sin la clave → 403 (ya cubierto para /plan; aquí para /tenants).
+    assert client.get("/admin/tenants").status_code == 403
+
+    r = client.get("/admin/tenants", headers=h)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["total"] >= 1
+    assert any(t["id"] == T and "lead_count" in t for t in body["tenants"])
+
+    r = client.get(f"/admin/tenants/{T}", headers=h)
+    assert r.status_code == 200 and r.json()["id"] == T
+
+    assert client.get("/admin/tenants/tenant-inexistente", headers=h).status_code == 404
+
+
+def test_admin_cambia_estado_de_tenant(client, monkeypatch):
+    monkeypatch.setenv("ADMIN_SECRET_KEY", "clave-admin-larga-de-test")
+    h = {"X-Admin-Key": "clave-admin-larga-de-test"}
+
+    # El check de tenant cancelado vive en get_caller() (deps.py) y solo se
+    # ejercita en el flujo de JWT real; en DEV_MODE se salta por diseño (así
+    # que no se puede probar aquí sin un JWT de Clerk real). Se verifica en
+    # su lugar que el admin sí cambia el estado en BD.
+    r = client.patch(f"/admin/tenants/{T}/status", json={"status": "cancelled"}, headers=h)
+    assert r.status_code == 200 and r.json()["status"] == "cancelled"
+    assert get_tenant(T)["status"] == "cancelled"
+
+    # Reactivar — deja el estado limpio para el resto de la suite.
+    r = client.patch(f"/admin/tenants/{T}/status", json={"status": "active"}, headers=h)
+    assert r.status_code == 200 and r.json()["status"] == "active"
+    assert get_tenant(T)["status"] == "active"
+
+
+# ── Perfil: actualizar datos y WhatsApp ────────────────────────────────────────
+
+def test_perfil_actualizar_nombre_y_email_de_aviso(client):
+    r = client.patch("/me", json={"name": "Nueva Agencia SL", "notify_email": "avisos@test.com"})
+    assert r.status_code == 200
+    assert r.json()["name"] == "Nueva Agencia SL"
+    assert r.json()["notify_email"] == "avisos@test.com"
+
+
+def test_perfil_whatsapp_exige_numero_valido_si_se_activa(client):
+    r = client.post("/me/whatsapp", json={"number": "", "enabled": True})
+    assert r.status_code == 400
+
+    r = client.post("/me/whatsapp", json={"number": "+34 600 11 22 33", "enabled": True})
+    assert r.status_code == 200
+    assert r.json()["whatsapp_enabled"] is True
+    assert r.json()["whatsapp_number"] == "34600112233"
+
+    r = client.post("/me/whatsapp", json={"number": "", "enabled": False})
+    assert r.status_code == 200 and r.json()["whatsapp_enabled"] is False
+
+
+# ── Equipo: eliminar miembro y gate de plan ────────────────────────────────────
+
+def test_equipo_requiere_plan_agencia(client):
+    set_tenant_plan(T, "pro")
+    assert client.get("/me/team").status_code == 403
+    assert client.post("/me/team", json={"member_id": "user_x"}).status_code == 403
+
+
+def test_equipo_eliminar_miembro_libera_el_asiento(client):
+    from config import MIN_AGENCY_SEATS
+    from routers.billing import _seat_count
+    set_tenant_plan(T, "agencia")
+
+    assert client.delete("/me/team/user_ana").status_code == 204
+    assert client.get("/me/team").json()["total"] == 0
+    # Sin miembros, el asiento factura el mínimo (MIN_AGENCY_SEATS), no 0.
+    assert _seat_count(T) == MIN_AGENCY_SEATS
+
+    set_tenant_plan(T, "free")  # dejar el estado limpio
+
+
+# ── Rate limit por tenant en /qualify-lead (todos los planes) ─────────────────
+
+def test_qualify_lead_rate_limit_por_tenant(client, monkeypatch):
+    from sqlalchemy import text
+    from core.database import engine
+
+    bucket = f"tenant:{T}"
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM rate_hits WHERE bucket = :b"), {"b": bucket})
+
+    monkeypatch.setattr("routers.leads.RATE_TENANT_PER_MIN", 1)
+    monkeypatch.setattr("routers.leads.RATE_TENANT_PER_HOUR", 100)
+
+    payload = {
+        "name": "Rate Uno", "email": "rate1@test.com", "phone": None,
+        "message": "Quiero información sobre un piso en Madrid",
+    }
+    assert client.post("/qualify-lead", json=payload).status_code == 200
+    r2 = client.post("/qualify-lead", json={**payload, "email": "rate2@test.com"})
+    assert r2.status_code == 429

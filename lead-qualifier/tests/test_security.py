@@ -1,5 +1,6 @@
 """
-Tests de las primitivas de seguridad: cifrado Fernet y su política de claves.
+Tests de las primitivas de seguridad: cifrado Fernet y su política de claves,
+IP real del cliente (X-Forwarded-For) y rate limiting persistido en BD.
 
 El cifrado con la clave por defecto de desarrollo equivale a guardar las
 contraseñas IMAP en claro (la clave está en el repo), así que solo se permite
@@ -7,8 +8,9 @@ en DEV_MODE explícito.
 """
 
 import pytest
+from fastapi import Request
 
-from security import _fernet, cifrar, descifrar
+from security import _fernet, cifrar, client_ip, descifrar, rate_limited
 
 
 def _sin_claves(monkeypatch):
@@ -35,3 +37,44 @@ def test_fernet_con_admin_secret_key_sin_dev_mode(monkeypatch):
     monkeypatch.delenv("DEV_MODE", raising=False)
     monkeypatch.setenv("ADMIN_SECRET_KEY", "una-clave-de-produccion-larga")
     assert descifrar(cifrar("secreto-imap")) == "secreto-imap"
+
+
+# ── IP real del cliente (X-Forwarded-For) ──────────────────────────────────
+
+def _request(headers: list[tuple[bytes, bytes]] = ()) -> Request:
+    scope = {
+        "type": "http", "method": "GET", "path": "/",
+        "headers": list(headers), "client": ("10.0.0.1", 1234),
+    }
+    return Request(scope)
+
+
+def test_client_ip_usa_el_ultimo_valor_de_xff():
+    """
+    El primer valor de X-Forwarded-For lo puede inventar el propio cliente;
+    el ÚLTIMO es el que añade nuestro proxy de confianza justo antes de
+    reenviarnos la petición, así que es el único en el que se puede confiar
+    para el rate limiting del formulario público.
+    """
+    req = _request([(b"x-forwarded-for", b"1.2.3.4, 5.6.7.8, 9.9.9.9")])
+    assert client_ip(req) == "9.9.9.9"
+
+
+def test_client_ip_sin_cabecera_usa_client_host():
+    assert client_ip(_request()) == "10.0.0.1"
+
+
+# ── Rate limiting persistido en BD ─────────────────────────────────────────
+
+def test_rate_limited_bloquea_al_superar_el_limite_por_minuto(client):
+    bucket = "test-bucket-min-9f3a"
+    for _ in range(3):
+        assert rate_limited(bucket, per_min=3, per_hour=100) is False
+    assert rate_limited(bucket, per_min=3, per_hour=100) is True
+
+
+def test_rate_limited_buckets_independientes(client):
+    assert rate_limited("test-bucket-a-9f3a", per_min=1, per_hour=100) is False
+    assert rate_limited("test-bucket-a-9f3a", per_min=1, per_hour=100) is True
+    # Un bucket distinto no se ve afectado por el que ya se saturó.
+    assert rate_limited("test-bucket-b-9f3a", per_min=1, per_hour=100) is False

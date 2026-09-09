@@ -9,7 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from config import FREE_LEAD_LIMIT
+from config import FREE_LEAD_LIMIT, RATE_TENANT_PER_HOUR, RATE_TENANT_PER_MIN
 from core.agent import qualify_lead
 from core.csv_export import leads_to_csv
 from core.database import (
@@ -21,6 +21,7 @@ from core.database import (
 from deps import Caller, get_anthropic_client, get_caller, get_tenant_id, require_plan
 from models import LeadInput, LeadOutput
 from notifications import notificar_tenant
+from security import rate_limited
 from services.email_sender import send_and_mark_lead_email, send_lead_response_email
 
 logger = logging.getLogger(__name__)
@@ -88,6 +89,11 @@ def qualify_lead_endpoint(
 
     # Garantizar que el tenant existe en la BD
     ensure_tenant(tenant_id)
+
+    # Rate limit por tenant (todos los planes, no solo free): acota el coste
+    # de IA si una cuenta se ve comprometida o una integración entra en bucle.
+    if rate_limited(f"tenant:{tenant_id}", RATE_TENANT_PER_MIN, RATE_TENANT_PER_HOUR):
+        raise HTTPException(status_code=429, detail="Demasiadas solicitudes. Intenta en unos minutos.")
 
     # Límite de leads para plan free
     tenant = get_tenant(tenant_id)

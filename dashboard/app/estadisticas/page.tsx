@@ -3,25 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import Link from 'next/link';
-import { obtenerLeads } from '@/lib/api';
-import type { Lead, AgenteRanking } from '@/types/lead';
+import { obtenerLeads, obtenerRankingAgentes, obtenerStats, PlanRequiredError } from '@/lib/api';
+import { useApiResource } from '@/lib/useApiResource';
+import type { AgenteRanking, Lead, Stats } from '@/types/lead';
 import { useTheme } from '@/components/ThemeProvider';
 import PageHeader from '@/components/PageHeader';
 import { TEMP } from '@/lib/temperature';
-
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
-
-interface Stats {
-  total: number;
-  este_mes: number;
-  mes_anterior: number;
-  por_estado: Record<string, number>;
-  score_avg: number;
-  calientes: number;
-  tibios: number;
-  frios: number;
-  por_mes: { mes: string; total: number }[];
-}
 
 const ESTADO_META: Record<string, { label: string; color: string }> = {
   PENDIENTE:  { label: 'Pendiente',  color: '#c8a96e' },
@@ -311,41 +298,21 @@ function CalendarHeatmap({ leads, c }: { leads: Lead[]; c: ReturnType<typeof use
 export default function EstadisticasPage() {
   const { getToken } = useAuth();
   const { c } = useTheme();
-  const [stats, setStats]       = useState<Stats | null>(null);
-  const [leads, setLeads]       = useState<Lead[]>([]);
-  const [agentes, setAgentes]   = useState<AgenteRanking[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError]       = useState<string | null>(null);
+  const { datos: stats, cargando, error } = useApiResource(() => obtenerStats(getToken));
+  const [leads, setLeads]     = useState<Lead[]>([]);
+  const [agentes, setAgentes] = useState<AgenteRanking[]>([]);
 
   useEffect(() => {
-    async function cargar() {
-      try {
-        const token = await getToken();
-        const res = await fetch(`${BASE}/stats`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (res.status === 403) { setError('plan'); return; }
-        if (!res.ok) throw new Error();
-        setStats(await res.json());
-        // Leads para el calendario de actividad (no crítico para el render)
-        obtenerLeads(getToken).then(setLeads).catch(() => {});
-        // Ranking de agentes (no crítico)
-        fetch(`${BASE}/stats/agents`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
-          .then(r => (r.ok ? r.json() : null))
-          .then(d => { if (d) setAgentes(d.agents ?? []); })
-          .catch(() => {});
-      } catch {
-        setError('general');
-      } finally {
-        setCargando(false);
-      }
-    }
-    cargar();
-  }, [getToken]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (cargando || error) return;
+    // Leads para el calendario de actividad y ranking de agentes: no
+    // críticos para el render principal, así que no bloquean cargando/error.
+    obtenerLeads(getToken).then(setLeads).catch(() => {});
+    obtenerRankingAgentes(getToken).then(setAgentes).catch(() => {});
+  }, [cargando, error, getToken]);
 
   if (cargando) return <LoadingScreen />;
-  if (error === 'plan') return <PlanGate c={c} />;
-  if (!stats) return null;
+  if (error instanceof PlanRequiredError) return <PlanGate c={c} />;
+  if (error || !stats) return null;
 
   const totalTemp  = stats.calientes + stats.tibios + stats.frios;
   const maxEstado  = Math.max(...Object.values(stats.por_estado), 1);

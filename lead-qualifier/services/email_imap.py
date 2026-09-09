@@ -10,7 +10,9 @@ Diseño:
 
 import email
 import imaplib
+import ipaddress
 import logging
+import socket
 from email.header import decode_header
 from email.utils import parseaddr
 from typing import Callable
@@ -141,8 +143,37 @@ def parsear_email_raw(raw: bytes) -> dict | None:
 
 # ── Operaciones IMAP (bloqueantes — llamar desde run_in_executor) ─────────────
 
+def _validar_host_seguro(host: str, port: int) -> None:
+    """
+    Resuelve `host` y rechaza cualquier IP privada/local/reservada antes de
+    conectar (SSRF): el host y puerto IMAP los elige el propio tenant, así
+    que sin esta validación una cuenta Pro/Agencia podría apuntar a IPs
+    internas de la infraestructura (metadata de la nube, servicios privados
+    de la plataforma) y usar los mensajes de error para hacer port scanning.
+
+    Se llama en cada conexión real (no solo al guardar la config) para
+    cerrar también el hueco de DNS rebinding: un dominio que resolvía a una
+    IP pública al verificar podría cambiar de IP para el siguiente sync.
+    """
+    try:
+        infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+    except socket.gaierror as exc:
+        raise RuntimeError(f"No se pudo resolver el host {host}: {exc}") from exc
+
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if (
+            ip.is_private or ip.is_loopback or ip.is_link_local
+            or ip.is_reserved or ip.is_multicast or ip.is_unspecified
+        ):
+            raise RuntimeError(
+                f"El host {host} resuelve a una dirección no permitida ({ip})."
+            )
+
+
 def conectar(host: str, port: int, user: str, password: str) -> imaplib.IMAP4_SSL:
     """Abre conexión IMAP SSL y hace login. Lanza excepción si falla."""
+    _validar_host_seguro(host, port)
     imap = imaplib.IMAP4_SSL(host, port)
     imap.login(user, password)
     return imap

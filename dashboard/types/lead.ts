@@ -71,3 +71,58 @@ export interface NuevoLeadPayload {
 export interface ActualizarEstadoPayload {
   status: EstadoLead;
 }
+
+// Respuesta de GET /stats (solo plan agencia)
+export interface Stats {
+  total: number;
+  este_mes: number;
+  mes_anterior: number;
+  por_estado: Record<string, number>;
+  score_avg: number;
+  calientes: number;
+  tibios: number;
+  frios: number;
+  por_mes: { mes: string; total: number }[];
+}
+
+// Respuesta de GET /me
+export interface Perfil {
+  id: string;
+  name: string;
+  email: string;
+  notify_email: string;
+  api_key: string;
+  plan: string;
+  status: string;
+  created_at: string;
+  is_admin?: boolean;
+  whatsapp_number?: string;
+  whatsapp_enabled?: boolean;
+  auto_send_email?: boolean;
+  brand_voice?: string;
+  followup_enabled?: boolean;
+  brand_color?: string;
+  logo_url?: string;
+  form_title?: string;
+  form_subtitle?: string;
+}
+
+// Respuesta de GET /me/imap
+export interface ImapStatus {
+  configured: boolean;
+  host?: string;
+  port?: number;
+  user?: string;
+  enabled?: boolean;
+  last_sync?: string | null;
+}
+
+// Miembro del equipo con los campos que devuelve GET /me/team (más completos
+// que AgenteRanking/AgenteEquipo, que son vistas derivadas para otras pantallas)
+export interface EquipoMiembro {
+  member_id: string;
+  member_name?: string;
+  member_email?: string;
+  member_whatsapp?: string;
+  added_at: string;
+}

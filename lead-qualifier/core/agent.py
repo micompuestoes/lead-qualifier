@@ -122,11 +122,16 @@ Un saludo,
 {firma}"""
 
     try:
+        # Timeout explícito: esta llamada es bloqueante y corre en el
+        # threadpool de FastAPI (ver qualify_lead_endpoint/public_intake). Sin
+        # límite, una degradación de latencia en la API de Anthropic retiene
+        # hilos del pool más tiempo del esperado bajo carga sostenida.
         resp = client.messages.create(
             model=CLAUDE_MODEL,
             max_tokens=600,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_prompt}],
+            timeout=20.0,
         )
         texto = resp.content[0].text if resp.content else ""
         limpio = _limpiar_email(texto)

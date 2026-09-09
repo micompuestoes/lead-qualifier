@@ -6,6 +6,11 @@ import type {
   LeadQualificado,
   NuevoLeadPayload,
   ActualizarEstadoPayload,
+  Stats,
+  Perfil,
+  ImapStatus,
+  EquipoMiembro,
+  AgenteRanking,
 } from '@/types/lead';
 
 export const BASE = process.env.NEXT_PUBLIC_API_URL
@@ -31,11 +36,29 @@ export async function apiFetch(
   return fetch(`${BASE}${path}`, { ...options, headers });
 }
 
+// ── Errores tipados ────────────────────────────────────────────────────────
+
+// 403 con detail.code === 'PLAN_REQUIRED' (ver deps.require_plan en el backend):
+// permite a la página distinguir "necesitas mejorar de plan" de un error genérico
+// sin tener que interpretar el mensaje o repetir el fetch a mano con status === 403.
+export class PlanRequiredError extends Error {
+  planRequired?: string;
+  upgradeUrl?: string;
+  constructor(message: string, planRequired?: string, upgradeUrl?: string) {
+    super(message);
+    this.name = 'PlanRequiredError';
+    this.planRequired = planRequired;
+    this.upgradeUrl = upgradeUrl;
+  }
+}
+
 // ── Helper: lanza error con mensaje del servidor si no es 2xx ────────────────
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let mensaje = `Error ${res.status}`;
+    let planRequired: string | undefined;
+    let upgradeUrl: string | undefined;
     try {
       const data = await res.json();
       const d = data.detail;
@@ -47,10 +70,15 @@ async function handleResponse<T>(res: Response): Promise<T> {
         mensaje = msgs.length ? msgs.join('. ') : JSON.stringify(d);
       } else if (d && typeof d === 'object') {
         mensaje = d.message ?? d.msg ?? JSON.stringify(d);
+        if (d.code === 'PLAN_REQUIRED') {
+          planRequired = d.plan_required;
+          upgradeUrl = d.upgrade_url;
+        }
       } else {
         mensaje = JSON.stringify(data);
       }
     } catch { /* body no es JSON */ }
+    if (planRequired) throw new PlanRequiredError(mensaje, planRequired, upgradeUrl);
     throw new Error(mensaje);
   }
   return res.json() as Promise<T>;
@@ -196,6 +224,37 @@ export async function eliminarLead(id: string, getToken: GetToken): Promise<void
     const data = await res.json().catch(() => ({}));
     throw new Error(data.detail ?? `Error ${res.status}`);
   }
+}
+
+// ── Estadísticas (plan agencia) ───────────────────────────────────────────────
+
+export async function obtenerStats(getToken: GetToken): Promise<Stats> {
+  const res = await apiFetch('/stats', getToken, { cache: 'no-store' } as RequestInit);
+  return handleResponse<Stats>(res);
+}
+
+export async function obtenerRankingAgentes(getToken: GetToken): Promise<AgenteRanking[]> {
+  const res = await apiFetch('/stats/agents', getToken, { cache: 'no-store' } as RequestInit);
+  const data = await handleResponse<{ agents?: AgenteRanking[] }>(res);
+  return data.agents ?? [];
+}
+
+// ── Perfil, IMAP y equipo ─────────────────────────────────────────────────────
+
+export async function obtenerMiPerfil(getToken: GetToken): Promise<Perfil> {
+  const res = await apiFetch('/me', getToken, { cache: 'no-store' } as RequestInit);
+  return handleResponse<Perfil>(res);
+}
+
+export async function obtenerImapStatus(getToken: GetToken): Promise<ImapStatus> {
+  const res = await apiFetch('/me/imap', getToken, { cache: 'no-store' } as RequestInit);
+  return handleResponse<ImapStatus>(res);
+}
+
+export async function obtenerEquipo(getToken: GetToken): Promise<EquipoMiembro[]> {
+  const res = await apiFetch('/me/team', getToken, { cache: 'no-store' } as RequestInit);
+  const data = await handleResponse<{ members?: EquipoMiembro[] }>(res);
+  return data.members ?? [];
 }
 
 // ── Helpers internos ──────────────────────────────────────────────────────────

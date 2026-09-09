@@ -22,9 +22,17 @@ WHATSAPP_MIN_SCORE = 8
 # Si lo cambias, revisa el precio y la nota del plan en dashboard/lib/plans.ts.
 MIN_AGENCY_SEATS = 2
 
-# Rate limiting del formulario público (sliding window en memoria).
+# Rate limiting del formulario público (sliding window persistido en BD, ver
+# core/database.check_rate_limit — así el límite es el mismo sin importar a
+# qué instancia del backend llega la petición).
 # Por IP (anti-spam individual) y por api_key (cap de coste por agencia).
 RATE_IP_PER_MIN = 5
 RATE_IP_PER_HOUR = 30
 RATE_KEY_PER_MIN = 20
 RATE_KEY_PER_HOUR = 200
+
+# Rate limiting de /qualify-lead para tenants autenticados (planes de pago).
+# Generoso para no molestar a una agencia con tráfico real, pero acota el
+# coste de IA si una cuenta se ve comprometida o un cliente hace un bucle.
+RATE_TENANT_PER_MIN = 30
+RATE_TENANT_PER_HOUR = 300

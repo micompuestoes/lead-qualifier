@@ -6,34 +6,8 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/Toast';
 import { useTheme } from '@/components/ThemeProvider';
 import PageHeader from '@/components/PageHeader';
-
-interface Perfil {
-  name: string;
-  email: string;
-  notify_email: string;
-  api_key: string;
-  plan: string;
-  created_at: string;
-  whatsapp_number?: string;
-  whatsapp_enabled?: boolean;
-  auto_send_email?: boolean;
-  brand_voice?: string;
-}
-
-interface TeamMember {
-  member_id: string;
-  member_name?: string;
-  member_email?: string;
-  member_whatsapp?: string;
-  added_at: string;
-}
-
-interface ImapStatus {
-  configured: boolean;
-  host?: string;
-  user?: string;
-  last_sync?: string;
-}
+import { obtenerEquipo, obtenerImapStatus, obtenerMiPerfil } from '@/lib/api';
+import type { EquipoMiembro as TeamMember, ImapStatus, Perfil } from '@/types/lead';
 
 const planConfig: Record<string, { label: string; bg: string; color: string }> = {
   free:    { label: 'Gratuito', bg: 'rgba(122,116,104,0.12)', color: '#9a9490' },
@@ -152,15 +126,7 @@ export default function PerfilPage() {
   useEffect(() => {
     async function cargar() {
       try {
-        const token = await getToken();
-        const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-        const [resPerfil, resImap, resTeam] = await Promise.all([
-          fetch(`${apiBase}/me`,      { headers }),
-          fetch(`${apiBase}/me/imap`, { headers }),
-          fetch(`${apiBase}/me/team`, { headers }),
-        ]);
-        if (!resPerfil.ok) throw new Error('Error al cargar perfil');
-        const data = await resPerfil.json();
+        const data = await obtenerMiPerfil(getToken);
         setPerfil(data);
         setForm({ name: data.name ?? '', notify_email: data.notify_email ?? '' });
         setWaForm({ number: data.whatsapp_number ?? '', enabled: !!data.whatsapp_enabled });
@@ -169,8 +135,10 @@ export default function PerfilPage() {
           brand_voice: data.brand_voice ?? '',
           followup_enabled: !!data.followup_enabled,
         });
-        if (resImap.ok) setImap(await resImap.json());
-        if (resTeam.ok) { const t = await resTeam.json(); setEquipo(t.members ?? []); }
+        // IMAP y equipo no son críticos para el render (p. ej. equipo exige
+        // plan agencia): un fallo aquí no debe impedir ver el resto del perfil.
+        obtenerImapStatus(getToken).then(setImap).catch(() => {});
+        obtenerEquipo(getToken).then(setEquipo).catch(() => {});
       } catch {
         addToast('No se pudo cargar el perfil', 'error');
       } finally {

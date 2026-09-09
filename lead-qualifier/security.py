@@ -1,13 +1,12 @@
 """
 Primitivas de seguridad: cifrado de credenciales, verificación de JWT de Clerk
-y rate limiting en memoria del formulario público.
+y rate limiting (persistido en BD) del formulario público.
 """
 
 import base64
 import hashlib
 import logging
 import os
-import threading
 import time
 
 import httpx
@@ -95,33 +94,29 @@ async def obtener_jwks() -> dict:
 
 
 # ─────────────────────────────────────────────
-# Rate limiting en memoria para el formulario público
+# Rate limiting del formulario público
 # ─────────────────────────────────────────────
 
-_rate_hits: dict[str, list[float]] = {}
-_rate_lock = threading.Lock()
-
-
 def client_ip(request: Request) -> str:
-    """IP real del cliente, respetando el proxy de Render/Vercel (X-Forwarded-For)."""
+    """
+    IP real del cliente a partir de X-Forwarded-For.
+
+    Se toma el ÚLTIMO valor de la cabecera, no el primero: nuestro proxy
+    (Render/Vercel/Railway) añade la IP real al final de la cadena que ve;
+    cualquier valor anterior a ese lo puede haber puesto el propio cliente
+    y no es de fiar (permitiría falsear la IP para saltarse el rate limit).
+    """
     xff = request.headers.get("x-forwarded-for", "")
     if xff:
-        return xff.split(",")[0].strip()
+        return xff.split(",")[-1].strip()
     return request.client.host if request.client else "unknown"
 
 
 def rate_limited(bucket: str, per_min: int, per_hour: int) -> bool:
-    """Sliding window simple en memoria. Devuelve True si se supera el límite."""
-    now = time.time()
-    with _rate_lock:
-        hits = [t for t in _rate_hits.get(bucket, []) if t > now - 3600]
-        if len(hits) >= per_hour or sum(1 for t in hits if t > now - 60) >= per_min:
-            _rate_hits[bucket] = hits
-            return True
-        hits.append(now)
-        _rate_hits[bucket] = hits
-        # Limpieza ocasional para que el dict no crezca sin control
-        if len(_rate_hits) > 5000:
-            for k in [k for k, v in _rate_hits.items() if not v or v[-1] < now - 3600]:
-                _rate_hits.pop(k, None)
-        return False
+    """
+    Devuelve True si `bucket` ha superado el límite. Persistido en BD (ver
+    core.database.check_rate_limit) para que el límite sea el mismo sin
+    importar a qué instancia del backend llega la petición.
+    """
+    from core.database import check_rate_limit
+    return check_rate_limit(bucket, per_min, per_hour)

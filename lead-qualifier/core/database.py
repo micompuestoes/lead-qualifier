@@ -211,8 +211,22 @@ def init_db() -> None:
             )
         """))
 
+    # Rate limiting compartido entre instancias. Antes vivía en un dict en
+    # memoria de proceso: con más de una réplica del backend, cada una tenía
+    # su propio contador y el límite real quedaba multiplicado por el número
+    # de instancias — justo en el escenario (abuso/coste) que el límite
+    # existe para evitar. Al persistir en la BD, todas comparten el mismo.
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS rate_hits (
+                bucket  TEXT NOT NULL,
+                hit_at  TEXT NOT NULL
+            )
+        """))
+
     # Índices para rendimiento
     with engine.begin() as conn:
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_rate_hits_bucket ON rate_hits (bucket, hit_at)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_leads_email     ON leads (email)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_leads_created   ON leads (created_at)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_leads_tenant    ON leads (tenant_id)"))
@@ -461,6 +475,47 @@ def acquire_job_lock(job_name: str, period_key: str) -> bool:
             {"lim": (now - timedelta(days=30)).isoformat()},
         )
     return result.rowcount > 0
+
+
+def check_rate_limit(bucket: str, per_min: int, per_hour: int) -> bool:
+    """
+    Sliding window persistido en BD (mismo patrón que acquire_job_lock):
+    todas las instancias del backend comparten el mismo contador.
+    Devuelve True si `bucket` ha superado el límite (no registra el hit);
+    False si se permite (y sí lo registra).
+    """
+    import random
+    from datetime import timedelta
+
+    now = datetime.now(timezone.utc)
+    min_ago = (now - timedelta(minutes=1)).isoformat()
+    hour_ago = (now - timedelta(hours=1)).isoformat()
+
+    with engine.begin() as conn:
+        hour_count = conn.execute(
+            text("SELECT COUNT(*) FROM rate_hits WHERE bucket = :b AND hit_at > :since"),
+            {"b": bucket, "since": hour_ago},
+        ).scalar()
+        if hour_count >= per_hour:
+            return True
+
+        min_count = conn.execute(
+            text("SELECT COUNT(*) FROM rate_hits WHERE bucket = :b AND hit_at > :since"),
+            {"b": bucket, "since": min_ago},
+        ).scalar()
+        if min_count >= per_min:
+            return True
+
+        conn.execute(
+            text("INSERT INTO rate_hits (bucket, hit_at) VALUES (:b, :ts)"),
+            {"b": bucket, "ts": now.isoformat()},
+        )
+        # Limpieza ocasional (no en cada llamada) para que la tabla no crezca
+        # sin control — igual de necesario en Postgres que en el dict viejo.
+        if random.random() < 0.01:
+            conn.execute(text("DELETE FROM rate_hits WHERE hit_at < :lim"), {"lim": hour_ago})
+
+    return False
 
 
 def get_lead_count_this_month(tenant_id: str) -> int:
