@@ -43,7 +43,7 @@ export default function PageHeader({ eyebrow, title, description, action }: Prop
           )}
 
           {/* H1 */}
-          <h1 style={{ color: c.text1, margin: 0 }}>{title}</h1>
+          <h1 style={{ color: c.heading, margin: 0 }}>{title}</h1>
 
           {/* Descripción */}
           {description && (

@@ -568,7 +568,7 @@ function EmptyState({ sinLeads, onLimpiarFiltros, c }: {
           )}
         </svg>
       </div>
-      <h2 style={{ fontSize: 17, color: c.text1, marginBottom: 8 }}>
+      <h2 style={{ fontSize: 17, color: c.heading, marginBottom: 8 }}>
         {sinLeads ? 'Aún no hay leads aquí' : 'Ningún lead coincide con los filtros'}
       </h2>
       <p style={{ fontSize: 13, color: c.text2, marginBottom: 28, maxWidth: 340, lineHeight: 1.65 }}>

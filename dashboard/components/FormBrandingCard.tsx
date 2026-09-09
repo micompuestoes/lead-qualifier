@@ -91,7 +91,7 @@ export default function FormBrandingCard() {
 
   return (
     <div style={card}>
-      <h2 className="text-base font-semibold mb-1" style={{ color: c.text1 }}>
+      <h2 className="text-base font-semibold mb-1" style={{ color: c.heading }}>
         Personaliza tu formulario
       </h2>
       <p className="text-sm mb-5" style={{ color: c.text2 }}>

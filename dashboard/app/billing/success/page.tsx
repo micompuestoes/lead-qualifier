@@ -25,7 +25,7 @@ export default function BillingSuccessPage() {
           </svg>
         </div>
 
-        <h1 className="text-2xl mb-2" style={{ color: '#1a1814' }}>
+        <h1 className="text-2xl mb-2" style={{ color: '#9a7a3a' }}>
           ¡Suscripción activada!
         </h1>
         <p className="mb-8 text-sm" style={{ color: '#7a7468' }}>

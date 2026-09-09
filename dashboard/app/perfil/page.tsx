@@ -433,7 +433,7 @@ export default function PerfilPage() {
           <span style={{ fontSize: 26, fontWeight: 700, color: '#9a7a3a' }}>{inicial}</span>
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 600, color: c.text1, marginBottom: 3 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 600, color: c.heading, marginBottom: 3 }}>
             {perfil?.name || 'Tu empresa'}
           </h2>
           <p style={{ fontSize: 13, color: c.text2 }}>{perfil?.email}</p>
@@ -455,7 +455,7 @@ export default function PerfilPage() {
 
         {/* ── Datos de la empresa ── */}
         <div style={card}>
-          <h2 className="text-base font-semibold mb-5" style={{ color: c.text1 }}>
+          <h2 className="text-base font-semibold mb-5" style={{ color: c.heading }}>
             Datos de la empresa
           </h2>
           <form onSubmit={guardar} className="space-y-4">
@@ -500,7 +500,7 @@ export default function PerfilPage() {
 
         {/* ── Respuestas con IA ── */}
         <div style={card}>
-          <h2 className="text-base font-semibold mb-1" style={{ color: c.text1 }}>
+          <h2 className="text-base font-semibold mb-1" style={{ color: c.heading }}>
             Respuestas con IA
           </h2>
           <p className="text-sm mb-5" style={{ color: c.text2 }}>
@@ -594,7 +594,7 @@ export default function PerfilPage() {
 
         {/* ── Bandeja de entrada (IMAP) ── */}
         <div style={card}>
-          <h2 className="text-base font-semibold mb-1" style={{ color: c.text1 }}>
+          <h2 className="text-base font-semibold mb-1" style={{ color: c.heading }}>
             Bandeja de entrada
           </h2>
           <p className="text-sm mb-5" style={{ color: c.text2 }}>
@@ -733,7 +733,7 @@ export default function PerfilPage() {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="#25D366" aria-hidden="true">
               <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2zm0 1.67c2.2 0 4.27.86 5.83 2.42a8.2 8.2 0 0 1 2.42 5.82c0 4.54-3.7 8.24-8.25 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.18 8.18 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24zm-2.9 4.43c-.18 0-.47.07-.72.34-.25.27-.95.93-.95 2.27s.97 2.63 1.11 2.81c.14.18 1.92 2.93 4.66 4.11.65.28 1.16.45 1.56.58.65.21 1.25.18 1.72.11.52-.08 1.62-.66 1.85-1.3.23-.64.23-1.18.16-1.3-.07-.11-.25-.18-.52-.32-.27-.14-1.62-.8-1.87-.89-.25-.09-.43-.14-.62.14-.18.27-.71.89-.87 1.07-.16.18-.32.2-.59.07-.27-.14-1.15-.42-2.19-1.35-.81-.72-1.36-1.62-1.52-1.89-.16-.27-.02-.42.12-.55.12-.12.27-.32.41-.48.14-.16.18-.27.27-.46.09-.18.05-.34-.02-.48-.07-.14-.62-1.49-.85-2.04-.22-.53-.45-.46-.62-.47l-.53-.01z"/>
             </svg>
-            <h2 className="text-base font-semibold" style={{ color: c.text1 }}>
+            <h2 className="text-base font-semibold" style={{ color: c.heading }}>
               Avisos por WhatsApp
             </h2>
           </div>
@@ -777,7 +777,7 @@ export default function PerfilPage() {
 
         {/* ── Formulario público / API Key ── */}
         <div style={card}>
-          <h2 className="text-base font-semibold mb-1" style={{ color: c.text1 }}>
+          <h2 className="text-base font-semibold mb-1" style={{ color: c.heading }}>
             Formulario público de captación
           </h2>
           <p className="text-sm mb-5" style={{ color: c.text2 }}>
@@ -845,7 +845,7 @@ export default function PerfilPage() {
         {perfil?.plan === 'agencia' && <SectionLabel>Equipo</SectionLabel>}
         {perfil?.plan === 'agencia' && (
           <div style={card}>
-            <h2 className="text-base font-semibold mb-1" style={{ color: c.text1 }}>
+            <h2 className="text-base font-semibold mb-1" style={{ color: c.heading }}>
               Miembros del equipo
             </h2>
             <p className="text-sm mb-5" style={{ color: c.text2 }}>
@@ -937,7 +937,7 @@ export default function PerfilPage() {
 
         {/* ── Información de la cuenta ── */}
         <div style={card}>
-          <h2 className="text-base font-semibold mb-5" style={{ color: c.text1 }}>
+          <h2 className="text-base font-semibold mb-5" style={{ color: c.heading }}>
             Información de la cuenta
           </h2>
 
@@ -1005,7 +1005,7 @@ export default function PerfilPage() {
         {/* ── Suscripción — solo planes de pago ── */}
         {isPaid && (
           <div style={card}>
-            <h2 className="text-base font-semibold mb-1" style={{ color: c.text1 }}>
+            <h2 className="text-base font-semibold mb-1" style={{ color: c.heading }}>
               Suscripción
             </h2>
             <p className="text-sm mb-5" style={{ color: c.text2 }}>

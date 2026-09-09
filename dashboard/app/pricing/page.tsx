@@ -64,7 +64,7 @@ export default function PricingPage() {
         <h1 style={{
           fontFamily: "'DM Serif Display', Georgia, serif",
           fontSize: '2.6rem', lineHeight: 1.12, letterSpacing: '-0.025em',
-          color: c.text1, margin: 0, marginBottom: 14,
+          color: c.heading, margin: 0, marginBottom: 14,
         }}>
           El plan perfecto para tu agencia
         </h1>
@@ -138,7 +138,7 @@ export default function PricingPage() {
                 {/* Cabecera */}
                 <div style={{ marginBottom: 22 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                    <h2 style={{ fontSize: 19, fontWeight: 600, color: c.text1 }}>{plan.nombre}</h2>
+                    <h2 style={{ fontSize: 19, fontWeight: 600, color: c.heading }}>{plan.nombre}</h2>
                     {esActual && (
                       <span style={{
                         fontSize: 10, fontWeight: 700, letterSpacing: '0.05em',

@@ -32,7 +32,7 @@ export default function GlobalError({
               <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
             </svg>
           </div>
-          <h1 style={{ fontSize: 22, color: '#1a1814', margin: '0 0 8px' }}>Algo ha salido mal</h1>
+          <h1 style={{ fontSize: 22, color: '#9a7a3a', margin: '0 0 8px' }}>Algo ha salido mal</h1>
           <p style={{ fontSize: 14, color: '#7a7468', margin: '0 0 24px', maxWidth: 360, lineHeight: 1.6 }}>
             Hemos registrado el problema y lo revisaremos. Puedes intentarlo de nuevo.
           </p>

@@ -75,7 +75,7 @@ export default function LegalDoc({ title, updated, intro, sections }: Props) {
         <h1 style={{
           fontFamily: "'DM Serif Display', Georgia, serif",
           fontSize: '2.3rem', lineHeight: 1.15, letterSpacing: '-0.025em',
-          color: c.text1, margin: 0, marginBottom: 12,
+          color: c.heading, margin: 0, marginBottom: 12,
         }}>
           {title}
         </h1>
@@ -92,7 +92,7 @@ export default function LegalDoc({ title, updated, intro, sections }: Props) {
         {sections.map((sec, i) => (
           <section key={i} style={{ marginBottom: 36 }}>
             <h2 style={{
-              fontSize: 16, fontWeight: 700, color: c.text1, marginBottom: 14,
+              fontSize: 16, fontWeight: 700, color: c.heading, marginBottom: 14,
               display: 'flex', alignItems: 'baseline', gap: 10,
             }}>
               <span style={{ fontSize: 13, color: '#c8a96e', fontWeight: 700 }}>

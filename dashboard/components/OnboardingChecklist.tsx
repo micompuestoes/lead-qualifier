@@ -39,7 +39,7 @@ export default function OnboardingChecklist({ steps }: { steps: OnbStep[] }) {
           </p>
           <h2 style={{
             fontFamily: "'DM Serif Display', Georgia, serif",
-            fontSize: '1.35rem', color: c.text1, letterSpacing: '-0.02em', lineHeight: 1.2,
+            fontSize: '1.35rem', color: c.heading, letterSpacing: '-0.02em', lineHeight: 1.2,
           }}>
             Pon Inmuebia a funcionar
           </h2>

@@ -24,6 +24,7 @@ export interface Colors {
   text2:            string;
   text3:            string;
   text4:            string;
+  heading:          string;
   btnActive:        string;
   btnActiveTxt:     string;
   btnInactive:      string;
@@ -60,6 +61,7 @@ export const COLORS: Record<Theme, Colors> = {
     text2:             '#7a7468',
     text3:             '#b8a898',
     text4:             '#4a4540',
+    heading:           '#9a7a3a',
     // Buttons
     btnActive:         '#1a1814',
     btnActiveTxt:      '#f5f0e8',
@@ -94,6 +96,7 @@ export const COLORS: Record<Theme, Colors> = {
     text2:             '#7a7468',
     text3:             '#4a4540',
     text4:             '#9a9088',
+    heading:           '#d9bb7e',
     // Buttons
     btnActive:         '#f0e8d8',
     btnActiveTxt:      '#1a1814',

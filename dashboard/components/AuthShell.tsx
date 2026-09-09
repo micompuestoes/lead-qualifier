@@ -239,7 +239,7 @@ export default function AuthShell({ mode }: { mode: 'sign-in' | 'sign-up' }) {
             <h2 style={{
               fontFamily: "'DM Serif Display', Georgia, serif",
               fontSize: '1.7rem', lineHeight: 1.2, letterSpacing: '-0.02em',
-              color: c.text1, margin: 0, marginBottom: 6,
+              color: c.heading, margin: 0, marginBottom: 6,
             }}>
               {mode === 'sign-in' ? 'Bienvenido de nuevo' : 'Crea tu cuenta'}
             </h2>

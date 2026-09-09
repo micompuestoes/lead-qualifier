@@ -62,7 +62,7 @@ export default function AyudaPage() {
   };
   const h2: React.CSSProperties = {
     fontFamily: "'DM Serif Display', Georgia, serif",
-    fontSize: '1.4rem', color: c.text1, letterSpacing: '-0.02em', margin: 0, marginBottom: 6,
+    fontSize: '1.4rem', color: c.heading, letterSpacing: '-0.02em', margin: 0, marginBottom: 6,
   };
   const eyebrow: React.CSSProperties = {
     fontSize: 10, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase',

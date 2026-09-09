@@ -267,7 +267,7 @@ export default function LeadDetallePage() {
           <Avatar name={lead.name} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
-              <h1 style={{ fontSize: '1.6rem', color: c.text1 }}>{lead.name}</h1>
+              <h1 style={{ fontSize: '1.6rem', color: c.heading }}>{lead.name}</h1>
               <div style={{ flexShrink: 0, paddingTop: 4 }}>
                 <LeadBadge clasificacion={lead.classification} />
               </div>

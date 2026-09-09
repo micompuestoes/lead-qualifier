@@ -16,6 +16,7 @@
   --c-text-3:      #b8a898;
   --c-sidebar-brd: rgba(200,169,110,0.2);
   --c-divider:     rgba(200,169,110,0.12);
+  --c-heading:     #9a7a3a;
 }
 
 [data-theme="dark"] {
@@ -28,6 +29,7 @@
   --c-text-3:      #4a4540;
   --c-sidebar-brd: rgba(200,169,110,0.15);
   --c-divider:     rgba(200,169,110,0.08);
+  --c-heading:     #d9bb7e;
 }
 
 /* ── Base ────────────────────────────────────────────────────────────────── */
@@ -54,7 +56,7 @@
   h1, h2, h3 {
     font-family: 'DM Serif Display', Georgia, serif;
     letter-spacing: -0.025em;
-    color: var(--c-text-1);
+    color: var(--c-heading);
     margin: 0;
   }
 
