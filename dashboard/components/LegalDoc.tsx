@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useAuth } from '@clerk/nextjs';
 import { useTheme } from './ThemeProvider';
 
 export interface LegalSection {
@@ -36,6 +37,13 @@ function Logo() {
 
 export default function LegalDoc({ title, updated, intro, sections }: Props) {
   const { c } = useTheme();
+  const { isSignedIn } = useAuth();
+
+  // Estas páginas son públicas (accesibles sin sesión): '/' resuelve solo a
+  // donde corresponde en cada caso (dashboard si hay sesión, landing si no),
+  // así que nunca deja a un visitante sin cuenta atrapado en una ruta
+  // protegida que lo rebota de vuelta a /sign-in.
+  const inicioHref = '/';
 
   return (
     <div style={{ minHeight: '100vh', background: c.bgGradient }}>
@@ -48,18 +56,18 @@ export default function LegalDoc({ title, updated, intro, sections }: Props) {
         background: c.sidebar,
         borderBottom: `1px solid ${c.divider}`,
       }}>
-        <Link href="/leads" style={{ display: 'flex', alignItems: 'center', gap: 11, textDecoration: 'none' }}>
+        <Link href={inicioHref} style={{ display: 'flex', alignItems: 'center', gap: 11, textDecoration: 'none' }}>
           <Logo />
           <span style={{ fontSize: 15, fontWeight: 600, color: c.text1 }}>Inmueb<span style={{ color: '#9a7a3a' }}>ia</span></span>
         </Link>
-        <Link href="/leads" style={{
+        <Link href={inicioHref} style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
           fontSize: 13, color: c.text2, textDecoration: 'none',
         }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
           </svg>
-          Volver al panel
+          {isSignedIn ? 'Volver al panel' : 'Volver al inicio'}
         </Link>
       </header>
 
@@ -133,7 +141,9 @@ export default function LegalDoc({ title, updated, intro, sections }: Props) {
           <div style={{ display: 'flex', gap: 18 }}>
             <Link href="/terminos" style={{ fontSize: 13, color: c.text2, textDecoration: 'none' }}>Términos</Link>
             <Link href="/privacidad" style={{ fontSize: 13, color: c.text2, textDecoration: 'none' }}>Privacidad</Link>
-            <Link href="/pricing" style={{ fontSize: 13, color: c.text2, textDecoration: 'none' }}>Planes</Link>
+            {/* /pricing exige sesión: sin cuenta, "Planes" lleva a la landing
+                pública (que ya muestra los planes) en vez de a un muro de login. */}
+            <Link href={isSignedIn ? '/pricing' : '/'} style={{ fontSize: 13, color: c.text2, textDecoration: 'none' }}>Planes</Link>
           </div>
         </div>
       </article>

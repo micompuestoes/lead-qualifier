@@ -133,9 +133,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>('light');
 
   useEffect(() => {
-    const saved   = localStorage.getItem('inmuebia-theme') as Theme | null;
-    const sysDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const initial = saved ?? (sysDark ? 'dark' : 'light');
+    // Siempre claro por defecto. NO se sigue la preferencia del sistema
+    // (prefers-color-scheme): entrar a una página pública (términos, login...)
+    // no debe verse oscuro solo porque el visitante tiene su SO en modo
+    // oscuro — el tema cambia únicamente cuando el usuario lo pide con toggle().
+    const saved = localStorage.getItem('inmuebia-theme') as Theme | null;
+    const initial = saved ?? 'light';
     applyTheme(initial);
     setTheme(initial);
   }, []);

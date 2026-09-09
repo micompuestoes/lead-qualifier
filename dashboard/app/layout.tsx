@@ -34,11 +34,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <ClerkProvider localization={esES} signInUrl="/sign-in" signUpUrl="/sign-up">
       <html lang="es" suppressHydrationWarning>
-        {/* Anti-FOUC: aplica el tema antes de que React hidrate */}
+        {/* Anti-FOUC: aplica el tema antes de que React hidrate.
+            Siempre claro por defecto — NO sigue prefers-color-scheme del
+            sistema (ver ThemeProvider.tsx): el tema solo cambia si el
+            usuario lo eligió antes con el toggle. */}
         <head>
           <script
             dangerouslySetInnerHTML={{
-              __html: `(function(){var t=localStorage.getItem('inmuebia-theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();`,
+              __html: `(function(){var t=localStorage.getItem('inmuebia-theme')||'light';document.documentElement.setAttribute('data-theme',t);})();`,
             }}
           />
         </head>
