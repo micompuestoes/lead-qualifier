@@ -1,6 +1,6 @@
 'use client';
 
-import { SignIn, SignUp } from '@clerk/nextjs';
+import { SignIn, SignUp, ClerkLoading, ClerkLoaded } from '@clerk/nextjs';
 import { useTheme } from './ThemeProvider';
 
 // ── Marca ──────────────────────────────────────────────────────────────────────
@@ -263,19 +263,32 @@ export default function AuthShell({ mode }: { mode: 'sign-in' | 'sign-up' }) {
             </p>
           </div>
 
-          {mode === 'sign-in' ? (
-            <SignIn
-              fallbackRedirectUrl="/leads"
-              signUpUrl="/sign-up"
-              appearance={clerkAppearance}
-            />
-          ) : (
-            <SignUp
-              fallbackRedirectUrl="/leads"
-              signInUrl="/sign-in"
-              appearance={clerkAppearance}
-            />
-          )}
+          {/* Esqueleto mientras carga el JS de Clerk: sin esto, el hueco
+              queda completamente en blanco un instante y da sensación de
+              página rota, sobre todo en conexiones lentas. */}
+          <ClerkLoading>
+            <div aria-hidden className="animate-pulse-warm" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ height: 44, borderRadius: 12, background: c.muted }} />
+              <div style={{ height: 44, borderRadius: 12, background: c.muted }} />
+              <div style={{ height: 44, borderRadius: 12, background: c.inputBorder, opacity: 0.5 }} />
+            </div>
+          </ClerkLoading>
+
+          <ClerkLoaded>
+            {mode === 'sign-in' ? (
+              <SignIn
+                fallbackRedirectUrl="/leads"
+                signUpUrl="/sign-up"
+                appearance={clerkAppearance}
+              />
+            ) : (
+              <SignUp
+                fallbackRedirectUrl="/leads"
+                signInUrl="/sign-in"
+                appearance={clerkAppearance}
+              />
+            )}
+          </ClerkLoaded>
         </div>
 
         <div style={{

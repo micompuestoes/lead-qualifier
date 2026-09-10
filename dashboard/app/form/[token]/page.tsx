@@ -399,9 +399,11 @@ export default function FormularioPublico({ params }: { params: { token: string 
             </div>
           </div>
 
-          {/* Presupuesto (al comprar o alquilar) */}
+          {/* Presupuesto (al comprar o alquilar). Con animación de entrada
+              para que no sea un salto brusco justo antes de que el
+              visitante baje el ratón hacia el mensaje. */}
           {(operacion === 'Comprar' || operacion === 'Alquilar') && (
-            <div>
+            <div className="animate-fade-up">
               <label style={labelStyle}>
                 Presupuesto aproximado <span style={{ color: c.text3, textTransform: 'none', fontWeight: 400 }}>· opcional</span>
               </label>

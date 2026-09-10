@@ -492,6 +492,7 @@ export default function Sidebar() {
         <button
           onClick={toggle}
           title={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+          aria-label={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
           className="flex items-center justify-center rounded-lg transition-all duration-150"
           style={{
             width: 30, height: 30,

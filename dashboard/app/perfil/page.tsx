@@ -810,8 +810,51 @@ export default function PerfilPage() {
         </div>
 
         {/* ── Equipo — solo plan agencia ── */}
-        {perfil?.plan === 'agencia' && <SectionLabel>Equipo</SectionLabel>}
-        {perfil?.plan === 'agencia' && (
+        <SectionLabel>Equipo</SectionLabel>
+        {perfil?.plan !== 'agencia' ? (
+          /* ── Bloqueado para planes Free y Pro ── */
+          <div style={card}>
+            <h2 className="text-base font-semibold mb-1" style={{ color: c.heading }}>
+              Miembros del equipo
+            </h2>
+            <p className="text-sm mb-5" style={{ color: c.text2 }}>
+              Añade agentes para que cada uno vea solo sus leads y reciba el aviso
+              directo cuando le toque uno caliente.
+            </p>
+            <div className="rounded-xl px-5 py-5"
+              style={{ background: c.muted, border: `1px solid ${c.inputBorder}` }}>
+              <div className="flex items-start gap-3">
+                <div style={{
+                  width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                  background: 'rgba(200,169,110,0.14)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#c8a96e"
+                    strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                  </svg>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <p className="text-sm font-semibold" style={{ color: c.text1, marginBottom: 3 }}>
+                    Disponible en el plan Agencia
+                  </p>
+                  <p className="text-xs" style={{ color: c.text2, lineHeight: 1.55, marginBottom: 14 }}>
+                    Invita a tus agentes, reparte los leads automáticamente entre ellos
+                    y controla quién está cerrando cada operación.
+                  </p>
+                  <button onClick={() => router.push('/pricing')}
+                    style={{ ...btnPrimary, padding: '9px 18px', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1a1814" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                    </svg>
+                    Mejorar mi plan
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
           <div style={card}>
             <h2 className="text-base font-semibold mb-1" style={{ color: c.heading }}>
               Miembros del equipo

@@ -460,9 +460,11 @@ export default function NuevoLeadPage() {
           </div>
         </div>
 
-        {/* Presupuesto — solo al comprar o alquilar */}
+        {/* Presupuesto — solo al comprar o alquilar. Con animación de entrada
+            para que no sea un salto brusco justo antes de que el usuario
+            baje el ratón hacia el mensaje. */}
         {(operacion === 'Comprar' || operacion === 'Alquilar') && (
-          <div>
+          <div className="animate-fade-up">
             <label className="block text-sm font-semibold mb-1.5" style={{ color: c.text1 }}>
               Presupuesto aproximado <span className="font-normal" style={{ color: c.text2 }}>(opcional)</span>
             </label>
