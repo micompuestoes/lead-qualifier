@@ -43,6 +43,10 @@ def send_email(
     if sendgrid_key:
         return _send_via_sendgrid(to_email, to_name, subject, body, sendgrid_key, reply_to, from_name)
 
+    resend_key = os.getenv("RESEND_API_KEY")
+    if resend_key:
+        return _send_via_resend(to_email, to_name, subject, body, resend_key, reply_to, from_name)
+
     smtp_host = os.getenv("SMTP_HOST")
     if smtp_host:
         return _send_via_smtp(to_email, to_name, subject, body, reply_to, from_name)
@@ -146,6 +150,51 @@ def _send_via_smtp(
             "de hosting bloquea el puerto SMTP saliente",
             smtp_host, smtp_port, 15, str(e),
         )
+        return False
+
+
+def _send_via_resend(
+    to_email: str,
+    to_name: str,
+    subject: str,
+    body: str,
+    api_key: str,
+    reply_to: Optional[str] = None,
+    from_name: Optional[str] = None,
+) -> bool:
+    """Envía el email usando la API HTTP de Resend (puerto 443, que a diferencia
+    del SMTP saliente no bloquean los proveedores de hosting como Render)."""
+    import httpx
+
+    sender_name = from_name or os.getenv("FROM_NAME", "Inmuebia")
+    from_email = os.getenv("FROM_EMAIL", "").strip()
+    if "@" not in from_email:
+        logger.error("FROM_EMAIL no configurado o inválido — no se envía (debe ser un email de dominio propio verificado)")
+        return False
+
+    payload = {
+        "from": f"{sender_name} <{from_email}>",
+        "to": [f"{to_name} <{to_email}>" if to_name else to_email],
+        "subject": subject,
+        "text": body,
+    }
+    if reply_to:
+        payload["reply_to"] = reply_to
+
+    try:
+        response = httpx.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {api_key}"},
+            json=payload,
+            timeout=15,
+        )
+        if response.status_code in (200, 201, 202):
+            logger.info("✉️  Email enviado via Resend a %s", to_email)
+            return True
+        logger.error("Resend devolvió status %d: %s", response.status_code, response.text)
+        return False
+    except httpx.HTTPError as e:
+        logger.error("Error al enviar via Resend a %s: %s", to_email, str(e))
         return False
 
 
