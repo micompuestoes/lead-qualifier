@@ -228,7 +228,7 @@ export default function AuthShell({ mode }: { mode: 'sign-in' | 'sign-up' }) {
         padding: '40px 24px', position: 'relative',
         background: c.bgGradient,
       }}>
-        <div className="animate-fade-up" style={{ width: '100%', maxWidth: 380 }}>
+        <div className="auth-fade-in" style={{ width: '100%', maxWidth: 380 }}>
 
           {/* Marca compacta (visible cuando se oculta el panel) */}
           <div className="auth-brand-compact" style={{
@@ -288,6 +288,13 @@ export default function AuthShell({ mode }: { mode: 'sign-in' | 'sign-up' }) {
 
       {/* Responsive: ocultar panel de marca en pantallas estrechas */}
       <style>{`
+        /* Solo opacidad, sin transform: el widget de Clerk (.cl-cardBox) tiene
+           overflow:hidden + border-radius propios: animar con translateY un
+           antecesor suyo hace que Chrome recorte mal el contenido (p. ej. la
+           etiqueta "Correo electrónico") durante los primeros frames. */
+        .auth-fade-in { animation: auth-fade-in 0.38s ease-out both; }
+        @keyframes auth-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
         /* El panel de marca se estira a toda la altura (rellena el lateral oscuro) */
         .auth-brand { display: flex; }
         @media (max-width: 900px) {
