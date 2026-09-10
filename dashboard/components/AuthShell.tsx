@@ -187,12 +187,16 @@ export default function AuthShell({ mode }: { mode: 'sign-in' | 'sign-up' }) {
     },
     elements: {
       rootBox:           'w-full',
-      // pt-1: cardBox recorta su contenido (overflow:hidden, para las
-      // esquinas redondeadas) pero el contenido interno de Clerk arranca ~1px
-      // más arriba que el propio cardBox — sin este margen se comía el borde
-      // superior de la primera etiqueta ("Correo electrónico" se veía como
-      // "orreo electrónico").
-      cardBox:           'w-full shadow-none border-none pt-1',
+      // overflow-visible: por defecto cardBox recorta su contenido
+      // (overflow:hidden, pensado para contener las esquinas redondeadas de
+      // Clerk), pero su contenido interno arranca por encima del propio
+      // borde de la caja — el margen exacto varía según cómo cada sistema
+      // renderice la fuente, y se comía el borde superior de la primera
+      // etiqueta ("Correo electrónico" se veía como "orreo electrónico").
+      // Como aquí cardBox no tiene fondo/borde/sombra propios, no hay nada
+      // que ese recorte necesite proteger: se quita del todo en vez de
+      // intentar acertar con un margen.
+      cardBox:           'w-full shadow-none border-none overflow-visible',
       card:              'shadow-none border-none bg-transparent p-0 gap-5 w-full',
       // Ocultamos el encabezado interno de Clerk: usamos el nuestro (evita el
       // título duplicado y el "para continuar en …").
