@@ -121,7 +121,11 @@ def _send_via_smtp(
 
         msg.attach(MIMEText(body, "plain", "utf-8"))
 
-        with smtplib.SMTP(smtp_host, smtp_port) as server:
+        # timeout: sin esto, si el proveedor de hosting bloquea o descarta
+        # silenciosamente el puerto SMTP saliente (frecuente en plataformas
+        # cloud, para frenar spam), la conexion se queda colgada para siempre
+        # y la tarea en segundo plano nunca llega a loguear ni exito ni error.
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
             server.ehlo()
             server.starttls()
             server.login(smtp_user, smtp_password)
@@ -135,6 +139,13 @@ def _send_via_smtp(
         return False
     except smtplib.SMTPException as e:
         logger.error("Error SMTP al enviar a %s: %s", to_email, str(e))
+        return False
+    except (TimeoutError, OSError) as e:
+        logger.error(
+            "No se pudo conectar a %s:%s en %ss (%s) — revisa si el proveedor "
+            "de hosting bloquea el puerto SMTP saliente",
+            smtp_host, smtp_port, 15, str(e),
+        )
         return False
 
 
