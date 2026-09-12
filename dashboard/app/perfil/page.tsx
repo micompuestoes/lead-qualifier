@@ -801,6 +801,25 @@ export default function PerfilPage() {
                   </button>
                 </div>
               </div>
+
+              {/* Plugin de WordPress — misma clave de arriba, sin tocar código */}
+              <div style={{
+                marginTop: 4, padding: 16, borderRadius: 12,
+                background: c.muted, border: c.cardBorder,
+              }}>
+                <p className="text-sm font-semibold mb-1" style={{ color: c.text1 }}>
+                  ¿Tu web es de WordPress?
+                </p>
+                <p className="text-sm mb-3" style={{ color: c.text2 }}>
+                  Instala nuestro plugin gratuito, pega la API Key de arriba en sus ajustes
+                  y añade <code>[inmuebia_formulario]</code> en cualquier página — el
+                  formulario aparece con los colores de tu marca, sin salir de tu web.
+                </p>
+                <a href="/inmuebia-wordpress-plugin.zip" download
+                  style={{ ...btnSecondary, display: 'inline-flex', textDecoration: 'none', padding: '10px 16px' }}>
+                  Descargar plugin (.zip)
+                </a>
+              </div>
             </div>
           ) : (
             <p className="text-sm" style={{ color: c.text3 }}>

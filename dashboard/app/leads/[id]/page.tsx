@@ -570,7 +570,7 @@ export default function LeadDetallePage() {
                   placeholder="Importe en €"
                   style={{
                     width: '100%', padding: '8px 10px', borderRadius: 8, fontSize: 13,
-                    border: `1px solid ${c.cardBorder}`, background: c.card, color: c.text1,
+                    border: c.cardBorder, background: c.card, color: c.text1,
                   }}
                 />
                 <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
@@ -583,7 +583,7 @@ export default function LeadDetallePage() {
                   </button>
                   <button onClick={() => setPidiendoValor(false)} style={{
                     padding: '8px 14px', borderRadius: 8, fontSize: 13,
-                    background: 'transparent', color: c.text2, border: `1px solid ${c.cardBorder}`,
+                    background: 'transparent', color: c.text2, border: c.cardBorder,
                     cursor: 'pointer',
                   }}>
                     Cancelar
