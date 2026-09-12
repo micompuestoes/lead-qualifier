@@ -51,7 +51,7 @@ export default function LeadsPage() {
   const [offset, setOffset]             = useState(0);
   const [hayMas, setHayMas]             = useState(false);
   const [cargandoMas, setCargandoMas]   = useState(false);
-  const [counts, setCounts]             = useState<LeadCounts>({ total: 0, calientes: 0, tibios: 0, frios: 0 });
+  const [counts, setCounts]             = useState<LeadCounts>({ total: 0, calientes: 0, tibios: 0, frios: 0, deal_value_total: 0 });
   const [scope, setScope]               = useState<'mine' | 'all'>('all');
 
   useEffect(() => {
