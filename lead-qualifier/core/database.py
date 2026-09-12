@@ -11,7 +11,7 @@ import json
 import logging
 import os
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -146,6 +146,16 @@ def init_db() -> None:
         "ALTER TABLE tenants ADD COLUMN logo_url TEXT",
         "ALTER TABLE tenants ADD COLUMN form_title TEXT",
         "ALTER TABLE tenants ADD COLUMN form_subtitle TEXT",
+        # Canal por el que entró el lead: 'formulario' | 'api' | 'email'
+        "ALTER TABLE leads ADD COLUMN source TEXT",
+        # Coste real de IA por lead (solo la llamada de redacción del email)
+        "ALTER TABLE leads ADD COLUMN input_tokens INTEGER",
+        "ALTER TABLE leads ADD COLUMN output_tokens INTEGER",
+        "ALTER TABLE leads ADD COLUMN ai_cost_usd REAL",
+        # Webhook saliente del tenant: reenvía cada lead cualificado a su CRM
+        "ALTER TABLE tenants ADD COLUMN webhook_url TEXT",
+        # Valor (€) de la operación cuando el lead se marca como CERRADO — ROI real
+        "ALTER TABLE leads ADD COLUMN deal_value REAL",
     ]:
         try:
             with engine.begin() as conn:
@@ -235,6 +245,8 @@ def init_db() -> None:
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_team_owner  ON team_members (owner_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_team_member ON team_members (member_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_notif_tenant ON notifications (tenant_id, created_at)"))
+        # Para la comprobación anti-doble-envío (mismo tenant+email en una ventana corta)
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_leads_tenant_email_created ON leads (tenant_id, email, created_at)"))
 
     logger.info("Base de datos lista")
 
@@ -405,6 +417,16 @@ def update_whatsapp_config(tenant_id: str, number: Optional[str], enabled: bool)
             {"number": number or None, "enabled": 1 if enabled else 0, "id": tenant_id},
         )
     logger.info("WhatsApp actualizado para tenant %s: enabled=%s", tenant_id, enabled)
+
+
+def update_webhook_url(tenant_id: str, webhook_url: Optional[str]) -> None:
+    """Guarda (o borra, con None) la URL del webhook saliente del tenant hacia su CRM."""
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE tenants SET webhook_url = :url WHERE id = :id"),
+            {"url": webhook_url or None, "id": tenant_id},
+        )
+    logger.info("Webhook CRM actualizado para tenant %s (configurado=%s)", tenant_id, bool(webhook_url))
 
 
 def set_tenant_plan(
@@ -887,6 +909,68 @@ def get_stats(tenant_id: str) -> dict:
         "tibios":       tibios,
         "frios":        frios,
         "por_mes":      [{"mes": r[0], "total": r[1]} for r in ultimos_6],
+        "feedback":     get_feedback_stats(tenant_id),
+        "ai_cost_mes":  get_ai_cost_this_month(tenant_id),
+    }
+
+
+def get_feedback_stats(tenant_id: str) -> dict:
+    """
+    Acierto/fallo (👍/👎) reportado por el agente sobre la clasificación de la
+    IA, agregado por clasificación. Sirve para detectar si la rúbrica de
+    score_lead se equivoca sistemáticamente en algún segmento (p. ej. siempre
+    falla en TIBIO) antes de que lo note un cliente, sin necesidad de leer
+    lead a lead.
+    """
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT classification,
+                       SUM(CASE WHEN score_feedback = 1  THEN 1 ELSE 0 END) AS aciertos,
+                       SUM(CASE WHEN score_feedback = -1 THEN 1 ELSE 0 END) AS fallos
+                FROM leads
+                WHERE tenant_id = :t AND score_feedback IS NOT NULL
+                GROUP BY classification
+            """),
+            {"t": tenant_id},
+        ).fetchall()
+
+    por_clasificacion = {
+        (r[0] or "SIN_CLASIFICAR"): {"aciertos": r[1] or 0, "fallos": r[2] or 0}
+        for r in rows
+    }
+    total_valorados = sum(v["aciertos"] + v["fallos"] for v in por_clasificacion.values())
+    total_aciertos = sum(v["aciertos"] for v in por_clasificacion.values())
+    return {
+        "por_clasificacion": por_clasificacion,
+        "total_valorados": total_valorados,
+        "precision": round(total_aciertos / total_valorados, 2) if total_valorados else None,
+    }
+
+
+def get_ai_cost_this_month(tenant_id: str) -> dict:
+    """
+    Coste estimado de IA (redacción del email) de este tenant en lo que va de
+    mes. Se basa en los tokens reales devueltos por Claude en cada lead
+    (ver core/agent.py), no en una media — así refleja el gasto real.
+    """
+    inicio_mes = datetime.now(timezone.utc).replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0
+    ).isoformat()
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("""
+                SELECT COUNT(*), SUM(ai_cost_usd), SUM(input_tokens), SUM(output_tokens)
+                FROM leads
+                WHERE tenant_id = :t AND created_at >= :start AND ai_cost_usd IS NOT NULL
+            """),
+            {"t": tenant_id, "start": inicio_mes},
+        ).fetchone()
+    return {
+        "leads_con_ia":   row[0] or 0,
+        "coste_usd":      round(row[1], 4) if row[1] else 0.0,
+        "input_tokens":   row[2] or 0,
+        "output_tokens":  row[3] or 0,
     }
 
 
@@ -897,6 +981,64 @@ def get_all_tenants() -> list:
             text("SELECT * FROM tenants ORDER BY created_at DESC")
         ).fetchall()
     return [dict(r._mapping) for r in rows]
+
+
+def get_admin_overview() -> dict:
+    """
+    Embudo de captación para el panel de admin: altas por semana (últimas 8),
+    distribución de planes y % de tenants activos que han activado cada canal
+    (IMAP, WhatsApp, webhook a CRM). Evita llevar estas cifras "a mano" en una
+    hoja de cálculo aparte, como describe CAPTACION.md.
+    """
+    with engine.connect() as conn:
+        altas_semana = conn.execute(
+            text("""
+                SELECT strftime('%Y-W%W', created_at) AS semana, COUNT(*) AS total
+                FROM tenants
+                GROUP BY semana
+                ORDER BY semana DESC
+                LIMIT 8
+            """) if engine.dialect.name == "sqlite" else text("""
+                SELECT to_char(created_at::timestamp, 'IYYY-"W"IW') AS semana, COUNT(*) AS total
+                FROM tenants
+                GROUP BY semana
+                ORDER BY semana DESC
+                LIMIT 8
+            """)
+        ).fetchall()
+
+        por_plan = conn.execute(
+            text("SELECT plan, COUNT(*) FROM tenants GROUP BY plan")
+        ).fetchall()
+
+        activos = conn.execute(
+            text("SELECT COUNT(*) FROM tenants WHERE status = 'active'")
+        ).scalar() or 0
+        con_imap = conn.execute(
+            text("SELECT COUNT(*) FROM tenants WHERE status = 'active' AND imap_enabled = 1")
+        ).scalar() or 0
+        con_whatsapp = conn.execute(
+            text("SELECT COUNT(*) FROM tenants WHERE status = 'active' AND whatsapp_enabled = 1")
+        ).scalar() or 0
+        con_webhook = conn.execute(
+            text("SELECT COUNT(*) FROM tenants WHERE status = 'active' AND webhook_url IS NOT NULL")
+        ).scalar() or 0
+
+        coste_total = conn.execute(
+            text("SELECT SUM(ai_cost_usd) FROM leads WHERE ai_cost_usd IS NOT NULL")
+        ).scalar()
+
+    return {
+        "altas_por_semana": [{"semana": r[0], "total": r[1]} for r in reversed(altas_semana)],
+        "por_plan": {r[0]: r[1] for r in por_plan},
+        "activos": activos,
+        "adopcion": {
+            "imap":     round(con_imap / activos, 2) if activos else 0,
+            "whatsapp": round(con_whatsapp / activos, 2) if activos else 0,
+            "webhook":  round(con_webhook / activos, 2) if activos else 0,
+        },
+        "coste_ia_total_usd": round(coste_total, 2) if coste_total else 0.0,
+    }
 
 
 def count_leads_for_tenant(tenant_id: str, agent_id: Optional[str] = None) -> int:
@@ -927,7 +1069,11 @@ def get_lead_counts(tenant_id: str, agent_id: Optional[str] = None) -> dict:
         cal = conn.execute(text(f"SELECT COUNT(*) {where} AND score >= 8"), params).scalar() or 0
         tib = conn.execute(text(f"SELECT COUNT(*) {where} AND score >= 5 AND score < 8"), params).scalar() or 0
         fri = conn.execute(text(f"SELECT COUNT(*) {where} AND score < 5 AND score IS NOT NULL"), params).scalar() or 0
-    return {"total": total, "calientes": cal, "tibios": tib, "frios": fri}
+        valor_cerrado = conn.execute(
+            text(f"SELECT COALESCE(SUM(deal_value), 0) {where} AND status = 'CERRADO' AND deal_value IS NOT NULL"),
+            params,
+        ).scalar() or 0
+    return {"total": total, "calientes": cal, "tibios": tib, "frios": fri, "deal_value_total": float(valor_cerrado)}
 
 
 # ─────────────────────────────────────────────
@@ -950,8 +1096,19 @@ def save_lead(
     company_info: dict,
     assigned_to: Optional[str] = None,
     email_sent: Optional[int] = None,
+    source: Optional[str] = None,
+    input_tokens: Optional[int] = None,
+    output_tokens: Optional[int] = None,
+    ai_cost_usd: Optional[float] = None,
 ) -> None:
-    """Guarda un lead procesado completo."""
+    """
+    Guarda un lead procesado completo.
+
+    source: canal de entrada ('formulario' | 'api' | 'email'), para saber qué
+    canal convierte mejor. input_tokens/output_tokens/ai_cost_usd: coste real
+    de la llamada de redacción del email (None si no hubo llamada a la IA,
+    p. ej. leads capturados sin cualificar por límite del plan free).
+    """
     now = datetime.now(timezone.utc).isoformat()
 
     with engine.begin() as conn:
@@ -962,13 +1119,17 @@ def save_lead(
                     classification, score, reasoning,
                     generated_email, recommended_actions,
                     intent_analysis, company_info,
-                    status, assigned_to, email_sent, created_at, processed_at
+                    status, assigned_to, email_sent, source,
+                    input_tokens, output_tokens, ai_cost_usd,
+                    created_at, processed_at
                 ) VALUES (
                     :id, :tenant_id, :name, :email, :phone, :message,
                     :classification, :score, :reasoning,
                     :generated_email, :recommended_actions,
                     :intent_analysis, :company_info,
-                    'PENDIENTE', :assigned_to, :email_sent, :created_at, :processed_at
+                    'PENDIENTE', :assigned_to, :email_sent, :source,
+                    :input_tokens, :output_tokens, :ai_cost_usd,
+                    :created_at, :processed_at
                 )
             """),
             {
@@ -987,12 +1148,37 @@ def save_lead(
                 "company_info":       json.dumps(company_info,       ensure_ascii=False),
                 "assigned_to":  assigned_to,
                 "email_sent":   email_sent,
+                "source":       source,
+                "input_tokens":  input_tokens,
+                "output_tokens": output_tokens,
+                "ai_cost_usd":   ai_cost_usd,
                 "created_at":   now,
                 "processed_at": now,
             },
         )
 
-    logger.info("Lead %s guardado (tenant: %s, clasificacion: %s)", lead_id, tenant_id, classification)
+    logger.info("Lead %s guardado (tenant: %s, clasificacion: %s, canal: %s)", lead_id, tenant_id, classification, source)
+
+
+def is_duplicate_lead(tenant_id: str, email: str, message: str, window_seconds: int = 120) -> bool:
+    """
+    ¿Ya existe un lead del mismo tenant y email, con el mismo mensaje, guardado
+    hace menos de `window_seconds`? Detecta un doble clic o un reintento de red
+    del formulario antes de gastar una llamada a Claude y mandar dos emails de
+    respuesta al mismo lead.
+    """
+    limite = (datetime.now(timezone.utc) - timedelta(seconds=window_seconds)).isoformat()
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("""
+                SELECT 1 FROM leads
+                WHERE tenant_id = :t AND LOWER(email) = LOWER(:e)
+                  AND message = :m AND created_at >= :lim
+                LIMIT 1
+            """),
+            {"t": tenant_id, "e": email, "m": message, "lim": limite},
+        ).fetchone()
+    return row is not None
 
 
 def get_lead_by_id(lead_id: str, tenant_id: str, agent_id: Optional[str] = None) -> Optional[dict]:
@@ -1217,14 +1403,36 @@ def set_lead_feedback(lead_id: str, tenant_id: str, feedback: Optional[int]) -> 
         )
 
 
-def update_lead_status(lead_id: str, status: str, tenant_id: str) -> None:
-    """Actualiza el estado de un lead, verificando que pertenece al tenant."""
+def update_lead_status(lead_id: str, status: str, tenant_id: str, deal_value: Optional[float] = None) -> None:
+    """
+    Actualiza el estado de un lead, verificando que pertenece al tenant.
+    deal_value: importe (€) de la operación — solo tiene sentido al marcar CERRADO,
+    pero se guarda tal cual venga (None no toca la columna existente).
+    """
     with engine.begin() as conn:
-        conn.execute(
-            text("UPDATE leads SET status = :status WHERE id = :id AND tenant_id = :tid"),
-            {"status": status, "id": lead_id, "tid": tenant_id},
-        )
+        if deal_value is not None:
+            conn.execute(
+                text("UPDATE leads SET status = :status, deal_value = :dv WHERE id = :id AND tenant_id = :tid"),
+                {"status": status, "dv": deal_value, "id": lead_id, "tid": tenant_id},
+            )
+        else:
+            conn.execute(
+                text("UPDATE leads SET status = :status WHERE id = :id AND tenant_id = :tid"),
+                {"status": status, "id": lead_id, "tid": tenant_id},
+            )
     logger.info("Lead %s → estado %s (tenant: %s)", lead_id, status, tenant_id)
+
+
+def get_closed_deals_value(tenant_id: str, since: Optional[str] = None) -> dict:
+    """Suma y cuenta de las operaciones CERRADAS con valor registrado (ROI real del tenant)."""
+    sql = "SELECT COALESCE(SUM(deal_value), 0) AS total, COUNT(deal_value) AS n FROM leads WHERE tenant_id = :tid AND status = 'CERRADO' AND deal_value IS NOT NULL"
+    params: dict = {"tid": tenant_id}
+    if since:
+        sql += " AND created_at >= :since"
+        params["since"] = since
+    with engine.connect() as conn:
+        row = conn.execute(text(sql), params).fetchone()
+    return {"total_value": float(row[0] or 0), "count": int(row[1] or 0)}
 
 
 def delete_lead(lead_id: str, tenant_id: str) -> None:

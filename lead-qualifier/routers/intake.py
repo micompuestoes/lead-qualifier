@@ -16,16 +16,19 @@ import anthropic
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 
 from config import (
-    FREE_LEAD_LIMIT, RATE_IP_PER_HOUR, RATE_IP_PER_MIN,
-    RATE_KEY_PER_HOUR, RATE_KEY_PER_MIN,
+    DUPLICATE_LEAD_WINDOW_SECONDS, FREE_LEAD_LIMIT, RATE_IP_PER_HOUR,
+    RATE_IP_PER_MIN, RATE_KEY_PER_HOUR, RATE_KEY_PER_MIN,
 )
 from core.agent import qualify_lead
-from core.database import get_lead_count_this_month, get_tenant_by_api_key, save_lead
+from core.database import (
+    get_lead_count_this_month, get_tenant_by_api_key, is_duplicate_lead, save_lead,
+)
 from deps import get_anthropic_client
 from models import LeadInput
 from notifications import notificar_tenant
 from security import client_ip, rate_limited
 from services.email_sender import send_and_mark_lead_email
+from services.webhook import send_lead_webhook
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +97,15 @@ def public_intake(api_key: str, lead: PublicLeadInput, request: Request, backgro
     tenant_id = tenant["id"]
     logger.info("Intake público — %s <%s> (tenant: %s, ip: %s)", lead.name, lead.email, tenant_id, ip)
 
+    # ── Anti-doble-envío: doble clic o reintento de red del formulario ──
+    # No debe gastar una segunda llamada a Claude ni mandar dos emails al lead.
+    if is_duplicate_lead(tenant_id, lead.email, lead.message, DUPLICATE_LEAD_WINDOW_SECONDS):
+        logger.info("Intake duplicado ignorado — %s <%s> (tenant: %s)", lead.name, lead.email, tenant_id)
+        return {
+            "ok": True,
+            "message": "Tu consulta ha sido recibida. En breve nos pondremos en contacto contigo.",
+        }
+
     # ── Límite del plan gratuito ──
     # Si el tenant está en free y ha superado su cuota mensual, NO perdemos el lead:
     # lo guardamos sin cualificar (sin gastar IA) para que mejore su plan y lo desbloquee.
@@ -128,7 +140,14 @@ def public_intake(api_key: str, lead: PublicLeadInput, request: Request, backgro
             agency_name=tenant.get("name"),
             brand_voice=tenant.get("brand_voice") or None,
             auto_send=auto_send,
+            source="formulario",
         )
+
+        # Webhook a CRM (si el tenant lo tiene configurado) — best-effort,
+        # nunca debe retrasar ni condicionar la respuesta al visitante.
+        webhook_url = tenant.get("webhook_url")
+        if webhook_url:
+            background_tasks.add_task(send_lead_webhook, webhook_url, {**lead.model_dump(), **result})
 
         # Envío y avisos en segundo plano: el visitante no espera al SMTP.
         # El lead se guarda como borrador y solo se marca enviado si el SMTP confirma.

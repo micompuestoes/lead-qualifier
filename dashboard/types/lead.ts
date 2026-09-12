@@ -37,6 +37,7 @@ export interface Lead {
   email_sent?: number | boolean | null;  // 0/false → borrador pendiente de enviar
   score_feedback?: number | null;        // 1 = acierto, -1 = fallo, null = sin valorar
   followup_sent_at?: string | null;      // fecha del recordatorio automático (si se envió)
+  deal_value?: number | null;            // importe (€) de la operación, si se cerró
   created_at: string;
   processed_at: string | null;
 }
@@ -70,6 +71,7 @@ export interface NuevoLeadPayload {
 // Payload para actualizar el estado
 export interface ActualizarEstadoPayload {
   status: EstadoLead;
+  deal_value?: number;
 }
 
 // Respuesta de GET /stats (solo plan agencia)

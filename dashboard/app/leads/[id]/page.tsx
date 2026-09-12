@@ -86,6 +86,10 @@ export default function LeadDetallePage() {
   // Valoración de la clasificación (👍/👎)
   const [guardandoFeedback, setGuardandoFeedback] = useState(false);
 
+  // Valor (€) de la operación al cerrar un lead — se pide antes de confirmar "Cerrado"
+  const [pidiendoValor, setPidiendoValor]     = useState(false);
+  const [valorOperacion, setValorOperacion]   = useState('');
+
   useEffect(() => {
     async function cargar() {
       try {
@@ -143,14 +147,14 @@ export default function LeadDetallePage() {
     }
   }
 
-  async function cambiarEstado(nuevo: EstadoLead) {
-    if (nuevo === statusLocal || actualizando || !lead) return;
+  async function cambiarEstado(nuevo: EstadoLead, dealValue?: number) {
+    if ((nuevo === statusLocal && dealValue === undefined) || actualizando || !lead) return;
     const prev = statusLocal;
     setStatusLocal(nuevo);      // optimistic
     setActualizando(true);
     try {
-      const updated = await actualizarEstado(id, { status: nuevo }, getToken);
-      setLead({ ...lead, status: updated.status });
+      const updated = await actualizarEstado(id, { status: nuevo, deal_value: dealValue }, getToken);
+      setLead({ ...lead, status: updated.status, deal_value: updated.deal_value });
       addToast(`Estado actualizado a ${ESTADO_META[nuevo].label}`, 'success');
     } catch {
       setStatusLocal(prev);
@@ -158,6 +162,27 @@ export default function LeadDetallePage() {
     } finally {
       setActualizando(false);
     }
+  }
+
+  // Al elegir "Cerrado" se pide antes el importe de la operación (opcional);
+  // si ya estaba cerrado, permite editar el importe guardado sin cambiar de estado.
+  function pedirCierre() {
+    setValorOperacion(lead?.deal_value ? String(lead.deal_value) : '');
+    setPidiendoValor(true);
+  }
+
+  function confirmarCierre() {
+    const texto = valorOperacion.trim();
+    let valor: number | undefined;
+    if (texto) {
+      valor = Number(texto);
+      if (Number.isNaN(valor) || valor < 0) {
+        addToast('Introduce un importe válido', 'error');
+        return;
+      }
+    }
+    cambiarEstado('CERRADO', valor);
+    setPidiendoValor(false);
   }
 
   async function enviarBorrador() {
@@ -488,7 +513,9 @@ export default function LeadDetallePage() {
                 const m      = ESTADO_META[estado];
                 const activo = statusLocal === estado;
                 return (
-                  <button key={estado} onClick={() => cambiarEstado(estado)} disabled={actualizando}
+                  <button key={estado}
+                    onClick={() => estado === 'CERRADO' ? pedirCierre() : cambiarEstado(estado)}
+                    disabled={actualizando}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10,
                       padding: '10px 14px', borderRadius: 10, width: '100%',
@@ -525,6 +552,54 @@ export default function LeadDetallePage() {
                 );
               })}
             </div>
+
+            {/* Importe de la operación cerrada — se pide al elegir "Cerrado" */}
+            {pidiendoValor ? (
+              <div className="animate-fade-up" style={{
+                marginTop: 12, padding: 12, borderRadius: 10,
+                background: ESTADO_META.CERRADO.bg, border: `1px solid ${ESTADO_META.CERRADO.border}`,
+              }}>
+                <p style={{ fontSize: 12, color: c.text2, marginBottom: 8 }}>
+                  ¿Por cuánto se ha cerrado la operación? <span style={{ color: c.text3 }}>(opcional)</span>
+                </p>
+                <input
+                  type="number" min="0" step="1000" autoFocus
+                  value={valorOperacion}
+                  onChange={e => setValorOperacion(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') confirmarCierre(); if (e.key === 'Escape') setPidiendoValor(false); }}
+                  placeholder="Importe en €"
+                  style={{
+                    width: '100%', padding: '8px 10px', borderRadius: 8, fontSize: 13,
+                    border: `1px solid ${c.cardBorder}`, background: c.card, color: c.text1,
+                  }}
+                />
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <button onClick={confirmarCierre} disabled={actualizando} style={{
+                    flex: 1, padding: '8px 0', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                    background: ESTADO_META.CERRADO.color, color: '#fff', border: 'none',
+                    cursor: actualizando ? 'default' : 'pointer',
+                  }}>
+                    Confirmar cierre
+                  </button>
+                  <button onClick={() => setPidiendoValor(false)} style={{
+                    padding: '8px 14px', borderRadius: 8, fontSize: 13,
+                    background: 'transparent', color: c.text2, border: `1px solid ${c.cardBorder}`,
+                    cursor: 'pointer',
+                  }}>
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : statusLocal === 'CERRADO' && (
+              <button onClick={pedirCierre} style={{
+                marginTop: 10, width: '100%', textAlign: 'left', background: 'transparent',
+                border: 'none', cursor: 'pointer', fontSize: 12, color: c.text2, padding: '2px 4px',
+              }}>
+                {lead.deal_value
+                  ? <>💰 Operación cerrada por <strong style={{ color: c.text1 }}>{lead.deal_value.toLocaleString('es-ES')} €</strong> · editar</>
+                  : '+ Añadir el importe de la operación'}
+              </button>
+            )}
           </div>
 
           {/* Agente asignado (solo agencia) */}

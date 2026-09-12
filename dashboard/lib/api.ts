@@ -86,13 +86,13 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 // ── Funciones de API (reciben getToken como primer argumento) ─────────────────
 
-export interface LeadCounts { total: number; calientes: number; tibios: number; frios: number }
+export interface LeadCounts { total: number; calientes: number; tibios: number; frios: number; deal_value_total: number }
 export interface LeadsPagina { leads: Lead[]; total: number; counts: LeadCounts; scope: 'mine' | 'all' }
 
 // Filtros que se resuelven en el SERVIDOR (búsqueda sobre todos los leads, no solo los cargados)
 export interface FiltrosLeads { q?: string; classification?: string; status?: string }
 
-const COUNTS_VACIO: LeadCounts = { total: 0, calientes: 0, tibios: 0, frios: 0 };
+const COUNTS_VACIO: LeadCounts = { total: 0, calientes: 0, tibios: 0, frios: 0, deal_value_total: 0 };
 
 function filtrosAQuery(qs: URLSearchParams, filtros?: FiltrosLeads) {
   if (filtros?.q)              qs.set('q', filtros.q);

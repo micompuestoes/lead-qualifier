@@ -11,8 +11,8 @@ Los tests de este archivo son SECUENCIALES (comparten estado de BD en orden).
 """
 
 from core.database import (
-    get_lead_by_id, get_recent_leads, get_tenant, save_lead, set_tenant_plan,
-    update_lead_status,
+    delete_lead, get_lead_by_id, get_leads_by_email, get_recent_leads, get_tenant,
+    save_lead, set_tenant_plan, update_lead_status,
 )
 
 T = "dev-tenant"
@@ -96,6 +96,27 @@ def test_qualify_automatico_marca_enviado_si_el_envio_confirma(client, monkeypat
     })
     assert r.status_code == 200
     assert get_lead_by_id(r.json()["lead_id"], T)["email_sent"] == 1
+    assert get_lead_by_id(r.json()["lead_id"], T)["source"] == "api"
+
+
+def test_qualify_lead_duplicado_da_409_y_no_crea_otro(client):
+    """Un doble clic / reintento de red no debe gastar una segunda llamada a
+    Claude ni crear un segundo lead — mismo tenant, email y mensaje.
+    Borra el lead creado al terminar: no debe consumir la cuota mensual del
+    plan free que el test de rate limit, más adelante, deja ajustada al límite."""
+    payload = {
+        "name": "Doble Clic", "email": "doble@test.com", "phone": None,
+        "message": "Busco piso en Málaga, presupuesto 200.000 euros",
+    }
+    r1 = client.post("/qualify-lead", json=payload)
+    assert r1.status_code == 200
+    antes = client.get("/leads").json()["total"]
+
+    r2 = client.post("/qualify-lead", json=payload)
+    assert r2.status_code == 409
+    assert client.get("/leads").json()["total"] == antes
+
+    delete_lead(r1.json()["lead_id"], T)
 
 
 # ── Listado: counts reales, búsqueda y filtros en servidor ────────────────────
@@ -126,6 +147,30 @@ def test_lista_counts_reales_y_filtros(client):
 
     # Un filtro con valor desconocido se ignora en vez de romper
     assert client.get("/leads", params={"classification": "HACKER"}).json()["total"] >= 5
+
+
+# ── Valor de operación al cerrar un lead (ROI real para la agencia) ──────────
+
+def test_cerrar_lead_con_valor_de_operacion(client):
+    _semilla("S4", "Pablo Núñez", "pablo@test.com", "Compra ático", "CALIENTE", 8)
+
+    r = client.patch("/leads/S4/status", json={"status": "CERRADO", "deal_value": 250000})
+    assert r.status_code == 200
+    assert r.json()["status"] == "CERRADO"
+    assert r.json()["deal_value"] == 250000
+
+    # El total agregado del tenant refleja la operación cerrada
+    counts = client.get("/leads").json()["counts"]
+    assert counts["deal_value_total"] >= 250000
+
+    # Un importe negativo se rechaza (422 de validación, no un 500)
+    r = client.patch("/leads/S4/status", json={"status": "CERRADO", "deal_value": -1})
+    assert r.status_code == 422
+
+    # Cambiar de estado sin mandar deal_value no borra el valor ya guardado
+    r = client.patch("/leads/S4/status", json={"status": "CONTACTADO"})
+    assert r.status_code == 200
+    assert r.json()["deal_value"] == 250000
 
 
 # ── Export CSV: gate de plan + filtros ────────────────────────────────────────
@@ -205,6 +250,36 @@ def test_intake_publico_sin_fuga_y_honeypot(client):
     assert client.post("/intake/lq_invalida", json={
         "name": "Xavi", "email": "x@test.com", "phone": None, "message": "hola, info", "website": None,
     }).status_code == 404
+
+
+def test_intake_publico_marca_source_formulario(client):
+    api_key = get_tenant(T)["api_key"]
+    r = client.post(f"/intake/{api_key}", json={
+        "name": "Origen Test", "email": "origen@test.com", "phone": None,
+        "message": "Quiero alquilar un piso en Bilbao", "website": None,
+    })
+    assert r.status_code == 200
+    lead = get_leads_by_email("origen@test.com", T)[0]
+    assert lead["source"] == "formulario"
+    delete_lead(lead["id"], T)  # no consumir cuota mensual del plan free
+
+
+def test_intake_publico_duplicado_se_ignora_silenciosamente(client):
+    """Igual que en /qualify-lead, pero el visitante nunca debe ver un error:
+    responde 'ok' sin volver a cualificar ni crear un segundo lead."""
+    api_key = get_tenant(T)["api_key"]
+    payload = {
+        "name": "Doble Envio Form", "email": "dobleform@test.com", "phone": None,
+        "message": "Busco chalet en Marbella con 3 habitaciones", "website": None,
+    }
+    assert client.post(f"/intake/{api_key}", json=payload).status_code == 200
+    antes = client.get("/leads").json()["total"]
+
+    r2 = client.post(f"/intake/{api_key}", json=payload)
+    assert r2.status_code == 200 and r2.json()["ok"] is True
+    assert client.get("/leads").json()["total"] == antes
+
+    delete_lead(get_leads_by_email("dobleform@test.com", T)[0]["id"], T)
 
 
 def test_form_branding_y_config_publica(client):
@@ -343,6 +418,17 @@ def test_admin_cambia_estado_de_tenant(client, monkeypatch):
     assert get_tenant(T)["status"] == "active"
 
 
+def test_admin_overview_requiere_clave_y_devuelve_embudo(client, monkeypatch):
+    monkeypatch.setenv("ADMIN_SECRET_KEY", "clave-admin-larga-de-test")
+    assert client.get("/admin/overview").status_code == 403
+
+    h = {"X-Admin-Key": "clave-admin-larga-de-test"}
+    r = client.get("/admin/overview", headers=h)
+    assert r.status_code == 200
+    body = r.json()
+    assert "altas_por_semana" in body and "por_plan" in body and "adopcion" in body
+
+
 # ── Perfil: actualizar datos y WhatsApp ────────────────────────────────────────
 
 def test_perfil_actualizar_nombre_y_email_de_aviso(client):
@@ -350,6 +436,20 @@ def test_perfil_actualizar_nombre_y_email_de_aviso(client):
     assert r.status_code == 200
     assert r.json()["name"] == "Nueva Agencia SL"
     assert r.json()["notify_email"] == "avisos@test.com"
+
+
+def test_perfil_webhook_valida_https_y_hace_roundtrip(client):
+    assert client.post("/me/webhook", json={"webhook_url": "http://inseguro.com"}).status_code == 400
+
+    r = client.post("/me/webhook", json={"webhook_url": "https://hooks.crm.com/inmuebia"})
+    assert r.status_code == 200
+    assert r.json()["webhook_url"] == "https://hooks.crm.com/inmuebia"
+    assert client.get("/me").json()["webhook_url"] == "https://hooks.crm.com/inmuebia"
+
+    # Vacío desactiva el reenvío.
+    r = client.post("/me/webhook", json={"webhook_url": ""})
+    assert r.status_code == 200 and r.json()["webhook_url"] == ""
+    assert client.get("/me").json()["webhook_url"] == ""
 
 
 def test_perfil_whatsapp_exige_numero_valido_si_se_activa(client):

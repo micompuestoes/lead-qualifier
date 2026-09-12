@@ -15,6 +15,7 @@ from typing import Optional
 import anthropic
 import httpx
 
+from config import CLAUDE_PRICE_INPUT_PER_MTOK, CLAUDE_PRICE_OUTPUT_PER_MTOK
 from prompts import SYSTEM_PROMPT
 from core.tools import analyze_intent, lookup_company, score_lead
 from core.database import pick_next_agent, save_lead
@@ -88,8 +89,13 @@ def _redactar_email(
     intent: dict,
     scoring: dict,
     brand_voice: Optional[str] = None,
-) -> str:
-    """Genera el email de respuesta con una única llamada a Claude."""
+) -> dict:
+    """
+    Genera el email de respuesta con una única llamada a Claude.
+
+    Devuelve {"text", "input_tokens", "output_tokens"}. Los tokens son None si
+    la llamada falló y se usó el fallback (no hubo consumo de IA que costear).
+    """
     classification = scoring.get("classification", "TIBIO")
     score          = scoring.get("score", 5)
     operation      = intent.get("operation", "INFORMACION")
@@ -135,10 +141,29 @@ Un saludo,
         )
         texto = resp.content[0].text if resp.content else ""
         limpio = _limpiar_email(texto)
-        return limpio or _email_fallback(primer_nombre, firma, classification, operation)
+        usage = getattr(resp, "usage", None)
+        return {
+            "text": limpio or _email_fallback(primer_nombre, firma, classification, operation),
+            "input_tokens": getattr(usage, "input_tokens", None) if usage else None,
+            "output_tokens": getattr(usage, "output_tokens", None) if usage else None,
+        }
     except Exception as exc:
         logger.error("Error redactando email con IA: %s — usando fallback", exc)
-        return _email_fallback(primer_nombre, firma, classification, operation)
+        return {
+            "text": _email_fallback(primer_nombre, firma, classification, operation),
+            "input_tokens": None,
+            "output_tokens": None,
+        }
+
+
+def _estimar_coste_usd(input_tokens: Optional[int], output_tokens: Optional[int]) -> Optional[float]:
+    """Coste estimado (USD) de la llamada de redacción a partir de sus tokens reales."""
+    if input_tokens is None or output_tokens is None:
+        return None
+    return (
+        input_tokens / 1_000_000 * CLAUDE_PRICE_INPUT_PER_MTOK
+        + output_tokens / 1_000_000 * CLAUDE_PRICE_OUTPUT_PER_MTOK
+    )
 
 
 # ─────────────────────────────────────────────
@@ -155,6 +180,7 @@ def qualify_lead(
     agency_name: Optional[str] = None,
     brand_voice: Optional[str] = None,
     auto_send: bool = True,
+    source: Optional[str] = None,
 ) -> dict:
     """
     Cualifica un lead inmobiliario completo y lo guarda en la base de datos.
@@ -170,6 +196,8 @@ def qualify_lead(
     brand_voice: preferencias de estilo del tenant que la IA respeta al redactar.
     auto_send:   False → el email queda como BORRADOR (email_sent=0) para que el
                  agente lo revise/edite antes de enviarlo desde el dashboard.
+    source:      canal de entrada ('formulario' | 'api' | 'email'), para poder
+                 comparar qué canal convierte mejor.
     """
     lead_id       = str(uuid.uuid4())
     firma         = (agency_name or "").strip() or "el equipo"
@@ -194,10 +222,12 @@ def qualify_lead(
     recommended_actions = scoring.get("recommended_actions", ["Revisar manualmente"])
 
     # ── 4: email (única llamada a la IA) ──
-    generated_email = _redactar_email(
+    email_result = _redactar_email(
         anthropic_client, name, primer_nombre, firma, email, message, intent, scoring,
         brand_voice=brand_voice,
     )
+    generated_email = email_result["text"]
+    ai_cost_usd = _estimar_coste_usd(email_result["input_tokens"], email_result["output_tokens"])
 
     # ── 5: reparto automático entre el equipo (None si es cuenta individual) ──
     try:
@@ -227,6 +257,10 @@ def qualify_lead(
             # confirmarse se marca como enviado. Si el SMTP falla, el lead queda
             # como borrador reclamable en el dashboard, no como enviado en falso.
             email_sent=0,
+            source=source,
+            input_tokens=email_result["input_tokens"],
+            output_tokens=email_result["output_tokens"],
+            ai_cost_usd=ai_cost_usd,
         )
     except Exception as exc:
         logger.error("Error guardando lead %s en BD: %s", lead_id, exc)

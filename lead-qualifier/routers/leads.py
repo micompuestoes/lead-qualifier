@@ -7,22 +7,26 @@ from typing import Literal, Optional
 import anthropic
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from config import FREE_LEAD_LIMIT, RATE_TENANT_PER_HOUR, RATE_TENANT_PER_MIN
+from config import (
+    DUPLICATE_LEAD_WINDOW_SECONDS, FREE_LEAD_LIMIT, RATE_TENANT_PER_HOUR,
+    RATE_TENANT_PER_MIN,
+)
 from core.agent import qualify_lead
 from core.csv_export import leads_to_csv
 from core.database import (
     assign_lead, delete_lead, ensure_tenant, get_agent_ids, get_lead_by_id,
     get_lead_count_this_month, get_lead_counts, get_leads_by_email,
-    get_leads_export, get_recent_leads, get_tenant, mark_lead_email_sent,
-    set_lead_feedback, update_lead_status,
+    get_leads_export, get_recent_leads, get_tenant, is_duplicate_lead,
+    mark_lead_email_sent, set_lead_feedback, update_lead_status,
 )
 from deps import Caller, get_anthropic_client, get_caller, get_tenant_id, require_plan
 from models import LeadInput, LeadOutput
 from notifications import notificar_tenant
 from security import rate_limited
 from services.email_sender import send_and_mark_lead_email, send_lead_response_email
+from services.webhook import send_lead_webhook
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +49,7 @@ def _filtros_validados(q: Optional[str], classification: Optional[str], status: 
 
 class ActualizarEstadoInput(BaseModel):
     status: EstadoLiteral
+    deal_value: Optional[float] = Field(default=None, ge=0)
 
 
 class AsignarLeadInput(BaseModel):
@@ -90,6 +95,13 @@ def qualify_lead_endpoint(
     # Garantizar que el tenant existe en la BD
     ensure_tenant(tenant_id)
 
+    # ── Anti-doble-envío: doble clic o reintento de red del cliente ──
+    if is_duplicate_lead(tenant_id, lead.email, lead.message, DUPLICATE_LEAD_WINDOW_SECONDS):
+        raise HTTPException(
+            status_code=409,
+            detail="Ya se ha procesado un lead idéntico hace unos instantes.",
+        )
+
     # Rate limit por tenant (todos los planes, no solo free): acota el coste
     # de IA si una cuenta se ve comprometida o una integración entra en bucle.
     if rate_limited(f"tenant:{tenant_id}", RATE_TENANT_PER_MIN, RATE_TENANT_PER_HOUR):
@@ -126,7 +138,13 @@ def qualify_lead_endpoint(
             agency_name=tenant.get("name") if tenant else None,
             brand_voice=brand_voice,
             auto_send=auto_send,
+            source="api",
         )
+
+        # Webhook a CRM (si el tenant lo tiene configurado) — best-effort.
+        webhook_url = tenant.get("webhook_url") if tenant else None
+        if webhook_url:
+            background_tasks.add_task(send_lead_webhook, webhook_url, {**lead.model_dump(), **result})
 
         # Envío y avisos en segundo plano: la respuesta HTTP no espera al SMTP.
         # El lead se guarda como borrador y solo se marca enviado si el SMTP confirma.
@@ -235,7 +253,7 @@ async def patch_lead_status(
     if not lead:
         raise HTTPException(status_code=404, detail=f"Lead {lead_id} no encontrado")
 
-    update_lead_status(lead_id, body.status, tenant_id=caller.tenant_id)
+    update_lead_status(lead_id, body.status, tenant_id=caller.tenant_id, deal_value=body.deal_value)
     logger.info("Lead %s → estado %s (tenant: %s)", lead_id, body.status, caller.tenant_id)
 
     actualizado = get_lead_by_id(lead_id, tenant_id=caller.tenant_id)

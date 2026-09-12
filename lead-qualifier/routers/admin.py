@@ -7,8 +7,8 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from core.database import (
-    admin_override_plan, count_leads_for_tenant, get_all_tenants, get_tenant,
-    set_tenant_status,
+    admin_override_plan, count_leads_for_tenant, get_admin_overview,
+    get_all_tenants, get_tenant, set_tenant_status,
 )
 from deps import require_admin
 
@@ -26,6 +26,17 @@ class ActualizarEstadoTenantInput(BaseModel):
 
 class ActualizarPlanTenantInput(BaseModel):
     plan: PlanTenantLiteral
+
+
+@router.get("/overview")
+async def admin_overview(request: Request):
+    """
+    Embudo de captación: altas por semana, distribución de planes, % de
+    adopción de cada canal (IMAP/WhatsApp/webhook) y coste total de IA
+    acumulado. Requiere X-Admin-Key.
+    """
+    require_admin(request)
+    return get_admin_overview()
 
 
 @router.get("/tenants")

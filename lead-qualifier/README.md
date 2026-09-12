@@ -30,14 +30,14 @@ lead-qualifier/
 │   └── email_sender.py  # Envío de emails (respuesta al lead, avisos, digest)
 ├── routers/
 │   ├── leads.py         # /qualify-lead, /leads…
-│   ├── profile.py       # /me, /me/notifications
+│   ├── profile.py       # /me, /me/notifications, /me/webhook (CRM)
 │   ├── imap.py          # /me/imap  (Pro y Agencia)
 │   ├── team.py          # /me/team  (Agencia)
 │   ├── intake.py        # /intake/{api_key}  (público, con honeypot + rate limit)
 │   ├── billing.py       # /billing/*, /me/subscription  (Stripe)
-│   ├── stats.py         # /stats  (Agencia)
+│   ├── stats.py         # /stats  (incluye feedback y coste de IA — Agencia)
 │   ├── ads.py           # /generate-ad  (Agencia)
-│   ├── admin.py         # /admin/*  (protegido por X-Admin-Key)
+│   ├── admin.py         # /admin/*, /admin/overview  (protegido por X-Admin-Key)
 │   └── health.py        # /health
 ├── scripts/
 │   └── smoke_agent.py   # Script de prueba manual del agente (requiere ANTHROPIC_API_KEY)
@@ -46,14 +46,24 @@ lead-qualifier/
 
 ### Flujo de cualificación
 
+0. Anti-doble-envío: si ya existe un lead idéntico (mismo tenant, email y
+   mensaje) guardado hace menos de `DUPLICATE_LEAD_WINDOW_SECONDS`, se
+   descarta sin llamar a Claude ni duplicar el email de respuesta (protege
+   contra doble clic o reintento de red del formulario/cliente).
 1. `analyze_intent` — detecta operación, tipo de inmueble, zona, presupuesto,
    financiación, urgencia y calidad del mensaje. **Determinista.**
 2. `lookup_company` — infiere el perfil del contacto por el dominio del email.
 3. `score_lead` — rúbrica determinista → score 1-10 y clasificación
    `CALIENTE` / `TIBIO` / `FRÍO`.
 4. `_redactar_email` — **única** llamada a Claude para el email de respuesta
-   (con fallback si la IA no está disponible: el lead nunca se queda sin respuesta).
-5. Se guarda en la BD y, si el score ≥ `NOTIFY_MIN_SCORE`, se avisa a la agencia.
+   (con fallback si la IA no está disponible: el lead nunca se queda sin
+   respuesta). Los tokens reales de la llamada se guardan por lead (`input_tokens`,
+   `output_tokens`, `ai_cost_usd`) para poder vigilar el coste de IA por tenant
+   desde `/stats` (agencia) o `/admin/overview` (global).
+5. Se guarda en la BD junto con el canal de entrada (`source`:
+   `formulario` | `api` | `email`) y, si el score ≥ `NOTIFY_MIN_SCORE`, se
+   avisa a la agencia. Si el tenant tiene un `webhook_url` configurado
+   (`/me/webhook`), el lead cualificado también se reenvía por POST a su CRM.
 
 ## Puesta en marcha (local)
 

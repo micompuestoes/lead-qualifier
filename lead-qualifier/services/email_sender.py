@@ -365,9 +365,10 @@ Mensaje automático de Inmuebia. Puedes ajustar las notificaciones desde tu perf
 
 def send_weekly_digest(tenant_email: str, tenant_name: str, counts: dict, dashboard_url: str = "") -> bool:
     """Resumen semanal de actividad — recuerda a la agencia el valor de Inmuebia."""
-    nuevos     = counts.get("nuevos", 0)
-    calientes  = counts.get("calientes", 0)
-    pendientes = counts.get("pendientes", 0)
+    nuevos      = counts.get("nuevos", 0)
+    calientes   = counts.get("calientes", 0)
+    pendientes  = counts.get("pendientes", 0)
+    valor_total = counts.get("deal_value_total", 0)
 
     # Estimación de tiempo ahorrado (~5 min por lead cualificado y respondido)
     minutos = nuevos * 5
@@ -375,6 +376,12 @@ def send_weekly_digest(tenant_email: str, tenant_name: str, counts: dict, dashbo
 
     saludo = f"Hola {tenant_name}," if tenant_name else "Hola,"
     dashboard_line = f"\nEntra a tu panel: {dashboard_url}" if dashboard_url else ""
+    # Solo se muestra si la agencia ha registrado algún valor de operación cerrada
+    # (ver /leads/{id}/status con deal_value) — refuerza el ROI real, no solo actividad.
+    valor_line = (
+        f"\n💰 Llevas {valor_total:,.0f} € en operaciones cerradas gracias a tus leads de Inmuebia.\n"
+        if valor_total > 0 else ""
+    )
 
     body = f"""{saludo}
 
@@ -383,7 +390,7 @@ Este es tu resumen de la semana en Inmuebia:
   • {nuevos} leads nuevos cualificados con IA
   • {calientes} leads calientes (listos para cerrar)
   • {pendientes} leads pendientes de contactar
-
+{valor_line}
 Inmuebia te ha ahorrado aproximadamente {ahorro} de leer y responder mensajes.
 {f"Tienes {pendientes} leads esperando tu llamada — no dejes que se enfríen." if pendientes else "¡Buen trabajo, lo tienes todo al día!"}
 {dashboard_line}

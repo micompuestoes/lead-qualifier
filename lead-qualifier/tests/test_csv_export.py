@@ -30,20 +30,20 @@ def test_campos_con_comas_y_comillas_sobreviven():
     filas = _parsear(leads_to_csv([lead]))
     assert filas[1][0] == 'Ana "La Rápida" Pérez'
     assert filas[1][2] == "+34 600,111"
-    assert filas[1][7] == "Busco piso, 3 habitaciones"
-    assert filas[1][6] == "2026-07-08"   # solo la fecha, sin hora
+    assert filas[1][8] == "Busco piso, 3 habitaciones"
+    assert filas[1][7] == "2026-07-08"   # solo la fecha, sin hora
 
 
 def test_saltos_de_linea_en_mensaje_se_aplanan():
     lead = {"name": "B", "email": "b@x.com", "message": "línea 1\nlínea 2\r\nlínea 3"}
     filas = _parsear(leads_to_csv([lead]))
-    assert filas[1][7] == "línea 1 línea 2 línea 3"
+    assert filas[1][8] == "línea 1 línea 2 línea 3"
 
 
 def test_valores_ausentes_quedan_vacios():
     filas = _parsear(leads_to_csv([{"name": "C", "email": "c@x.com"}]))
     fila = filas[1]
-    assert fila[0] == "C" and fila[4] == "" and fila[5] == "" and fila[6] == ""
+    assert fila[0] == "C" and fila[4] == "" and fila[5] == "" and fila[6] == "" and fila[7] == ""
 
 
 # ── CSV/Formula Injection: los campos vienen del formulario público sin auth ──
@@ -56,7 +56,7 @@ def test_formula_injection_se_neutraliza_con_apostrofo():
         "message": "@SUM(1+1)*cmd|'/c calc'!A1",
     }
     filas = _parsear(leads_to_csv([lead]))
-    nombre, email, telefono, mensaje = filas[1][0], filas[1][1], filas[1][2], filas[1][7]
+    nombre, email, telefono, mensaje = filas[1][0], filas[1][1], filas[1][2], filas[1][8]
     assert nombre.startswith("'=") and nombre.endswith(")")
     assert email.startswith("'-")
     assert telefono == "+34 600,111"

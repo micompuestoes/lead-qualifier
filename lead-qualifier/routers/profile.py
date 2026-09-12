@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from core.database import (
     count_unread_notifications, ensure_tenant, get_notifications, get_tenant,
     mark_notifications_read, update_ai_settings, update_form_branding,
-    update_tenant_profile, update_whatsapp_config,
+    update_tenant_profile, update_webhook_url, update_whatsapp_config,
 )
 from deps import get_tenant_id
 from services.whatsapp import normalize_phone
@@ -37,6 +37,10 @@ class FormBrandingInput(BaseModel):
 class WhatsappConfigInput(BaseModel):
     number: str = ""
     enabled: bool = False
+
+
+class WebhookConfigInput(BaseModel):
+    webhook_url: str = ""  # vacío = desactivar
 
 
 class AiSettingsInput(BaseModel):
@@ -71,6 +75,7 @@ async def get_my_profile(tenant_id: str = Depends(get_tenant_id)):
         "logo_url":         tenant.get("logo_url") or "",
         "form_title":       tenant.get("form_title") or "",
         "form_subtitle":    tenant.get("form_subtitle") or "",
+        "webhook_url":      tenant.get("webhook_url") or "",
     }
 
 
@@ -171,3 +176,22 @@ async def save_whatsapp(
     update_whatsapp_config(tenant_id, numero, body.enabled and bool(numero))
     logger.info("WhatsApp configurado para tenant %s (enabled=%s)", tenant_id, body.enabled)
     return {"ok": True, "whatsapp_number": numero or "", "whatsapp_enabled": body.enabled and bool(numero)}
+
+
+@router.post("/me/webhook")
+async def save_webhook(
+    body: WebhookConfigInput,
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """
+    Configura el webhook saliente hacia el CRM de la agencia: cada lead
+    cualificado (formulario o API) se reenvía por POST a esta URL además de
+    guardarse en Inmuebia. Vacío desactiva el reenvío.
+    """
+    ensure_tenant(tenant_id)
+    url = body.webhook_url.strip()
+    if url and not url.startswith("https://"):
+        raise HTTPException(status_code=400, detail="La URL del webhook debe empezar por https://")
+
+    update_webhook_url(tenant_id, url or None)
+    return {"ok": True, "webhook_url": url}

@@ -9,7 +9,7 @@ cumplen los filtros, respetando la visibilidad por agente.
 import csv
 import io
 
-COLUMNAS = ["Nombre", "Email", "Teléfono", "Clasificación", "Score", "Estado", "Fecha", "Mensaje"]
+COLUMNAS = ["Nombre", "Email", "Teléfono", "Clasificación", "Score", "Estado", "Origen", "Fecha", "Mensaje"]
 
 # Caracteres con los que Excel/LibreOffice/Sheets interpretan una celda como
 # el inicio de una fórmula (=, +, -, @) o como espacio/tab en algunos parsers.
@@ -51,6 +51,7 @@ def leads_to_csv(leads: list) -> str:
             l.get("classification") or "",
             l.get("score") if l.get("score") is not None else "",
             l.get("status") or "",
+            l.get("source") or "",
             (l.get("created_at") or "")[:10],
             # Mensaje en una sola línea para no romper lectores de CSV básicos
             _celda_segura((l.get("message") or "").replace("\r\n", " ").replace("\n", " ").strip()),

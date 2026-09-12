@@ -80,6 +80,7 @@ export default function DashboardHome() {
 
   const [leads, setLeads]       = useState<Lead[]>([]);
   const [totalReal, setTotalReal] = useState(0);   // total del servidor, no solo lo paginado
+  const [valorCerrado, setValorCerrado] = useState(0);   // € cerrados gracias a Inmuebia (ROI real)
   const [cargando, setCargando] = useState(true);
 
   // Estado para el onboarding
@@ -88,7 +89,7 @@ export default function DashboardHome() {
 
   useEffect(() => {
     obtenerLeadsPagina(getToken)
-      .then(d => { setLeads(d.leads); setTotalReal(d.total); })
+      .then(d => { setLeads(d.leads); setTotalReal(d.total); setValorCerrado(d.counts.deal_value_total); })
       .catch(() => {})
       .finally(() => setCargando(false));
 
@@ -200,6 +201,27 @@ export default function DashboardHome() {
 
       {/* ── Onboarding (solo si la configuración no está completa) ── */}
       {mostrarOnboarding && <OnboardingChecklist steps={pasosOnboarding} />}
+
+      {/* ── ROI real: valor de las operaciones cerradas gracias a Inmuebia ── */}
+      {!cargando && valorCerrado > 0 && (
+        <div className="animate-reveal-in" style={{
+          ...cardStyle, marginBottom: 24, padding: '20px 24px',
+          display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+          background: 'linear-gradient(135deg, rgba(110,200,122,0.09) 0%, rgba(110,200,122,0.03) 100%)',
+          border: '1px solid rgba(110,200,122,0.25)',
+        }}>
+          <span style={{ fontSize: 30, lineHeight: 1 }}>💰</span>
+          <div>
+            <p style={{ fontSize: 13, color: c.text2, marginBottom: 2 }}>
+              Llevas cerradas operaciones por valor de
+            </p>
+            <p style={{ fontSize: 28, fontWeight: 700, color: '#2d7a3a', lineHeight: 1.15 }}>
+              {valorCerrado.toLocaleString('es-ES')} €
+            </p>
+          </div>
+          <span style={{ marginLeft: 'auto', fontSize: 13, color: c.text2 }}>gracias a tus leads de Inmuebia</span>
+        </div>
+      )}
 
       {/* ── KPIs ── */}
       <div data-tour="kpis" className="r-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 32 }}>

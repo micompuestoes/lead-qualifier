@@ -36,3 +36,15 @@ RATE_KEY_PER_HOUR = 200
 # coste de IA si una cuenta se ve comprometida o un cliente hace un bucle.
 RATE_TENANT_PER_MIN = 30
 RATE_TENANT_PER_HOUR = 300
+
+# Ventana anti-doble-envío: un lead con el mismo tenant, email y mensaje que
+# otro ya guardado hace menos de esto se considera un duplicado (doble clic o
+# reintento de red del formulario) y no se vuelve a cualificar ni a responder.
+DUPLICATE_LEAD_WINDOW_SECONDS = 120
+
+# Precio de Claude (USD por millón de tokens) usado SOLO para estimar el coste
+# interno por lead — no es la tarifa exacta de facturación de Anthropic, que
+# puede variar. Sirve para vigilar el margen por tenant a medida que crece el
+# uso de pago. Ajustar si cambia CLAUDE_MODEL en core/agent.py.
+CLAUDE_PRICE_INPUT_PER_MTOK = 3.0
+CLAUDE_PRICE_OUTPUT_PER_MTOK = 15.0
