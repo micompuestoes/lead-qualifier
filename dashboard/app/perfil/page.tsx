@@ -802,24 +802,60 @@ export default function PerfilPage() {
                 </div>
               </div>
 
-              {/* Plugin de WordPress — misma clave de arriba, sin tocar código */}
-              <div style={{
-                marginTop: 4, padding: 16, borderRadius: 12,
-                background: c.muted, border: c.cardBorder,
-              }}>
-                <p className="text-sm font-semibold mb-1" style={{ color: c.text1 }}>
-                  ¿Tu web es de WordPress?
-                </p>
-                <p className="text-sm mb-3" style={{ color: c.text2 }}>
-                  Instala nuestro plugin gratuito, pega la API Key de arriba en sus ajustes
-                  y añade <code>[inmuebia_formulario]</code> en cualquier página — el
-                  formulario aparece con los colores de tu marca, sin salir de tu web.
-                </p>
-                <a href="/inmuebia-wordpress-plugin.zip" download
-                  style={{ ...btnSecondary, display: 'inline-flex', textDecoration: 'none', padding: '10px 16px' }}>
-                  Descargar plugin (.zip)
-                </a>
-              </div>
+              {/* Plugin de WordPress (Pro y Agencia) — misma clave de arriba, sin tocar código */}
+              {perfil?.plan === 'pro' || perfil?.plan === 'agencia' ? (
+                <div style={{
+                  marginTop: 4, padding: 16, borderRadius: 12,
+                  background: c.muted, border: c.cardBorder,
+                }}>
+                  <p className="text-sm font-semibold mb-1" style={{ color: c.text1 }}>
+                    ¿Tu web es de WordPress?
+                  </p>
+                  <p className="text-sm mb-3" style={{ color: c.text2 }}>
+                    Instala nuestro plugin gratuito, pega la API Key de arriba en sus ajustes
+                    y añade <code>[inmuebia_formulario]</code> en cualquier página — el
+                    formulario aparece con los colores de tu marca, sin salir de tu web.
+                  </p>
+                  <a href="/inmuebia-wordpress-plugin.zip" download
+                    style={{ ...btnSecondary, display: 'inline-flex', textDecoration: 'none', padding: '10px 16px' }}>
+                    Descargar plugin (.zip)
+                  </a>
+                </div>
+              ) : (
+                <div style={{
+                  marginTop: 4, padding: 16, borderRadius: 12,
+                  background: c.muted, border: c.cardBorder,
+                }}>
+                  <div className="flex items-start gap-3">
+                    <div style={{
+                      width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                      background: 'rgba(200,169,110,0.14)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#c8a96e"
+                        strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
+                      </svg>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <p className="text-sm font-semibold" style={{ color: c.text1, marginBottom: 3 }}>
+                        Plugin de WordPress — disponible en el plan Pro y Agencia
+                      </p>
+                      <p className="text-xs" style={{ color: c.text2, lineHeight: 1.55, marginBottom: 14 }}>
+                        Inserta el formulario directamente en tu web de WordPress, con los
+                        colores de tu marca y sin salir de tu dominio.
+                      </p>
+                      <button onClick={() => router.push('/pricing')}
+                        style={{ ...btnPrimary, padding: '9px 18px', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1a1814" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                        </svg>
+                        Mejorar mi plan
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <p className="text-sm" style={{ color: c.text3 }}>

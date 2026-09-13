@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import { useToast } from '@/components/Toast';
 import { useTheme } from '@/components/ThemeProvider';
 import PageHeader from '@/components/PageHeader';
+import { obtenerMiPerfil } from '@/lib/api';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
@@ -123,6 +125,21 @@ export default function AnunciosPage() {
   const { getToken } = useAuth();
   const { addToast } = useToast();
   const { c } = useTheme();
+  const router = useRouter();
+
+  // Plan del tenant: el generador es de Pro y Agencia — se comprueba ANTES de
+  // dejar rellenar el formulario, para no hacer perder el tiempo a un Free.
+  const [plan, setPlan] = useState<string | null>(null);
+  const [cargandoPlan, setCargandoPlan] = useState(true);
+
+  useEffect(() => {
+    obtenerMiPerfil(getToken)
+      .then(p => setPlan(p.plan))
+      .catch(() => setPlan('pro'))   // fallo de red: el backend igualmente exige el plan real
+      .finally(() => setCargandoPlan(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const sinAcceso = !cargandoPlan && plan === 'free';
 
   const [form, setForm] = useState({
     tipo: '', op: '', ubi: '', m2: '', hab: '', ban: '', precio: '', notas: '',
@@ -205,6 +222,46 @@ export default function AnunciosPage() {
         description="Describe el inmueble y la IA redactará textos listos para publicar en cada canal."
       />
 
+      {cargandoPlan ? null : sinAcceso ? (
+        <div style={{
+          padding: 20, borderRadius: 14,
+          background: c.muted, border: c.cardBorder,
+        }}>
+          <div className="flex items-start gap-3">
+            <div style={{
+              width: 40, height: 40, borderRadius: 11, flexShrink: 0,
+              background: 'rgba(200,169,110,0.14)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#c8a96e"
+                strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+            </div>
+            <div style={{ flex: 1 }}>
+              <p className="text-sm font-semibold" style={{ color: c.text1, marginBottom: 3 }}>
+                Generador de anuncios — disponible en el plan Pro y Agencia
+              </p>
+              <p className="text-xs" style={{ color: c.text2, lineHeight: 1.55, marginBottom: 14 }}>
+                Con tu plan actual (Free) no puedes generar anuncios. Mejora tu plan para
+                redactar textos listos para Idealista, redes sociales y email con IA.
+              </p>
+              <button onClick={() => router.push('/pricing')}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 7,
+                  padding: '9px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+                  background: '#c8a96e', color: '#1a1814', border: 'none', cursor: 'pointer',
+                }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1a1814" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                </svg>
+                Mejorar mi plan
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+      <>
       <form onSubmit={generar} style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
 
         {/* ── Inmueble ── */}
@@ -471,6 +528,8 @@ export default function AnunciosPage() {
             );
           })}
         </div>
+      )}
+      </>
       )}
     </div>
   );
