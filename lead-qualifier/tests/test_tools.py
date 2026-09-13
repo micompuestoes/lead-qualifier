@@ -248,6 +248,34 @@ def test_negacion_hipoteca_aprobada_no_se_confunde_con_positivo():
     assert intent["financing"] == "necesita"
 
 
+@pytest.mark.parametrize("mensaje", [
+    # Caso real reportado: "no tengo la hipoteca garantizada" contiene la
+    # subcadena "tengo la hipoteca" del check positivo — sin la negación
+    # general, se leía como financiación YA resuelta.
+    "Aún no tengo la hipoteca garantizada pero espero tenerla pronto.",
+    "No tengo la hipoteca concedida todavía.",
+    "De momento no tengo la hipoteca.",
+])
+def test_negacion_hipoteca_con_cualquier_palabra_no_se_confunde_con_positivo(mensaje):
+    intent = analyze_intent(mensaje, "Test")
+    assert intent["financing"] == "necesita"
+
+
+def test_comprador_sin_hipoteca_garantizada_no_es_caliente():
+    # Caso real reportado: el mismo mensaje marcaba financing=hipoteca_aprobada
+    # (por el bug de detección de arriba) y sacaba 9/10 pese a decir
+    # explícitamente que NO tiene la hipoteca resuelta. Decir "aún no tengo la
+    # hipoteca" debe tratarse como falta de capacidad (igual que "no tengo
+    # prisa"): el presupuesto por sí solo no debe bastar para priorizarlo ya.
+    res = _score(
+        "Quiere comprar. Presupuesto aproximado: 100.000 – 200.000 €.\n\n"
+        "Buenas, estoy buscando casa luminosa con luz natural y buena terraza. "
+        "Mi presupuesto, aún no tengo la hipoteca garantizada pero espero tenerla pronto."
+    )
+    assert res["classification"] == "TIBIO"
+    assert res["score"] == 7
+
+
 def test_urgencia_baja_explicita_prevalece_sobre_estoy_mirando():
     intent = analyze_intent("Estoy mirando opciones, no tengo prisa.", "Test")
     assert intent["urgency"] == "baja"

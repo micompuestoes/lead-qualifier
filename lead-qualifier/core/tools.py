@@ -150,11 +150,14 @@ def _detectar_financiacion(msg: str) -> str:
                               "liquidez", "en efectivo")):
         return "contado"
 
-    # Negación ("no tengo la hipoteca aprobada", "aún no tengo hipoteca concedida"):
-    # se comprueba ANTES que la afirmación positiva de abajo, porque frases como
-    # "no tengo la hipoteca aprobada" contienen literalmente la subcadena
-    # "hipoteca aprobada" y el `any(...)` de más abajo la daría por buena.
-    if re.search(r"\bno\b[^.,;]{0,20}\bhipoteca\b[^.,;]{0,15}\b(?:aprobada|preaprobada|concedida)\b", msg):
+    # Negación ("no tengo la hipoteca aprobada", "aún no tengo la hipoteca
+    # garantizada/concedida/lista"...): se comprueba ANTES que la afirmación
+    # positiva de abajo. Cualquier "no" cerca de "hipoteca" en la misma frase
+    # significa que NO está resuelta, sea cual sea la palabra que acompañe a
+    # "hipoteca" — si solo se comprobaran "aprobada/preaprobada/concedida",
+    # frases como "no tengo la hipoteca garantizada" seguirían colando por
+    # contener literalmente la subcadena "tengo la hipoteca" del check positivo.
+    if re.search(r"\bno\b[^.,;]{0,25}\bhipoteca\b", msg):
         return "necesita"
 
     if any(w in msg for w in ("hipoteca aprobada", "hipoteca preaprobada", "hipoteca concedida",
@@ -516,6 +519,13 @@ def score_lead(intent_analysis: dict, company_info: dict) -> dict:
     # tener presupuesto por sí solo no basta para tratarlo como listo para
     # cerrar ya — hay que nutrirlo, no lanzarse a llamar hoy mismo.
     if urgency_explicit_low and financing not in ("contado", "hipoteca_aprobada"):
+        readiness = False
+    # Excepción: decir explícitamente que AÚN NECESITA financiación ("no tengo
+    # la hipoteca aprobada/garantizada todavía") es igual de real que decir que
+    # no hay prisa — el propio lead ha dicho que no está listo para cerrar.
+    # Tener presupuesto no debe compensar esto: primero hay que resolver la
+    # financiación, así que no se prioriza como si ya pudiera cerrar ya.
+    if financing == "necesita":
         readiness = False
     if operation in ("COMPRA", "ALQUILER") and not readiness and score > 7:
         score = 7
