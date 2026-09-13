@@ -12,14 +12,14 @@ thread pool desde sus envoltorios async para no bloquear el event loop.
 import asyncio
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import runtime
 from core.agent import qualify_lead
 from core.database import (
     acquire_job_lock, get_all_tenants, get_closed_deals_value, get_digest_counts,
-    get_leads_for_followup, get_stale_pending_leads, get_tenant,
-    get_tenants_with_imap, mark_followup_sent, update_imap_last_sync,
+    get_leads_for_followup, get_pending_reminders, get_stale_pending_leads,
+    get_tenant, get_tenants_with_imap, mark_followup_sent, update_imap_last_sync,
 )
 from models import LeadInput
 from pydantic import ValidationError
@@ -27,7 +27,8 @@ from notifications import notificar_tenant
 from security import descifrar
 from services.email_imap import obtener_no_leidos
 from services.email_sender import (
-    build_followup_email, send_email, send_stale_leads_alert, send_weekly_digest,
+    build_followup_email, send_email, send_reminders_due, send_stale_leads_alert,
+    send_weekly_digest,
 )
 
 logger = logging.getLogger(__name__)
@@ -98,6 +99,35 @@ def _leads_sin_contactar_sync() -> None:
         except Exception as exc:
             logger.warning("Aviso de leads sin contactar falló (tenant %s): %s", t["id"], exc)
     logger.info("Avisos de leads sin contactar enviados: %d", avisos)
+
+
+def _recordatorios_hoy_sync() -> None:
+    """Avisa a cada agencia de los recordatorios de seguimiento que vencen hoy o antes."""
+    dashboard_url = os.getenv("DASHBOARD_URL", "")
+    hoy = date.today().isoformat()
+    avisos = 0
+    for t in get_all_tenants():
+        if t.get("status") != "active":
+            continue
+        email = t.get("notify_email") or t.get("email")
+        if not email:
+            continue
+        pendientes = get_pending_reminders(t["id"], hasta=hoy)
+        if not pendientes:
+            continue
+        try:
+            send_reminders_due(email, t.get("name", ""), pendientes, dashboard_url)
+            avisos += 1
+        except Exception as exc:
+            logger.warning("Aviso de recordatorios falló (tenant %s): %s", t["id"], exc)
+    logger.info("Avisos de recordatorios enviados: %d", avisos)
+
+
+async def avisar_recordatorios_hoy() -> None:
+    if not acquire_job_lock("recordatorios_hoy", _periodo_diario()):
+        return
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, _recordatorios_hoy_sync)
 
 
 async def enviar_resumenes_semanales() -> None:

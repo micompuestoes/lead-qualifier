@@ -427,6 +427,32 @@ El equipo de Inmuebia
     return send_email(tenant_email, tenant_name, f"⏰ Tienes {len(leads)} leads sin contactar", body)
 
 
+def send_reminders_due(tenant_email: str, tenant_name: str, reminders: list, dashboard_url: str = "") -> bool:
+    """Avisa de los recordatorios de seguimiento que vencen hoy o antes."""
+    if not reminders:
+        return False
+
+    saludo = f"Hola {tenant_name}," if tenant_name else "Hola,"
+    dashboard_line = f"\nRevísalos en tu panel: {dashboard_url}/leads" if dashboard_url else ""
+    listado = "\n".join(
+        f"  • {r.get('lead_name', 'Lead')}: {r.get('note', '')} ({r.get('due_date', '')})"
+        for r in reminders[:10]
+    )
+    extra = f"\n  …y {len(reminders) - 10} más" if len(reminders) > 10 else ""
+
+    body = f"""{saludo}
+
+Tienes {len(reminders)} recordatorio(s) de seguimiento que vencen hoy o ya pasaron:
+
+{listado}{extra}
+{dashboard_line}
+
+Un saludo,
+El equipo de Inmuebia
+"""
+    return send_email(tenant_email, tenant_name, f"📌 Tienes {len(reminders)} recordatorio(s) pendientes hoy", body)
+
+
 def send_payment_failed(tenant_email: str, tenant_name: str, dashboard_url: str = "") -> bool:
     """Avisa de un pago fallido para que el cliente actualice su tarjeta (evita baja involuntaria)."""
     saludo = f"Hola {tenant_name}," if tenant_name else "Hola,"

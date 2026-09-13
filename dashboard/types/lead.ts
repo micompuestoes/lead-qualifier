@@ -128,3 +128,26 @@ export interface EquipoMiembro {
   member_whatsapp?: string;
   added_at: string;
 }
+
+// Recordatorio de seguimiento de un lead (GET/POST /leads/{id}/reminders, GET /reminders/pending)
+export interface Reminder {
+  id: string;
+  lead_id: string;
+  note: string;
+  due_date: string;        // ISO "YYYY-MM-DD"
+  done: boolean;
+  created_at: string;
+  completed_at: string | null;
+  lead_name?: string;      // solo presente en /reminders/pending
+}
+
+export interface CrearRecordatorioPayload {
+  note: string;
+  due_date: string;
+}
+
+export interface ActualizarRecordatorioPayload {
+  note?: string;
+  due_date?: string;
+  done?: boolean;
+}

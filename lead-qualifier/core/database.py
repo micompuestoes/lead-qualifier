@@ -221,6 +221,23 @@ def init_db() -> None:
             )
         """))
 
+    # Recordatorios/tareas de seguimiento por lead ("llamar el jueves", "enviar
+    # cédula"...). due_date es solo fecha (sin hora): basta para el hábito
+    # diario de revisar el panel, sin la complejidad de horas y zonas horarias.
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS lead_reminders (
+                id            TEXT PRIMARY KEY,
+                lead_id       TEXT NOT NULL,
+                tenant_id     TEXT NOT NULL,
+                note          TEXT NOT NULL,
+                due_date      TEXT NOT NULL,
+                done          INTEGER NOT NULL DEFAULT 0,
+                created_at    TEXT NOT NULL,
+                completed_at  TEXT
+            )
+        """))
+
     # Rate limiting compartido entre instancias. Antes vivía en un dict en
     # memoria de proceso: con más de una réplica del backend, cada una tenía
     # su propio contador y el límite real quedaba multiplicado por el número
@@ -247,6 +264,8 @@ def init_db() -> None:
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_notif_tenant ON notifications (tenant_id, created_at)"))
         # Para la comprobación anti-doble-envío (mismo tenant+email en una ventana corta)
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_leads_tenant_email_created ON leads (tenant_id, email, created_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_reminders_lead   ON lead_reminders (lead_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_reminders_tenant ON lead_reminders (tenant_id, done, due_date)"))
 
     logger.info("Base de datos lista")
 
@@ -1443,6 +1462,104 @@ def delete_lead(lead_id: str, tenant_id: str) -> None:
             {"id": lead_id, "tid": tenant_id},
         )
     logger.info("Lead %s eliminado (tenant: %s)", lead_id, tenant_id)
+
+
+# ─────────────────────────────────────────────
+# Recordatorios de seguimiento por lead
+# ─────────────────────────────────────────────
+
+def create_reminder(reminder_id: str, lead_id: str, tenant_id: str, note: str, due_date: str) -> None:
+    """Crea un recordatorio de seguimiento para un lead."""
+    now = datetime.now(timezone.utc).isoformat()
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                INSERT INTO lead_reminders (id, lead_id, tenant_id, note, due_date, done, created_at)
+                VALUES (:id, :lead_id, :tid, :note, :due_date, 0, :created_at)
+            """),
+            {"id": reminder_id, "lead_id": lead_id, "tid": tenant_id, "note": note,
+             "due_date": due_date, "created_at": now},
+        )
+
+
+def get_reminders_for_lead(lead_id: str, tenant_id: str) -> list:
+    """Todos los recordatorios de un lead (pendientes y hechos), por fecha."""
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT * FROM lead_reminders WHERE lead_id = :lid AND tenant_id = :tid
+                ORDER BY done ASC, due_date ASC
+            """),
+            {"lid": lead_id, "tid": tenant_id},
+        ).fetchall()
+    return [_row_a_dict(r) for r in rows]
+
+
+def get_reminder_by_id(reminder_id: str, tenant_id: str) -> Optional[dict]:
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT * FROM lead_reminders WHERE id = :id AND tenant_id = :tid"),
+            {"id": reminder_id, "tid": tenant_id},
+        ).fetchone()
+    return _row_a_dict(row) if row else None
+
+
+def update_reminder(reminder_id: str, tenant_id: str, note: Optional[str] = None,
+                     due_date: Optional[str] = None, done: Optional[bool] = None) -> None:
+    """Actualiza los campos dados de un recordatorio (los que sean None no se tocan)."""
+    campos, params = [], {"id": reminder_id, "tid": tenant_id}
+    if note is not None:
+        campos.append("note = :note")
+        params["note"] = note
+    if due_date is not None:
+        campos.append("due_date = :due_date")
+        params["due_date"] = due_date
+    if done is not None:
+        campos.append("done = :done")
+        params["done"] = 1 if done else 0
+        campos.append("completed_at = :completed_at")
+        params["completed_at"] = datetime.now(timezone.utc).isoformat() if done else None
+    if not campos:
+        return
+    with engine.begin() as conn:
+        conn.execute(
+            text(f"UPDATE lead_reminders SET {', '.join(campos)} WHERE id = :id AND tenant_id = :tid"),
+            params,
+        )
+
+
+def delete_reminder(reminder_id: str, tenant_id: str) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text("DELETE FROM lead_reminders WHERE id = :id AND tenant_id = :tid"),
+            {"id": reminder_id, "tid": tenant_id},
+        )
+
+
+def get_pending_reminders(tenant_id: str, agent_id: Optional[str] = None,
+                           hasta: Optional[str] = None) -> list:
+    """
+    Recordatorios sin completar, con el nombre del lead para mostrarlos en el
+    panel. `hasta` (fecha ISO) filtra a "vencen ese día o antes" — se usa para
+    la lista de tareas de hoy; sin él, devuelve todos los pendientes.
+    """
+    sql = """
+        SELECT r.*, l.name AS lead_name
+        FROM lead_reminders r
+        JOIN leads l ON l.id = r.lead_id
+        WHERE r.tenant_id = :tid AND r.done = 0
+    """
+    params: dict = {"tid": tenant_id}
+    if hasta:
+        sql += " AND r.due_date <= :hasta"
+        params["hasta"] = hasta
+    if agent_id is not None:
+        sql += " AND l.assigned_to = :aid"
+        params["aid"] = agent_id
+    sql += " ORDER BY r.due_date ASC"
+    with engine.connect() as conn:
+        rows = conn.execute(text(sql), params).fetchall()
+    return [_row_a_dict(r) for r in rows]
 
 
 # ─────────────────────────────────────────────

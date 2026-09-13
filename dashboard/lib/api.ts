@@ -11,6 +11,9 @@ import type {
   ImapStatus,
   EquipoMiembro,
   AgenteRanking,
+  Reminder,
+  CrearRecordatorioPayload,
+  ActualizarRecordatorioPayload,
 } from '@/types/lead';
 
 export const BASE = process.env.NEXT_PUBLIC_API_URL
@@ -220,6 +223,50 @@ export async function asignarLead(
 
 export async function eliminarLead(id: string, getToken: GetToken): Promise<void> {
   const res = await apiFetch(`/leads/${id}`, getToken, { method: 'DELETE' });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail ?? `Error ${res.status}`);
+  }
+}
+
+// ── Recordatorios de seguimiento ──────────────────────────────────────────────
+
+export async function crearRecordatorio(
+  leadId: string,
+  payload: CrearRecordatorioPayload,
+  getToken: GetToken
+): Promise<Reminder> {
+  const res = await apiFetch(`/leads/${leadId}/reminders`, getToken, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<Reminder>(res);
+}
+
+export async function obtenerRecordatoriosLead(leadId: string, getToken: GetToken): Promise<Reminder[]> {
+  const res = await apiFetch(`/leads/${leadId}/reminders`, getToken, { cache: 'no-store' } as RequestInit);
+  return handleResponse<Reminder[]>(res);
+}
+
+export async function obtenerRecordatoriosPendientes(getToken: GetToken): Promise<Reminder[]> {
+  const res = await apiFetch('/reminders/pending', getToken, { cache: 'no-store' } as RequestInit);
+  return handleResponse<Reminder[]>(res);
+}
+
+export async function actualizarRecordatorio(
+  id: string,
+  payload: ActualizarRecordatorioPayload,
+  getToken: GetToken
+): Promise<Reminder> {
+  const res = await apiFetch(`/reminders/${id}`, getToken, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<Reminder>(res);
+}
+
+export async function eliminarRecordatorio(id: string, getToken: GetToken): Promise<void> {
+  const res = await apiFetch(`/reminders/${id}`, getToken, { method: 'DELETE' });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.detail ?? `Error ${res.status}`);

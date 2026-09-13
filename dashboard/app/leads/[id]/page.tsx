@@ -5,9 +5,12 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@clerk/nextjs';
 
-import { obtenerLead, actualizarEstado, eliminarLead, asignarLead, apiFetch, enviarEmailLead, feedbackLead } from '@/lib/api';
-import { formatearFecha, generarAsunto, parsearReasoning } from '@/lib/utils';
-import type { Lead, EstadoLead } from '@/types/lead';
+import {
+  obtenerLead, actualizarEstado, eliminarLead, asignarLead, apiFetch, enviarEmailLead, feedbackLead,
+  obtenerRecordatoriosLead, crearRecordatorio, actualizarRecordatorio, eliminarRecordatorio,
+} from '@/lib/api';
+import { formatearFecha, formatearFechaVencimiento, generarAsunto, parsearReasoning } from '@/lib/utils';
+import type { Lead, EstadoLead, Reminder } from '@/types/lead';
 import { useTheme } from '@/components/ThemeProvider';
 import { useToast } from '@/components/Toast';
 import LeadBadge from '@/components/LeadBadge';
@@ -90,6 +93,12 @@ export default function LeadDetallePage() {
   const [pidiendoValor, setPidiendoValor]     = useState(false);
   const [valorOperacion, setValorOperacion]   = useState('');
 
+  // Recordatorios de seguimiento ("llamar el jueves"...)
+  const [recordatorios, setRecordatorios]       = useState<Reminder[]>([]);
+  const [nuevaNota, setNuevaNota]               = useState('');
+  const [nuevaFecha, setNuevaFecha]             = useState(() => new Date().toISOString().slice(0, 10));
+  const [creandoRecordatorio, setCreandoRecordatorio] = useState(false);
+
   useEffect(() => {
     async function cargar() {
       try {
@@ -103,9 +112,49 @@ export default function LeadDetallePage() {
       } finally {
         setCargando(false);
       }
+      try {
+        setRecordatorios(await obtenerRecordatoriosLead(id, getToken));
+      } catch { /* la ficha del lead funciona igual sin recordatorios */ }
     }
     cargar();
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function agregarRecordatorio() {
+    if (!nuevaNota.trim() || !nuevaFecha || creandoRecordatorio) return;
+    setCreandoRecordatorio(true);
+    try {
+      const creado = await crearRecordatorio(id, { note: nuevaNota.trim(), due_date: nuevaFecha }, getToken);
+      setRecordatorios(prev => [...prev, creado].sort((a, b) => a.due_date.localeCompare(b.due_date)));
+      setNuevaNota('');
+      addToast('Recordatorio añadido', 'success');
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : 'No se pudo crear el recordatorio', 'error');
+    } finally {
+      setCreandoRecordatorio(false);
+    }
+  }
+
+  async function toggleRecordatorio(r: Reminder) {
+    const prev = recordatorios;
+    setRecordatorios(rs => rs.map(x => x.id === r.id ? { ...x, done: !x.done } : x));
+    try {
+      await actualizarRecordatorio(r.id, { done: !r.done }, getToken);
+    } catch {
+      setRecordatorios(prev);
+      addToast('No se pudo actualizar el recordatorio', 'error');
+    }
+  }
+
+  async function borrarRecordatorio(rid: string) {
+    const prev = recordatorios;
+    setRecordatorios(rs => rs.filter(x => x.id !== rid));
+    try {
+      await eliminarRecordatorio(rid, getToken);
+    } catch {
+      setRecordatorios(prev);
+      addToast('No se pudo eliminar el recordatorio', 'error');
+    }
+  }
 
   // Carga el equipo para poder reasignar (si no es agencia, /me/team da 403 y se oculta)
   useEffect(() => {
@@ -594,12 +643,86 @@ export default function LeadDetallePage() {
               <button onClick={pedirCierre} style={{
                 marginTop: 10, width: '100%', textAlign: 'left', background: 'transparent',
                 border: 'none', cursor: 'pointer', fontSize: 12, color: c.text2, padding: '2px 4px',
+                display: 'flex', alignItems: 'center', gap: 6,
               }}>
-                {lead.deal_value
-                  ? <>💰 Operación cerrada por <strong style={{ color: c.text1 }}>{lead.deal_value.toLocaleString('es-ES')} €</strong> · editar</>
-                  : '+ Añadir el importe de la operación'}
+                {lead.deal_value ? (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={ESTADO_META.CERRADO.color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                      <rect x="2" y="6" width="20" height="12" rx="2.5" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    Operación cerrada por <strong style={{ color: c.text1 }}>{lead.deal_value.toLocaleString('es-ES')} €</strong> · editar
+                  </>
+                ) : '+ Añadir el importe de la operación'}
               </button>
             )}
+          </div>
+
+          {/* Recordatorios de seguimiento */}
+          <div style={{ ...card, padding: 20 }} className="animate-reveal-in" data-delay="90">
+            <SectionLabel>Recordatorios</SectionLabel>
+
+            {recordatorios.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 14 }}>
+                {recordatorios.map(r => {
+                  const hoy = new Date().toISOString().slice(0, 10);
+                  const vencido = !r.done && r.due_date < hoy;
+                  return (
+                    <div key={r.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 4px' }}>
+                      <button onClick={() => toggleRecordatorio(r)} style={{
+                        flexShrink: 0, marginTop: 2, width: 16, height: 16, borderRadius: 5,
+                        border: `1.5px solid ${r.done ? '#6ec87a' : c.inputBorder}`,
+                        background: r.done ? '#6ec87a' : 'transparent',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: 'pointer', padding: 0,
+                      }}>
+                        {r.done && (
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </button>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 13, color: r.done ? c.text3 : c.text1, textDecoration: r.done ? 'line-through' : 'none' }}>
+                          {r.note}
+                        </p>
+                        <p style={{ fontSize: 11, color: vencido ? '#b45309' : c.text3, marginTop: 1 }}>
+                          {formatearFechaVencimiento(r.due_date)}{vencido ? ' · vencido' : ''}
+                        </p>
+                      </div>
+                      <button onClick={() => borrarRecordatorio(r.id)} title="Eliminar recordatorio" style={{
+                        flexShrink: 0, background: 'transparent', border: 'none', cursor: 'pointer', color: c.text3, padding: 3,
+                      }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                type="text" placeholder="Nuevo recordatorio…" value={nuevaNota}
+                onChange={e => setNuevaNota(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') agregarRecordatorio(); }}
+                style={{ flex: 1, minWidth: 0, padding: '8px 10px', borderRadius: 8, fontSize: 13, border: c.cardBorder, background: c.card, color: c.text1 }}
+              />
+              <input
+                type="date" value={nuevaFecha} onChange={e => setNuevaFecha(e.target.value)}
+                style={{ padding: '8px 6px', borderRadius: 8, fontSize: 12, border: c.cardBorder, background: c.card, color: c.text1 }}
+              />
+            </div>
+            <button onClick={agregarRecordatorio} disabled={creandoRecordatorio || !nuevaNota.trim()} style={{
+              marginTop: 8, width: '100%', padding: '8px 0', borderRadius: 8, fontSize: 13, fontWeight: 600,
+              background: (!nuevaNota.trim() || creandoRecordatorio) ? c.muted : '#c8a96e',
+              color: (!nuevaNota.trim() || creandoRecordatorio) ? c.text3 : '#1a1814',
+              border: 'none', cursor: (!nuevaNota.trim() || creandoRecordatorio) ? 'default' : 'pointer',
+            }}>
+              {creandoRecordatorio ? 'Añadiendo…' : '+ Añadir recordatorio'}
+            </button>
           </div>
 
           {/* Agente asignado (solo agencia) */}

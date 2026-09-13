@@ -4,14 +4,15 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useUser } from '@clerk/nextjs';
 import { useAuth } from '@clerk/nextjs';
-import { obtenerLeadsPagina, apiFetch } from '@/lib/api';
-import type { Lead, EstadoLead } from '@/types/lead';
+import { obtenerLeadsPagina, obtenerRecordatoriosPendientes, actualizarRecordatorio, apiFetch } from '@/lib/api';
+import type { Lead, EstadoLead, Reminder } from '@/types/lead';
 import LeadCard from '@/components/LeadCard';
 import { KpiSkeleton, LeadCardSkeleton } from '@/components/Skeleton';
 import OnboardingChecklist, { type OnbStep } from '@/components/OnboardingChecklist';
 import ProductTour from '@/components/ProductTour';
 import { useTheme } from '@/components/ThemeProvider';
 import PageHeader from '@/components/PageHeader';
+import { formatearFechaVencimiento } from '@/lib/utils';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -83,6 +84,9 @@ export default function DashboardHome() {
   const [valorCerrado, setValorCerrado] = useState(0);   // € cerrados gracias a Inmuebia (ROI real)
   const [cargando, setCargando] = useState(true);
 
+  // Tareas de hoy: recordatorios de seguimiento que vencen hoy o antes
+  const [tareas, setTareas] = useState<Reminder[]>([]);
+
   // Estado para el onboarding
   const [setup, setSetup] = useState({ name: '', plan: 'free', imap: false });
   const [setupCargado, setSetupCargado] = useState(false);
@@ -92,6 +96,8 @@ export default function DashboardHome() {
       .then(d => { setLeads(d.leads); setTotalReal(d.total); setValorCerrado(d.counts.deal_value_total); })
       .catch(() => {})
       .finally(() => setCargando(false));
+
+    obtenerRecordatoriosPendientes(getToken).then(setTareas).catch(() => {});
 
     // Info de configuración para el onboarding (no bloquea la UI principal)
     (async () => {
@@ -125,6 +131,15 @@ export default function DashboardHome() {
   // Actualizar estado desde home
   function handleStatusChange(id: string, status: EstadoLead) {
     setLeads(prev => prev.map(l => l.id === id ? { ...l, status } : l));
+  }
+
+  async function completarTarea(r: Reminder) {
+    setTareas(prev => prev.filter(t => t.id !== r.id));   // optimista: ya hecha, fuera de la lista de hoy
+    try {
+      await actualizarRecordatorio(r.id, { done: true }, getToken);
+    } catch {
+      setTareas(prev => [...prev, r].sort((a, b) => a.due_date.localeCompare(b.due_date)));
+    }
   }
 
   const nombre = user?.firstName ?? '';
@@ -210,7 +225,18 @@ export default function DashboardHome() {
           background: 'linear-gradient(135deg, rgba(110,200,122,0.09) 0%, rgba(110,200,122,0.03) 100%)',
           border: '1px solid rgba(110,200,122,0.25)',
         }}>
-          <span style={{ fontSize: 30, lineHeight: 1 }}>💰</span>
+          <div style={{
+            width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(110,200,122,0.14)', color: '#2d7a3a',
+          }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="6" width="20" height="12" rx="2.5" />
+              <circle cx="12" cy="12" r="3" />
+              <line x1="6" y1="12" x2="6.01" y2="12" />
+              <line x1="18" y1="12" x2="18.01" y2="12" />
+            </svg>
+          </div>
           <div>
             <p style={{ fontSize: 13, color: c.text2, marginBottom: 2 }}>
               Llevas cerradas operaciones por valor de
@@ -220,6 +246,48 @@ export default function DashboardHome() {
             </p>
           </div>
           <span style={{ marginLeft: 'auto', fontSize: 13, color: c.text2 }}>gracias a tus leads de Inmuebia</span>
+        </div>
+      )}
+
+      {/* ── Tareas de hoy: recordatorios de seguimiento que vencen hoy o antes ── */}
+      {tareas.length > 0 && (
+        <div className="animate-reveal-in" style={{ ...cardStyle, marginBottom: 24 }}>
+          <p style={{
+            fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
+            textTransform: 'uppercase', color: c.text2, marginBottom: 14,
+          }}>
+            Tareas de hoy · {tareas.length}
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {tareas.slice(0, 6).map(t => {
+              const hoy = new Date().toISOString().slice(0, 10);
+              const vencido = t.due_date < hoy;
+              return (
+                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 4px' }}>
+                  <button onClick={() => completarTarea(t)} style={{
+                    flexShrink: 0, width: 17, height: 17, borderRadius: 5,
+                    border: `1.5px solid ${c.inputBorder}`, background: 'transparent',
+                    cursor: 'pointer', padding: 0,
+                  }} title="Marcar como hecho" />
+                  <Link href={`/leads/${t.lead_id}`} style={{
+                    flex: 1, minWidth: 0, display: 'flex', alignItems: 'baseline', gap: 8,
+                    textDecoration: 'none', overflow: 'hidden',
+                  }}>
+                    <span style={{ fontSize: 13, color: c.text1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {t.note}
+                    </span>
+                    <span style={{ fontSize: 12, color: c.text3, flexShrink: 0 }}>· {t.lead_name}</span>
+                  </Link>
+                  <span style={{ fontSize: 11, color: vencido ? '#b45309' : c.text3, flexShrink: 0 }}>
+                    {vencido ? 'Vencido' : formatearFechaVencimiento(t.due_date)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          {tareas.length > 6 && (
+            <p style={{ fontSize: 12, color: c.text3, marginTop: 10 }}>…y {tareas.length - 6} más</p>
+          )}
         </div>
       )}
 

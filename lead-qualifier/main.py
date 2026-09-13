@@ -37,7 +37,7 @@ import runtime
 from core.agent import _make_anthropic_client
 from core.database import init_db
 from routers import (
-    admin, ads, billing, health, imap, intake, leads, profile, stats, team,
+    admin, ads, billing, health, imap, intake, leads, profile, reminders, stats, team,
 )
 
 # ─────────────────────────────────────────────
@@ -136,13 +136,15 @@ async def lifespan(app: FastAPI):
     _scheduler.add_job(jobs.sync_imap_todos, "interval", minutes=10, id="imap_sync")
     # Resumen semanal — lunes a las 08:00 UTC
     _scheduler.add_job(jobs.enviar_resumenes_semanales, "cron", day_of_week="mon", hour=8, id="resumen_semanal")
+    # Recordatorios que vencen hoy — cada día a las 07:00 UTC, el primer aviso del día
+    _scheduler.add_job(jobs.avisar_recordatorios_hoy, "cron", hour=7, id="recordatorios_hoy")
     # Aviso de leads sin contactar — cada día a las 09:00 UTC
     _scheduler.add_job(jobs.avisar_leads_sin_contactar, "cron", hour=9, id="leads_sin_contactar")
     # Seguimiento automático al lead (opt-in) — cada día a las 10:00 UTC,
     # una hora después del aviso al agente: primero se le da la oportunidad a él.
     _scheduler.add_job(jobs.enviar_seguimientos, "cron", hour=10, id="seguimientos")
     _scheduler.start()
-    logger.info("Scheduler arrancado (IMAP 10 min · resumen semanal · avisos diarios · seguimientos)")
+    logger.info("Scheduler arrancado (IMAP 10 min · resumen semanal · recordatorios · avisos diarios · seguimientos)")
 
     yield
 
@@ -208,6 +210,7 @@ app.include_router(billing.router)
 app.include_router(stats.router)
 app.include_router(ads.router)
 app.include_router(admin.router)
+app.include_router(reminders.router)
 
 
 # ─────────────────────────────────────────────
