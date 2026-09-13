@@ -14,6 +14,8 @@ import type {
   Reminder,
   CrearRecordatorioPayload,
   ActualizarRecordatorioPayload,
+  PeriodoValor,
+  ValorOperaciones,
 } from '@/types/lead';
 
 export const BASE = process.env.NEXT_PUBLIC_API_URL
@@ -284,6 +286,11 @@ export async function obtenerRankingAgentes(getToken: GetToken): Promise<AgenteR
   const res = await apiFetch('/stats/agents', getToken, { cache: 'no-store' } as RequestInit);
   const data = await handleResponse<{ agents?: AgenteRanking[] }>(res);
   return data.agents ?? [];
+}
+
+export async function obtenerValorOperaciones(periodo: PeriodoValor, getToken: GetToken): Promise<ValorOperaciones> {
+  const res = await apiFetch(`/stats/deal-value?periodo=${encodeURIComponent(periodo)}`, getToken, { cache: 'no-store' } as RequestInit);
+  return handleResponse<ValorOperaciones>(res);
 }
 
 // ── Perfil, IMAP y equipo ─────────────────────────────────────────────────────

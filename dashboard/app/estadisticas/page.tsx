@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import Link from 'next/link';
-import { obtenerLeads, obtenerRankingAgentes, obtenerStats, PlanRequiredError } from '@/lib/api';
+import { obtenerLeads, obtenerRankingAgentes, obtenerStats, obtenerValorOperaciones, PlanRequiredError } from '@/lib/api';
 import { useApiResource } from '@/lib/useApiResource';
-import type { AgenteRanking, Lead, Stats } from '@/types/lead';
+import type { AgenteRanking, Lead, PeriodoValor, Stats } from '@/types/lead';
 import { useTheme } from '@/components/ThemeProvider';
 import PageHeader from '@/components/PageHeader';
 import { TEMP } from '@/lib/temperature';
@@ -302,6 +302,11 @@ export default function EstadisticasPage() {
   const [leads, setLeads]     = useState<Lead[]>([]);
   const [agentes, setAgentes] = useState<AgenteRanking[]>([]);
 
+  const [periodo, setPeriodo] = useState<PeriodoValor>('siempre');
+  const { datos: valorOp, cargando: cargandoValor } = useApiResource(
+    () => obtenerValorOperaciones(periodo, getToken), [periodo],
+  );
+
   useEffect(() => {
     if (cargando || error) return;
     // Leads para el calendario de actividad y ranking de agentes: no
@@ -402,6 +407,52 @@ export default function EstadisticasPage() {
             <p style={{ fontSize: 12, color: kpi.subColor }}>{kpi.sub}</p>
           </div>
         ))}
+      </div>
+
+      {/* ── Valor de operaciones cerradas ── */}
+      <div style={{ ...cardStyle, marginBottom: 24 }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          flexWrap: 'wrap', gap: 12, marginBottom: 18,
+        }}>
+          <p style={sectionLabel}>Operaciones cerradas</p>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {([
+              { id: 'semana',  label: 'Semana' },
+              { id: 'mes',     label: 'Mes' },
+              { id: 'año',     label: 'Año' },
+              { id: 'siempre', label: 'Siempre' },
+            ] as { id: PeriodoValor; label: string }[]).map(op => {
+              const activo = periodo === op.id;
+              return (
+                <button key={op.id} onClick={() => setPeriodo(op.id)}
+                  style={{
+                    padding: '6px 13px', borderRadius: 99, fontSize: 12, fontWeight: 600,
+                    border: activo ? 'none' : `1.5px solid ${c.inputBorder}`,
+                    background: activo ? '#c8a96e' : 'transparent',
+                    color: activo ? '#1a1814' : c.text2,
+                    cursor: 'pointer', transition: 'all 0.15s',
+                  }}>
+                  {op.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        {cargandoValor || !valorOp ? (
+          <div style={{ height: 46 }} />
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+            <p style={{ fontSize: 38, fontWeight: 700, lineHeight: 1, color: '#2d7a3a' }}>
+              {valorOp.total_value.toLocaleString('es-ES')} €
+            </p>
+            <p style={{ fontSize: 13, color: c.text2 }}>
+              {valorOp.count === 0
+                ? 'sin operaciones con importe registrado en este periodo'
+                : `en ${valorOp.count} operación${valorOp.count === 1 ? '' : 'es'}`}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* ── Estado + Temperatura ── */}

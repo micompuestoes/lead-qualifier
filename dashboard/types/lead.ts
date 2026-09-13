@@ -87,6 +87,14 @@ export interface Stats {
   por_mes: { mes: string; total: number }[];
 }
 
+export type PeriodoValor = 'semana' | 'mes' | 'año' | 'siempre';
+
+// Respuesta de GET /stats/deal-value
+export interface ValorOperaciones {
+  total_value: number;
+  count: number;
+}
+
 // Respuesta de GET /me
 export interface Perfil {
   id: string;

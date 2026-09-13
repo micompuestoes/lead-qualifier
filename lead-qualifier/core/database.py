@@ -156,6 +156,9 @@ def init_db() -> None:
         "ALTER TABLE tenants ADD COLUMN webhook_url TEXT",
         # Valor (€) de la operación cuando el lead se marca como CERRADO — ROI real
         "ALTER TABLE leads ADD COLUMN deal_value REAL",
+        # Fecha en la que el lead pasó a CERRADO (no cuándo se creó) — permite
+        # filtrar el valor cerrado por semana/mes/año en vez de solo en total.
+        "ALTER TABLE leads ADD COLUMN closed_at TEXT",
     ]:
         try:
             with engine.begin() as conn:
@@ -170,6 +173,20 @@ def init_db() -> None:
                         or "no such table" in msg or "does not exist" in msg)
             if not esperado:
                 logger.warning("Migración FALLÓ (%s): %s", migration_sql[:60], exc)
+
+    # Backfill único: leads cerrados ANTES de que existiera closed_at no tienen
+    # forma de saber cuándo se cerraron de verdad — se usa created_at como mejor
+    # aproximación disponible, para que no desaparezcan de los filtros por
+    # periodo (semana/mes/año). Es un no-op en cuanto todos los CERRADO tienen
+    # closed_at (se puede ejecutar en cada arranque sin coste real).
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(
+                "UPDATE leads SET closed_at = created_at "
+                "WHERE status = 'CERRADO' AND closed_at IS NULL"
+            ))
+    except Exception as exc:
+        logger.warning("Backfill de closed_at falló: %s", exc)
 
     # Tabla de miembros del equipo (plan agencia — múltiples usuarios)
     with engine.begin() as conn:
@@ -1427,18 +1444,28 @@ def update_lead_status(lead_id: str, status: str, tenant_id: str, deal_value: Op
     Actualiza el estado de un lead, verificando que pertenece al tenant.
     deal_value: importe (€) de la operación — solo tiene sentido al marcar CERRADO,
     pero se guarda tal cual venga (None no toca la columna existente).
+
+    closed_at se fija solo al ENTRAR en CERRADO (no al re-guardar, p. ej. al
+    editar el importe después) y se limpia si el lead sale de CERRADO — así
+    "operaciones cerradas esta semana/mes" filtra por cuándo se cerró de
+    verdad, no por cuándo se creó el lead.
     """
+    now = datetime.now(timezone.utc).isoformat()
     with engine.begin() as conn:
+        campos, params = ["status = :status"], {"status": status, "id": lead_id, "tid": tenant_id}
         if deal_value is not None:
-            conn.execute(
-                text("UPDATE leads SET status = :status, deal_value = :dv WHERE id = :id AND tenant_id = :tid"),
-                {"status": status, "dv": deal_value, "id": lead_id, "tid": tenant_id},
-            )
-        else:
-            conn.execute(
-                text("UPDATE leads SET status = :status WHERE id = :id AND tenant_id = :tid"),
-                {"status": status, "id": lead_id, "tid": tenant_id},
-            )
+            campos.append("deal_value = :dv")
+            params["dv"] = deal_value
+        campos.append("""closed_at = CASE
+            WHEN :status = 'CERRADO' AND status != 'CERRADO' THEN :now
+            WHEN :status != 'CERRADO' THEN NULL
+            ELSE closed_at
+        END""")
+        params["now"] = now
+        conn.execute(
+            text(f"UPDATE leads SET {', '.join(campos)} WHERE id = :id AND tenant_id = :tid"),
+            params,
+        )
     logger.info("Lead %s → estado %s (tenant: %s)", lead_id, status, tenant_id)
 
 
@@ -1447,7 +1474,7 @@ def get_closed_deals_value(tenant_id: str, since: Optional[str] = None) -> dict:
     sql = "SELECT COALESCE(SUM(deal_value), 0) AS total, COUNT(deal_value) AS n FROM leads WHERE tenant_id = :tid AND status = 'CERRADO' AND deal_value IS NOT NULL"
     params: dict = {"tid": tenant_id}
     if since:
-        sql += " AND created_at >= :since"
+        sql += " AND closed_at >= :since"
         params["since"] = since
     with engine.connect() as conn:
         row = conn.execute(text(sql), params).fetchone()
