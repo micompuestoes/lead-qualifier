@@ -280,6 +280,37 @@ def test_encargo_completo_sigue_siendo_caliente():
 
 
 # ─────────────────────────────────────────────
+# Anti-techo: un lead bueno pero incompleto no debe tocar 10
+# (caso real reportado: presupuesto + zona + habitaciones marcaba 10/10 igual
+# que un lead con TODO resuelto — el 10 dejaba de significar nada especial)
+# ─────────────────────────────────────────────
+
+def test_comprador_con_presupuesto_y_encargo_no_es_diez():
+    # Presupuesto + zona + habitaciones + tipo, pero sin financiación resuelta
+    # ni urgencia: buen lead (CALIENTE), pero no un 10 perfecto.
+    res = _score("Busco un piso de 3 habitaciones en Madrid, presupuesto 300.000 euros.")
+    assert res["classification"] == "CALIENTE"
+    assert res["score"] < 10
+
+
+def test_vendedor_sin_detalles_no_es_diez():
+    # Un "quiero vender" sin metros, precio ni plazo es un lead válido, no un 10.
+    res = _score("Quiero vender mi piso en Madrid.")
+    assert res["score"] < 10
+
+
+def test_diez_solo_para_el_lead_con_todas_las_senales():
+    # El 10 se reserva para cuando TODO se alinea: presupuesto, financiación
+    # resuelta, encargo concreto y urgencia — no basta con 2-3 señales sueltas.
+    res = _score(
+        "Busco un piso de 3 habitaciones en el Eixample, Barcelona. "
+        "Pago al contado y tengo un presupuesto de hasta 480.000 €. "
+        "Quiero cerrar cuanto antes, esta misma semana."
+    )
+    assert res["score"] == 10
+
+
+# ─────────────────────────────────────────────
 # Invariantes de score_lead (propiedades que deben cumplirse SIEMPRE)
 # ─────────────────────────────────────────────
 

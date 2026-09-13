@@ -402,6 +402,15 @@ def score_lead(intent_analysis: dict, company_info: dict) -> dict:
     Puntúa y clasifica el lead inmobiliario.
     Rúbrica determinista pensada para el mercado español de vivienda:
     premia intención de transacción, presupuesto, financiación resuelta, plazo y concreción.
+
+    Pesos calibrados a propósito para que 10/10 sea EXCEPCIONAL, no el resultado
+    normal de un formulario bien rellenado: antes, un comprador con solo
+    presupuesto + zona + habitaciones ya tocaba el techo de 10 sin financiación
+    ni urgencia confirmadas (la suma máxima teórica llegaba a ~16 sobre una
+    escala de 10, así que casi cualquier combinación de 3-4 señales saturaba).
+    Ahora la suma máxima teórica ronda 10-11: solo el lead con TODAS las señales
+    positivas a la vez llega arriba; un lead bueno pero incompleto se queda en
+    7-8, dejando hueco real para diferenciar "buen lead" de "lead perfecto".
     """
     logger.info("📊 Calculando puntuación del lead inmobiliario")
 
@@ -422,7 +431,7 @@ def score_lead(intent_analysis: dict, company_info: dict) -> dict:
     # ── Factor 1: Operación (lo que más pesa) ──
     # Vendedores e inversores son intrínsecamente valiosos (inventario / recurrencia).
     if operation in ("VENTA", "TASACION"):
-        score += 3
+        score += 2
         reasons.append("quiere vender/tasar su inmueble (aporta inventario a la agencia)")
         actions.append("Ofrecer valoración gratuita y agendar visita para tasar el inmueble")
     elif operation == "INVERSION":
@@ -430,11 +439,11 @@ def score_lead(intent_analysis: dict, company_info: dict) -> dict:
         reasons.append("perfil inversor (operaciones recurrentes y de mayor importe)")
         actions.append("Enviar oportunidades con rentabilidad estimada")
     elif operation == "COMPRA":
-        score += 1.5
+        score += 1
         reasons.append("intención de compra")
         actions.append("Preparar selección de inmuebles que encajen con su búsqueda")
     elif operation == "ALQUILER":
-        score += 1
+        score += 0.5
         reasons.append("interés en alquiler")
         actions.append("Enviar disponibilidad de alquiler en su zona")
     else:
@@ -444,29 +453,29 @@ def score_lead(intent_analysis: dict, company_info: dict) -> dict:
 
     # ── Factor 2: Presupuesto explícito (señal fuerte de seriedad) ──
     if budget:
-        score += 2
+        score += 1
         reasons.append(f"presupuesto definido (~{budget:,} €)".replace(",", "."))
     elif operation in ("COMPRA", "INVERSION"):
         actions.append("Confirmar presupuesto disponible")
 
     # ── Factor 3: Financiación resuelta (señal fuerte de capacidad) ──
     if financing == "contado":
-        score += 2
+        score += 1.5
         reasons.append("compra al contado (máxima capacidad y rapidez de cierre)")
     elif financing == "hipoteca_aprobada":
-        score += 2
+        score += 1.5
         reasons.append("hipoteca ya aprobada (listo para cerrar)")
     elif financing == "necesita":
-        score += 0.5
+        score += 0.3
         reasons.append("necesita financiación")
         actions.append("Ofrecer ayuda con la financiación / contacto con su banco")
 
     # ── Factor 4: Concreción del encargo ──
     # El tipo de inmueble apenas pesa (casi todos lo mencionan); zona y habitaciones sí.
     concrecion = 0.0
-    if has_zone:           concrecion += 1.0
-    if rooms is not None:  concrecion += 0.5
-    if prop_type:          concrecion += 0.5
+    if has_zone:           concrecion += 0.5
+    if rooms is not None:  concrecion += 0.3
+    if prop_type:          concrecion += 0.2
     if concrecion:
         score += concrecion
         if has_zone and rooms is not None:
@@ -474,11 +483,11 @@ def score_lead(intent_analysis: dict, company_info: dict) -> dict:
 
     # ── Factor 5: Urgencia / plazo ──
     if urgency == "alta":
-        score += 1.5
+        score += 1
         reasons.append("plazo corto / urgencia explícita")
         actions.insert(0, "Llamar HOY: el lead quiere avanzar de inmediato")
     elif urgency == "media":
-        score += 0.5
+        score += 0.3
         reasons.append("plazo a medio plazo")
 
     # ── Factor 6: Calidad del mensaje ──
@@ -491,7 +500,7 @@ def score_lead(intent_analysis: dict, company_info: dict) -> dict:
 
     # ── Factor 7: Perfil del contacto (el correo personal NUNCA penaliza) ──
     if company_info.get("profile") == "profesional_inmobiliario":
-        score += 0.5
+        score += 0.3
         reasons.append("perfil profesional/inversor del sector")
 
     # Redondear y acotar 1-10
