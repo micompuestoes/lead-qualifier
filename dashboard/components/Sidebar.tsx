@@ -440,7 +440,7 @@ export default function Sidebar() {
             <p style={{ fontSize: 11, color: 'rgba(154,122,58,0.65)', lineHeight: 1.45 }}>
               {perfil.plan === 'free'
                 ? 'Más leads, IA avanzada y sin límites'
-                : 'Anuncios IA y estadísticas avanzadas'}
+                : 'Reparto de leads y estadísticas avanzadas'}
             </p>
           </Link>
         </div>

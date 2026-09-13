@@ -198,16 +198,16 @@ export default function AyudaPage() {
 
           {/* Herramientas */}
           <section id="herramientas" style={card}>
-            <p style={eyebrow}>Plan Agencia</p>
+            <p style={eyebrow}>Herramientas por plan</p>
             <h2 style={h2}>Herramientas avanzadas</h2>
             <p style={p}>
-              <strong style={strong}>Generador de anuncios IA.</strong> Describe un inmueble y la IA redacta los textos listos para publicar en Idealista, redes sociales y email, cada uno con su tono y longitud.
+              <strong style={strong}>Generador de anuncios IA (Pro y Agencia).</strong> Describe un inmueble y la IA redacta los textos listos para publicar en Idealista, redes sociales y email, cada uno con su tono y longitud.
             </p>
             <p style={p}>
-              <strong style={strong}>Estadísticas.</strong> Analiza tu cartera: total de leads, temperatura, score medio y un calendario de actividad para ver tus mejores días.
+              <strong style={strong}>Estadísticas (Agencia).</strong> Analiza tu cartera: total de leads, temperatura, score medio y un calendario de actividad para ver tus mejores días.
             </p>
             <p style={{ ...p, marginBottom: 0 }}>
-              <strong style={strong}>Equipo.</strong> Añade a tus agentes para que trabajen sobre el mismo panel. Cada uno entra con su cuenta.
+              <strong style={strong}>Equipo (Agencia).</strong> Añade a tus agentes para que trabajen sobre el mismo panel. Cada uno entra con su cuenta.
             </p>
           </section>
 
@@ -219,10 +219,10 @@ export default function AyudaPage() {
               <strong style={strong}>Free.</strong> 10 leads al mes con cualificación por IA y formulario público. Ideal para probar.
             </p>
             <p style={p}>
-              <strong style={strong}>Pro.</strong> Leads ilimitados, conexión de tu correo, avisos por email y exportación a CSV.
+              <strong style={strong}>Pro.</strong> Leads ilimitados, conexión de tu correo, avisos por email, exportación a CSV y el generador de anuncios con IA.
             </p>
             <p style={p}>
-              <strong style={strong}>Agencia.</strong> Todo lo de Pro más el generador de anuncios, estadísticas avanzadas y varios usuarios.
+              <strong style={strong}>Agencia.</strong> Todo lo de Pro más reparto de leads entre agentes, estadísticas avanzadas y varios usuarios.
             </p>
             <p style={{ ...p, marginBottom: 16 }}>
               Gestiona o cancela tu plan cuando quieras desde Perfil → Suscripción. Si cancelas, mantienes el acceso hasta el final del período pagado.

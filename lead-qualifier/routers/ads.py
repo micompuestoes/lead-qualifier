@@ -1,4 +1,4 @@
-"""Generador de anuncios inmobiliarios con IA (plan agencia)."""
+"""Generador de anuncios inmobiliarios con IA (plan Pro y superior)."""
 
 import json
 import logging
@@ -33,8 +33,8 @@ async def generate_ad(
     data: AdInput,
     tenant_id: str = Depends(get_tenant_id),
 ):
-    """Genera anuncios inmobiliarios para Idealista, RRSS y Email — solo plan agencia."""
-    require_plan(tenant_id, "agencia")
+    """Genera anuncios inmobiliarios para Idealista, RRSS y Email — plan Pro y superior."""
+    require_plan(tenant_id, "pro")
 
     canales_validos = [c for c in data.canales if c in ("idealista", "rrss", "email")]
     if not canales_validos:

@@ -156,7 +156,9 @@ export default function AnunciosPage() {
       if (res.status === 403) {
         const err = await res.json();
         if (err.detail?.code === 'PLAN_REQUIRED') {
-          addToast('El generador de anuncios es exclusivo del plan Agencia', 'error');
+          const plan = err.detail.plan_required as string | undefined;
+          const nombrePlan = plan ? plan.charAt(0).toUpperCase() + plan.slice(1) : 'superior';
+          addToast(`El generador de anuncios es exclusivo del plan ${nombrePlan}`, 'error');
           return;
         }
       }

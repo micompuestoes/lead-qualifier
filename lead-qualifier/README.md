@@ -36,7 +36,7 @@ lead-qualifier/
 │   ├── intake.py        # /intake/{api_key}  (público, con honeypot + rate limit)
 │   ├── billing.py       # /billing/*, /me/subscription  (Stripe)
 │   ├── stats.py         # /stats  (incluye feedback y coste de IA — Agencia)
-│   ├── ads.py           # /generate-ad  (Agencia)
+│   ├── ads.py           # /generate-ad  (Pro y Agencia)
 │   ├── admin.py         # /admin/*, /admin/overview  (protegido por X-Admin-Key)
 │   └── health.py        # /health
 ├── scripts/
