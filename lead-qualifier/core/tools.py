@@ -251,6 +251,24 @@ def _detectar_habitaciones(msg: str) -> int | None:
     return None
 
 
+def etiqueta_intencion(operacion: str, tipo_inmueble: str | None) -> str:
+    """Etiqueta legible de la intención — usada tanto por el análisis regex como
+    por la extracción vía LLM (core/agent.py), para que ambas rutas den el mismo
+    formato de intención en el registro guardado."""
+    etiquetas_op = {
+        "VENTA":       "Quiere vender su inmueble",
+        "TASACION":    "Solicita tasación/valoración de su inmueble",
+        "COMPRA":      "Busca comprar un inmueble",
+        "ALQUILER":    "Busca alquiler",
+        "INVERSION":   "Interés en inversión inmobiliaria",
+        "INFORMACION": "Consulta general sin operación definida",
+    }
+    intention = etiquetas_op.get(operacion, "Consulta inmobiliaria")
+    if tipo_inmueble and operacion in ("COMPRA", "ALQUILER", "INVERSION"):
+        intention += f" ({tipo_inmueble})"
+    return intention
+
+
 def analyze_intent(message: str, name: str) -> dict:
     """
     Analiza el mensaje del contacto inmobiliario y extrae todas las señales relevantes
@@ -344,17 +362,7 @@ def analyze_intent(message: str, name: str) -> dict:
         quality = "muy_vago"
 
     # ── Etiqueta legible de la intención ──
-    etiquetas_op = {
-        "VENTA":       "Quiere vender su inmueble",
-        "TASACION":    "Solicita tasación/valoración de su inmueble",
-        "COMPRA":      "Busca comprar un inmueble",
-        "ALQUILER":    "Busca alquiler",
-        "INVERSION":   "Interés en inversión inmobiliaria",
-        "INFORMACION": "Consulta general sin operación definida",
-    }
-    intention = etiquetas_op.get(operacion, "Consulta inmobiliaria")
-    if tipo_inmueble and operacion in ("COMPRA", "ALQUILER", "INVERSION"):
-        intention += f" ({tipo_inmueble})"
+    intention = etiqueta_intencion(operacion, tipo_inmueble)
 
     result = {
         "intention":        intention,
