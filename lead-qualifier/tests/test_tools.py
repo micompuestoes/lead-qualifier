@@ -261,6 +261,28 @@ def test_negacion_hipoteca_con_cualquier_palabra_no_se_confunde_con_positivo(men
     assert intent["financing"] == "necesita"
 
 
+@pytest.mark.parametrize("mensaje", [
+    # Mismo problema que "hipoteca aprobada", pero con otras señales de
+    # financiación resuelta que también contienen su propia negación como
+    # subcadena literal.
+    "No tengo el dinero ahora mismo, necesito pedir una hipoteca.",
+    "No dispongo del dinero suficiente, necesitaria financiacion.",
+    "No tengo la financiacion aprobada todavia.",
+    "Aun no tengo el banco me ha concedido nada.",
+])
+def test_negacion_de_otras_senales_de_financiacion_no_se_confunde_con_positivo(mensaje):
+    intent = analyze_intent(mensaje, "Test")
+    assert intent["financing"] == "necesita"
+
+
+def test_negacion_urgente_no_se_confunde_con_urgencia_alta():
+    # "no es urgente" contiene literalmente la subcadena "urgente": sin dar
+    # prioridad a la negación explícita, se leía como urgencia ALTA.
+    intent = analyze_intent("No es urgente, tengo tiempo de sobra para decidir.", "Test")
+    assert intent["urgency"] == "baja"
+    assert intent["urgency_explicit_low"] is True
+
+
 def test_comprador_sin_hipoteca_garantizada_no_es_caliente():
     # Caso real reportado: el mismo mensaje marcaba financing=hipoteca_aprobada
     # (por el bug de detección de arriba) y sacaba 9/10 pese a decir

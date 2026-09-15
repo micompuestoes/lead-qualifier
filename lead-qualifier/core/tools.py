@@ -143,26 +143,46 @@ def _detectar_presupuesto(message: str) -> dict | None:
     return None
 
 
+def _sin_negacion_previa(frase: str, msg: str, ventana: int = 25) -> bool:
+    """
+    ¿Aparece `frase` en `msg` SIN un "no"/"tampoco" justo antes, en la misma
+    cláusula? Cualquier frase afirmativa corta sobre financiación puede colar
+    como subcadena de su propia negación: "no tengo el dinero" contiene
+    "tengo el dinero", "no tengo la hipoteca aprobada" contiene "hipoteca
+    aprobada", "el banco no me ha concedido nada" contiene "banco me ha
+    concedido"... Se corta en el signo de puntuación anterior para no cruzar
+    a la frase de al lado.
+    """
+    idx = msg.find(frase)
+    if idx == -1:
+        return False
+    clausula_previa = re.split(r"[.,;]", msg[:idx])[-1]
+    return not re.search(r"\b(?:no|tampoco)\b", clausula_previa[-ventana:])
+
+
 def _detectar_financiacion(msg: str) -> str:
     """Detecta el estado de financiación: contado, hipoteca_aprobada, necesita o desconocido."""
-    if any(w in msg for w in ("al contado", "pago al contado", "sin hipoteca",
-                              "no necesito financiacion", "dispongo del", "tengo el dinero",
-                              "liquidez", "en efectivo")):
-        return "contado"
+    frases_contado  = ("al contado", "pago al contado", "dispongo del", "tengo el dinero",
+                       "liquidez", "en efectivo")
+    frases_hipoteca = ("hipoteca aprobada", "hipoteca preaprobada", "hipoteca concedida",
+                       "financiacion aprobada", "preaprobada", "banco me ha concedido",
+                       "tengo la hipoteca")
 
-    # Negación ("no tengo la hipoteca aprobada", "aún no tengo la hipoteca
-    # garantizada/concedida/lista"...): se comprueba ANTES que la afirmación
-    # positiva de abajo. Cualquier "no" cerca de "hipoteca" en la misma frase
-    # significa que NO está resuelta, sea cual sea la palabra que acompañe a
-    # "hipoteca" — si solo se comprobaran "aprobada/preaprobada/concedida",
-    # frases como "no tengo la hipoteca garantizada" seguirían colando por
-    # contener literalmente la subcadena "tengo la hipoteca" del check positivo.
+    # Negación genérica ANTES que las afirmaciones de abajo: si cualquiera de
+    # las señales de financiación aparece negada, el lead NO la tiene
+    # resuelta — sea cual sea la frase exacta que use.
+    for frase in frases_contado + frases_hipoteca:
+        if frase in msg and not _sin_negacion_previa(frase, msg):
+            return "necesita"
+    # "no tengo la hipoteca [garantizada/lista/resuelta/...]": cualquier "no"
+    # cerca de "hipoteca" cuenta, aunque la palabra que la acompañe no esté
+    # en frases_hipoteca (esas solo cubren aprobada/preaprobada/concedida).
     if re.search(r"\bno\b[^.,;]{0,25}\bhipoteca\b", msg):
         return "necesita"
 
-    if any(w in msg for w in ("hipoteca aprobada", "hipoteca preaprobada", "hipoteca concedida",
-                              "financiacion aprobada", "preaprobada", "banco me ha concedido",
-                              "tengo la hipoteca")):
+    if "sin hipoteca" in msg or "no necesito financiacion" in msg or any(f in msg for f in frases_contado):
+        return "contado"
+    if any(f in msg for f in frases_hipoteca):
         return "hipoteca_aprobada"
     if any(w in msg for w in ("necesito hipoteca", "necesito financiacion", "pedir hipoteca",
                               "solicitar hipoteca", "me podeis financiar", "necesitaria financiacion",
@@ -266,10 +286,13 @@ def analyze_intent(message: str, name: str) -> dict:
         "proximamente", "en breve", "este mes", "proximos meses", "este ano",
         "estoy mirando", "estamos mirando", "valorando", "planeando", "pensando en",
     ))
-    if urgency_high:
-        urgency = "alta"
-    elif urgency_explicit_low:
+    # urgency_explicit_low se comprueba ANTES que urgency_high: "no es
+    # urgente" contiene literalmente la subcadena "urgente", así que sin este
+    # orden ganaría la urgencia ALTA aunque el lead diga justo lo contrario.
+    if urgency_explicit_low:
         urgency = "baja"
+    elif urgency_high:
+        urgency = "alta"
     elif urgency_medium:
         urgency = "media"
     else:
