@@ -64,7 +64,10 @@ def sync_agency_seats(tenant_id: str) -> None:
         return
     try:
         sub = stripe.Subscription.retrieve(sub_id)
-        items = sub.get("items", {}).get("data", [])
+        # OJO: un stripe.Subscription NO es un dict — no soporta .get(), solo
+        # indexado con corchetes (o acceso por atributo). Usar .get() aquí
+        # lanza "'get' is a dict method, but a Subscription is not a dict."
+        items = sub["items"]["data"]
         if not items:
             return
         seats = _seat_count(tenant_id)
@@ -161,7 +164,8 @@ async def cancel_subscription(tenant_id: str = Depends(get_tenant_id)):
     try:
         # cancel_at_period_end=True → el usuario conserva acceso hasta el fin del período
         sub = stripe.Subscription.modify(sub_id, cancel_at_period_end=True)
-        cancel_date = sub.get("current_period_end")
+        # Mismo caso que en sync_agency_seats: indexado con corchetes, no .get().
+        cancel_date = sub["current_period_end"]
         try:
             add_notification(tenant_id, "plan", "Cancelación programada",
                              "Tu suscripción se cancelará al final del período. Mantienes el acceso hasta entonces.")

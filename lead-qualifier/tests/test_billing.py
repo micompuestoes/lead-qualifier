@@ -118,13 +118,24 @@ def test_cancelar_sin_subscription_id_da_404(client, monkeypatch):
     assert client.delete("/me/subscription").status_code == 404
 
 
+def _fake_subscription(**campos) -> stripe.Subscription:
+    """
+    Construye un stripe.Subscription REAL (no un dict) como el que devuelve
+    la API de Stripe. Es deliberado: un dict soporta .get() y un StripeObject
+    NO — usar un dict aquí habría ocultado el bug real de producción donde
+    sub.get(...) lanzaba "'get' is a dict method, but a Subscription is not
+    a dict" porque el mock no se parecía a la respuesta real de Stripe.
+    """
+    return stripe.Subscription.construct_from(campos, "sk_test_dummy")
+
+
 def test_cancelar_marca_cancel_at_period_end(client, monkeypatch):
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_dummy")
     set_tenant_plan(T, "pro", "sub_cancel_test", "cus_cancel_test")
 
     monkeypatch.setattr(
         stripe.Subscription, "modify",
-        lambda sub_id, **kw: {"current_period_end": 1999999999},
+        lambda sub_id, **kw: _fake_subscription(current_period_end=1999999999),
     )
     r = client.delete("/me/subscription")
     assert r.status_code == 200
@@ -146,5 +157,76 @@ def test_cancelar_error_de_stripe_da_400_no_500(client, monkeypatch):
     monkeypatch.setattr(stripe.Subscription, "modify", _falla)
     r = client.delete("/me/subscription")
     assert r.status_code == 400
+
+    set_tenant_plan(T, "free")  # dejar el estado limpio
+
+
+# ── Sincronización de asientos (Agencia) ───────────────────────────────────
+# Bug real encontrado en producción: sync_agency_seats usaba sub.get(...) sobre
+# un stripe.Subscription de verdad, que no soporta .get() como un dict — el
+# fallo quedaba silenciado (se loguea y no rompe la petición) así que nadie lo
+# veía hasta mirar los logs. Por eso aquí SIEMPRE se simula con un
+# stripe.Subscription real via construct_from, nunca con un dict plano.
+
+def test_sync_agency_seats_actualiza_la_cantidad_en_stripe(client, monkeypatch):
+    from routers.billing import sync_agency_seats
+
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_dummy")
+    set_tenant_plan(T, "agencia", "sub_seats_test", "cus_seats_test")
+
+    monkeypatch.setattr(
+        stripe.Subscription, "retrieve",
+        lambda sub_id: _fake_subscription(items={
+            "object": "list",
+            "data": [{"id": "si_seats_test"}],
+        }),
+    )
+    capturado = {}
+
+    def _fake_modify(item_id, **kw):
+        capturado["item_id"] = item_id
+        capturado["kw"] = kw
+        return _fake_subscription()
+
+    monkeypatch.setattr(stripe.SubscriptionItem, "modify", _fake_modify)
+
+    sync_agency_seats(T)
+
+    assert capturado["item_id"] == "si_seats_test"
+    assert capturado["kw"]["quantity"] == 2  # dev-tenant sin miembros → mínimo
+    assert capturado["kw"]["proration_behavior"] == "create_prorations"
+
+    set_tenant_plan(T, "free")  # dejar el estado limpio
+
+
+def test_sync_agency_seats_no_hace_nada_si_no_es_agencia(client, monkeypatch):
+    from routers.billing import sync_agency_seats
+
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_dummy")
+    set_tenant_plan(T, "pro", "sub_no_agencia", "cus_no_agencia")
+
+    def _no_deberia_llamar(sub_id):
+        raise AssertionError("no debería consultar Stripe para un plan que no es agencia")
+
+    monkeypatch.setattr(stripe.Subscription, "retrieve", _no_deberia_llamar)
+    sync_agency_seats(T)  # no debe lanzar ni llamar a Stripe
+
+    set_tenant_plan(T, "free")  # dejar el estado limpio
+
+
+def test_sync_agency_seats_absorbe_errores_de_stripe(client, monkeypatch):
+    """Si Stripe falla (o el SDK cambia de forma incompatible, como pasó de
+    verdad), sync_agency_seats no debe romper la petición que la llama
+    (añadir/quitar un miembro del equipo)."""
+    from routers.billing import sync_agency_seats
+
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_dummy")
+    set_tenant_plan(T, "agencia", "sub_seats_error", "cus_seats_error")
+
+    def _falla(sub_id):
+        raise RuntimeError("Stripe caído")
+
+    monkeypatch.setattr(stripe.Subscription, "retrieve", _falla)
+    sync_agency_seats(T)  # no debe propagar la excepción
 
     set_tenant_plan(T, "free")  # dejar el estado limpio
