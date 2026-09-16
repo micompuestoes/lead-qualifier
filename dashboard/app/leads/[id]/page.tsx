@@ -7,7 +7,7 @@ import { useAuth } from '@clerk/nextjs';
 
 import {
   obtenerLead, actualizarEstado, eliminarLead, asignarLead, apiFetch, enviarEmailLead, feedbackLead,
-  obtenerRecordatoriosLead, crearRecordatorio, actualizarRecordatorio, eliminarRecordatorio,
+  recalcularPuntuacion, obtenerRecordatoriosLead, crearRecordatorio, actualizarRecordatorio, eliminarRecordatorio,
 } from '@/lib/api';
 import { formatearFecha, formatearFechaVencimiento, generarAsunto, parsearReasoning } from '@/lib/utils';
 import type { Lead, EstadoLead, Reminder } from '@/types/lead';
@@ -88,6 +88,7 @@ export default function LeadDetallePage() {
 
   // Valoración de la clasificación (👍/👎)
   const [guardandoFeedback, setGuardandoFeedback] = useState(false);
+  const [recalculando, setRecalculando] = useState(false);
 
   // Valor (€) de la operación al cerrar un lead — se pide antes de confirmar "Cerrado"
   const [pidiendoValor, setPidiendoValor]     = useState(false);
@@ -265,6 +266,20 @@ export default function LeadDetallePage() {
     }
   }
 
+  async function handleRecalcular() {
+    if (!lead || recalculando) return;
+    setRecalculando(true);
+    try {
+      const upd = await recalcularPuntuacion(id, getToken);
+      setLead(upd);
+      addToast('Puntuación recalculada', 'success');
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : 'No se pudo recalcular la puntuación', 'error');
+    } finally {
+      setRecalculando(false);
+    }
+  }
+
   async function handleEliminar() {
     if (eliminando) return;
     try {
@@ -381,7 +396,8 @@ export default function LeadDetallePage() {
 
           {/* Valoración de la clasificación — feedback para afinar la IA */}
           {lead.score !== null && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 12, color: c.text3 }}>¿Acertó la clasificación?</span>
               {(['up', 'down'] as const).map(fb => {
                 const activo = fbActual === fb;
@@ -407,6 +423,23 @@ export default function LeadDetallePage() {
                   </button>
                 );
               })}
+            </div>
+              <button onClick={handleRecalcular} disabled={recalculando}
+                title="Vuelve a puntuar este lead con la fórmula de puntuación actual"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  fontSize: 12, fontWeight: 600, color: c.text3,
+                  background: 'transparent', border: 'none', padding: 0,
+                  cursor: recalculando ? 'default' : 'pointer',
+                  opacity: recalculando ? 0.6 : 1,
+                }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                  style={recalculando ? { animation: 'spin 0.8s linear infinite' } : undefined}>
+                  <polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" />
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                </svg>
+                {recalculando ? 'Recalculando…' : 'Recalcular puntuación'}
+              </button>
             </div>
           )}
         </div>

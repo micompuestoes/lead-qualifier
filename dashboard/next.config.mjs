@@ -4,6 +4,13 @@ const nextConfig = {
   experimental: {
     instrumentationHook: true,
   },
+  // "Inicio" en el menú enlaza a "/" (la home real) — /inicio no es una ruta
+  // propia, pero por si alguien la escribe o la guarda como marcador.
+  async redirects() {
+    return [
+      { source: '/inicio', destination: '/', permanent: true },
+    ];
+  },
   /**
    * Proxy de desarrollo: redirige /api/* a FastAPI en localhost:8000.
    * En producción (NEXT_PUBLIC_API_URL definida) no se usa este proxy —

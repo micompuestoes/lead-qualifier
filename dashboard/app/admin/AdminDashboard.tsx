@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useTheme } from '@/components/ThemeProvider';
 import PageHeader from '@/components/PageHeader';
+import { PLANS } from '@/lib/plans';
 
 // ── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -15,6 +16,7 @@ interface Tenant {
   lead_count: number;
   created_at: string;
   cancelled_at?: string;
+  seats?: number; // solo presente en tenants Agencia — asientos facturables reales
 }
 
 type EstadoFiltro = 'TODOS' | 'active' | 'cancelled';
@@ -22,8 +24,19 @@ type PlanFiltro   = 'TODOS' | 'free' | 'pro' | 'agencia';
 type SortKey      = 'created' | 'leads' | 'name';
 type SortDir      = 'asc' | 'desc';
 
-const PLAN_PRICE: Record<string, number> = { free: 0, pro: 49, agencia: 99 };
+// Precios de Free/Pro (planos) desde la misma fuente que la página de precios.
+// Agencia NO tiene precio plano: se factura por asiento (ver calcularMrrTenant).
+const PLAN_PRICE: Record<string, number> = Object.fromEntries(PLANS.map(p => [p.id, p.precio]));
+const PRECIO_AGENCIA_POR_ASIENTO = PLANS.find(p => p.id === 'agencia')!.precio;
 const PLAN_LABEL: Record<string, string> = { free: 'Free', pro: 'Pro', agencia: 'Agencia' };
+
+// MRR real de un tenant: Agencia se cobra por asiento (nº de agentes, mínimo 2),
+// no a precio plano — usar PLAN_PRICE.agencia aquí subestima o sobrestima según
+// cuántos agentes tenga cada agencia.
+function calcularMrrTenant(t: Tenant): number {
+  if (t.plan === 'agencia') return (t.seats ?? 2) * PRECIO_AGENCIA_POR_ASIENTO;
+  return PLAN_PRICE[t.plan] ?? 0;
+}
 
 const PLAN_STYLE: Record<string, { bg: string; color: string }> = {
   free:    { bg: 'rgba(122,116,104,0.12)', color: '#9a9490' },
@@ -91,7 +104,7 @@ export default function AdminDashboard({ tenants: inicial, error }: { tenants: T
     const cancelados = tenants.filter(t => t.status === 'cancelled').length;
     const mrr        = tenants
       .filter(t => t.status === 'active')
-      .reduce((sum, t) => sum + (PLAN_PRICE[t.plan] ?? 0), 0);
+      .reduce((sum, t) => sum + calcularMrrTenant(t), 0);
     return { total, activos, cancelados, mrr };
   }, [tenants]);
 
@@ -234,7 +247,7 @@ export default function AdminDashboard({ tenants: inicial, error }: { tenants: T
 
       {/* ── Tabla ── */}
       {visibles.length > 0 ? (
-        <div className="r-scroll-x" style={{ background: c.card, border: c.cardBorder, borderRadius: 14, overflow: 'hidden' }}>
+        <div className="r-scroll-x" style={{ background: c.card, border: c.cardBorder, borderRadius: 14, overflowX: 'auto', overflowY: 'hidden' }}>
           <table className="r-table" style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${c.divider}`, background: c.muted }}>

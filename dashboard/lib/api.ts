@@ -211,6 +211,14 @@ export async function feedbackLead(
   return handleResponse<Lead>(res).then(normalizarLead);
 }
 
+// Recalcula score/clasificación de un lead ya guardado con la fórmula vigente,
+// a partir de las señales que ya se extrajeron al procesarlo (sin volver a
+// leer el mensaje ni redactar un email nuevo).
+export async function recalcularPuntuacion(id: string, getToken: GetToken): Promise<Lead> {
+  const res = await apiFetch(`/leads/${id}/rescore`, getToken, { method: 'POST' });
+  return handleResponse<Lead>(res).then(normalizarLead);
+}
+
 export async function asignarLead(
   id: string,
   agentId: string | null,
