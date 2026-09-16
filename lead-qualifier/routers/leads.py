@@ -19,8 +19,9 @@ from core.database import (
     assign_lead, delete_lead, ensure_tenant, get_agent_ids, get_lead_by_id,
     get_lead_count_this_month, get_lead_counts, get_leads_by_email,
     get_leads_export, get_recent_leads, get_tenant, is_duplicate_lead,
-    mark_lead_email_sent, set_lead_feedback, update_lead_status,
+    mark_lead_email_sent, set_lead_feedback, update_lead_scoring, update_lead_status,
 )
+from core.tools import score_lead
 from deps import Caller, get_anthropic_client, get_caller, get_tenant_id, require_plan
 from models import LeadInput, LeadOutput
 from notifications import notificar_tenant
@@ -334,6 +335,40 @@ async def patch_lead_feedback(
 
     valor = {"up": 1, "down": -1}.get(body.feedback) if body.feedback else None
     set_lead_feedback(lead_id, caller.tenant_id, valor)
+    return _serializar_lead(get_lead_by_id(lead_id, tenant_id=caller.tenant_id))
+
+
+@router.post("/leads/{lead_id}/rescore")
+async def rescore_lead(
+    lead_id: str,
+    caller: Caller = Depends(get_caller),
+):
+    """
+    Vuelve a calcular score/clasificación de un lead ya guardado con la fórmula
+    de score_lead vigente, a partir de las señales (intent_analysis/company_info)
+    que ya se extrajeron al procesarlo. No repite la extracción de señales del
+    mensaje ni redacta un email nuevo — solo tiene sentido cuando lo que cambió
+    fue la FÓRMULA de puntuación, no cómo se leen las señales del mensaje.
+    """
+    lead = get_lead_by_id(lead_id, tenant_id=caller.tenant_id, agent_id=caller.agent_filter)
+    if not lead:
+        raise HTTPException(status_code=404, detail=f"Lead {lead_id} no encontrado")
+
+    intent = lead.get("intent_analysis") or {}
+    company = lead.get("company_info") or {}
+    if not intent:
+        raise HTTPException(
+            status_code=400,
+            detail="Este lead no tiene señales guardadas para recalcular (es de antes de esta función).",
+        )
+
+    scoring = score_lead(intent, company)
+    update_lead_scoring(
+        lead_id, caller.tenant_id,
+        classification=scoring["classification"], score=scoring["score"],
+        reasoning=scoring["reasoning"], recommended_actions=scoring["recommended_actions"],
+    )
+    logger.info("Lead %s repuntuado manualmente (tenant: %s)", lead_id, caller.tenant_id)
     return _serializar_lead(get_lead_by_id(lead_id, tenant_id=caller.tenant_id))
 
 

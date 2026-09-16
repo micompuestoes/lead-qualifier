@@ -6,9 +6,10 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from config import MIN_AGENCY_SEATS
 from core.database import (
     admin_override_plan, count_leads_for_tenant, get_admin_overview,
-    get_all_tenants, get_tenant, set_tenant_status,
+    get_agent_ids, get_all_tenants, get_tenant, set_tenant_status,
 )
 from deps import require_admin
 
@@ -51,6 +52,11 @@ async def admin_list_tenants(request: Request):
     resultado = []
     for t in tenants:
         t["lead_count"] = count_leads_for_tenant(t["id"])
+        # Asientos reales del plan Agencia (se factura por asiento, no a precio
+        # fijo) — el frontend lo usa para calcular el MRR de verdad en vez de
+        # asumir un precio plano por tenant.
+        if t.get("plan") == "agencia":
+            t["seats"] = max(MIN_AGENCY_SEATS, len(get_agent_ids(t["id"])))
         resultado.append(t)
 
     activos    = sum(1 for t in resultado if t.get("status") == "active")

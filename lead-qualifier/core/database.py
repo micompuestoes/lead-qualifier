@@ -1469,6 +1469,29 @@ def update_lead_status(lead_id: str, status: str, tenant_id: str, deal_value: Op
     logger.info("Lead %s → estado %s (tenant: %s)", lead_id, status, tenant_id)
 
 
+def update_lead_scoring(
+    lead_id: str, tenant_id: str, classification: str, score: int,
+    reasoning: str, recommended_actions: list,
+) -> None:
+    """
+    Sobrescribe la puntuación/clasificación de un lead ya guardado — usado por
+    /leads/{id}/rescore para volver a puntuar leads antiguos con la fórmula de
+    score_lead vigente, sin tocar el mensaje original ni el email ya generado.
+    """
+    with engine.begin() as conn:
+        conn.execute(
+            text("""UPDATE leads SET classification = :cl, score = :sc, reasoning = :rs,
+                     recommended_actions = :ra, score_feedback = NULL
+                     WHERE id = :id AND tenant_id = :tid"""),
+            {
+                "cl": classification, "sc": score, "rs": reasoning,
+                "ra": json.dumps(recommended_actions, ensure_ascii=False),
+                "id": lead_id, "tid": tenant_id,
+            },
+        )
+    logger.info("Lead %s repuntuado → %s (%d/10) (tenant: %s)", lead_id, classification, score, tenant_id)
+
+
 def get_closed_deals_value(tenant_id: str, since: Optional[str] = None) -> dict:
     """Suma y cuenta de las operaciones CERRADAS con valor registrado (ROI real del tenant)."""
     sql = "SELECT COALESCE(SUM(deal_value), 0) AS total, COUNT(deal_value) AS n FROM leads WHERE tenant_id = :tid AND status = 'CERRADO' AND deal_value IS NOT NULL"

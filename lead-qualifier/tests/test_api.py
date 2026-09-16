@@ -74,6 +74,34 @@ def test_feedback_up_y_borrado(client):
     assert r.status_code == 200 and r.json()["score_feedback"] is None
 
 
+def test_recalcular_puntuacion_reaplica_score_lead(client):
+    """Un lead con señales guardadas se puede repuntuar con la fórmula vigente
+    sin re-leer el mensaje ni redactar un email nuevo."""
+    from core.tools import score_lead
+
+    lead = get_recent_leads(tenant_id=T)[0]
+    # Deja una valoración previa — recalcular debe borrarla, ya no aplica a la
+    # puntuación nueva.
+    client.patch(f"/leads/{lead['id']}/feedback", json={"feedback": "up"})
+
+    r = client.post(f"/leads/{lead['id']}/rescore")
+    assert r.status_code == 200
+    body = r.json()
+    esperado = score_lead(lead["intent_analysis"], lead["company_info"])
+    assert body["score"] == esperado["score"]
+    assert body["classification"] == esperado["classification"]
+    assert body["score_feedback"] is None
+
+
+def test_recalcular_puntuacion_sin_senales_guardadas_da_400(client):
+    """Un lead sembrado sin intent_analysis (p. ej. de antes de esta función)
+    no se puede recalcular — no hay señales de las que partir."""
+    _semilla("SR1", "Sin Señales", "sinsenales@test.com", "x", "TIBIO", 5)
+    r = client.post("/leads/SR1/rescore")
+    assert r.status_code == 400
+    delete_lead("SR1", T)
+
+
 def test_qualify_automatico_sin_smtp_queda_como_borrador(client):
     """Si el envío automático falla (aquí: sin SMTP), el lead NUNCA debe figurar
     como enviado — queda en borrador para que el agente lo envíe a mano."""
@@ -398,6 +426,23 @@ def test_admin_lista_y_detalle_de_tenants(client, monkeypatch):
     assert r.status_code == 200 and r.json()["id"] == T
 
     assert client.get("/admin/tenants/tenant-inexistente", headers=h).status_code == 404
+
+
+def test_admin_lista_expone_asientos_reales_de_agencia(client, monkeypatch):
+    """El MRR del panel admin depende de esto: Agencia se factura por asiento,
+    no a precio plano, así que el backend debe exponer cuántos asientos tiene
+    de verdad cada tenant Agencia (mínimo MIN_AGENCY_SEATS)."""
+    from config import MIN_AGENCY_SEATS
+
+    monkeypatch.setenv("ADMIN_SECRET_KEY", "clave-admin-larga-de-test")
+    h = {"X-Admin-Key": "clave-admin-larga-de-test"}
+    set_tenant_plan(T, "agencia", "sub_admin_seats_test", "cus_admin_seats_test")
+
+    r = client.get("/admin/tenants", headers=h)
+    tenant = next(t for t in r.json()["tenants"] if t["id"] == T)
+    assert tenant["seats"] == MIN_AGENCY_SEATS  # dev-tenant sin miembros → mínimo
+
+    set_tenant_plan(T, "free")  # dejar el estado limpio
 
 
 def test_admin_cambia_estado_de_tenant(client, monkeypatch):
