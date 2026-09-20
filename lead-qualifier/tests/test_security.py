@@ -78,3 +78,19 @@ def test_rate_limited_buckets_independientes(client):
     assert rate_limited("test-bucket-a-9f3a", per_min=1, per_hour=100) is True
     # Un bucket distinto no se ve afectado por el que ya se saturó.
     assert rate_limited("test-bucket-b-9f3a", per_min=1, per_hour=100) is False
+
+
+def test_rate_limited_respeta_el_limite_diario_opcional(client):
+    """per_day es opcional (pensado para un bucket global, ver /demo/qualify)
+    — con un per_min/per_hour generosos, el que debe frenar es el diario."""
+    bucket = "test-bucket-diario-9f3a"
+    assert rate_limited(bucket, per_min=100, per_hour=100, per_day=1) is False
+    assert rate_limited(bucket, per_min=100, per_hour=100, per_day=1) is True
+
+
+def test_rate_limited_sin_per_day_no_comprueba_limite_diario(client):
+    """Omitir per_day (comportamiento por defecto) no debe activar ningún
+    límite diario implícito — los llamantes existentes no cambian de golpe."""
+    bucket = "test-bucket-sin-diario-9f3a"
+    for _ in range(5):
+        assert rate_limited(bucket, per_min=100, per_hour=100) is False

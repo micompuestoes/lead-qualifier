@@ -112,11 +112,14 @@ def client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-def rate_limited(bucket: str, per_min: int, per_hour: int) -> bool:
+def rate_limited(bucket: str, per_min: int, per_hour: int, per_day: int | None = None) -> bool:
     """
     Devuelve True si `bucket` ha superado el límite. Persistido en BD (ver
     core.database.check_rate_limit) para que el límite sea el mismo sin
     importar a qué instancia del backend llega la petición.
+
+    per_day es opcional: úsalo en un bucket "global" (no por IP) para poner
+    un techo de coste diario a un endpoint público sin autenticación.
     """
     from core.database import check_rate_limit
-    return check_rate_limit(bucket, per_min, per_hour)
+    return check_rate_limit(bucket, per_min, per_hour, per_day)

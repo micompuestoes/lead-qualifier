@@ -554,12 +554,16 @@ def acquire_job_lock(job_name: str, period_key: str) -> bool:
     return result.rowcount > 0
 
 
-def check_rate_limit(bucket: str, per_min: int, per_hour: int) -> bool:
+def check_rate_limit(bucket: str, per_min: int, per_hour: int, per_day: Optional[int] = None) -> bool:
     """
     Sliding window persistido en BD (mismo patrón que acquire_job_lock):
     todas las instancias del backend comparten el mismo contador.
     Devuelve True si `bucket` ha superado el límite (no registra el hit);
     False si se permite (y sí lo registra).
+
+    per_day es opcional (None = sin comprobar) — pensado para un bucket
+    "global" (no por IP) que ponga un techo de coste diario a un endpoint
+    público sin autenticación, además del límite por minuto/hora.
     """
     import random
     from datetime import timedelta
@@ -567,8 +571,17 @@ def check_rate_limit(bucket: str, per_min: int, per_hour: int) -> bool:
     now = datetime.now(timezone.utc)
     min_ago = (now - timedelta(minutes=1)).isoformat()
     hour_ago = (now - timedelta(hours=1)).isoformat()
+    day_ago = (now - timedelta(days=1)).isoformat()
 
     with engine.begin() as conn:
+        if per_day is not None:
+            day_count = conn.execute(
+                text("SELECT COUNT(*) FROM rate_hits WHERE bucket = :b AND hit_at > :since"),
+                {"b": bucket, "since": day_ago},
+            ).scalar()
+            if day_count >= per_day:
+                return True
+
         hour_count = conn.execute(
             text("SELECT COUNT(*) FROM rate_hits WHERE bucket = :b AND hit_at > :since"),
             {"b": bucket, "since": hour_ago},
@@ -589,8 +602,10 @@ def check_rate_limit(bucket: str, per_min: int, per_hour: int) -> bool:
         )
         # Limpieza ocasional (no en cada llamada) para que la tabla no crezca
         # sin control — igual de necesario en Postgres que en el dict viejo.
+        # Cutoff de 1 día (no 1 hora): algunos buckets usan per_day, y borrar
+        # a la hora les rompería el conteo diario.
         if random.random() < 0.01:
-            conn.execute(text("DELETE FROM rate_hits WHERE hit_at < :lim"), {"lim": hour_ago})
+            conn.execute(text("DELETE FROM rate_hits WHERE hit_at < :lim"), {"lim": day_ago})
 
     return False
 

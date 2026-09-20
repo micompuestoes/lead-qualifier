@@ -37,6 +37,17 @@ RATE_KEY_PER_HOUR = 200
 RATE_TENANT_PER_MIN = 30
 RATE_TENANT_PER_HOUR = 300
 
+# Rate limiting de /demo/qualify — demo pública sin registro en la landing.
+# Más estricto que el resto: aquí NO hay ninguna relación comercial (ni
+# api_key ni tenant) que sirva de segundo filtro, así que el único freno es
+# la IP... y un techo GLOBAL diario (bucket "demo:global") para acotar el
+# gasto máximo si alguien reparte el tráfico entre muchas IPs distintas.
+RATE_DEMO_IP_PER_MIN = 2
+RATE_DEMO_IP_PER_HOUR = 6
+RATE_DEMO_GLOBAL_PER_MIN = 15
+RATE_DEMO_GLOBAL_PER_HOUR = 100
+RATE_DEMO_GLOBAL_PER_DAY = 300
+
 # Ventana anti-doble-envío: un lead con el mismo tenant, email y mensaje que
 # otro ya guardado hace menos de esto se considera un duplicado (doble clic o
 # reintento de red del formulario) y no se vuelve a cualificar ni a responder.

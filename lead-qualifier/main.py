@@ -37,7 +37,7 @@ import runtime
 from core.agent import _make_anthropic_client
 from core.database import init_db
 from routers import (
-    admin, ads, billing, health, imap, intake, leads, profile, reminders, stats, team,
+    admin, ads, billing, demo, health, imap, intake, leads, profile, reminders, stats, team,
 )
 
 # ─────────────────────────────────────────────
@@ -206,6 +206,7 @@ app.include_router(profile.router)
 app.include_router(imap.router)
 app.include_router(team.router)
 app.include_router(intake.router)
+app.include_router(demo.router)
 app.include_router(billing.router)
 app.include_router(stats.router)
 app.include_router(ads.router)
