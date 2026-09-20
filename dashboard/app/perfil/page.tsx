@@ -29,9 +29,6 @@ export default function PerfilPage() {
   const [guardando, setGuardando] = useState(false);
   const [form, setForm]           = useState({ name: '', notify_email: '' });
 
-  const [waForm, setWaForm]       = useState({ number: '', enabled: false });
-  const [waGuardando, setWaGuardando] = useState(false);
-
   const [webhookUrl, setWebhookUrl]         = useState('');
   const [webhookGuardando, setWebhookGuardando] = useState(false);
 
@@ -132,7 +129,6 @@ export default function PerfilPage() {
         const data = await obtenerMiPerfil(getToken);
         setPerfil(data);
         setForm({ name: data.name ?? '', notify_email: data.notify_email ?? '' });
-        setWaForm({ number: data.whatsapp_number ?? '', enabled: !!data.whatsapp_enabled });
         setWebhookUrl(data.webhook_url ?? '');
         setAiForm({
           auto_send: data.auto_send_email !== false,
@@ -199,27 +195,6 @@ export default function PerfilPage() {
       addToast(err instanceof Error ? err.message : 'Error al guardar', 'error');
     } finally {
       setAiGuardando(false);
-    }
-  }
-
-  async function guardarWhatsapp(e: React.FormEvent) {
-    e.preventDefault();
-    setWaGuardando(true);
-    try {
-      const token = await getToken();
-      const res = await fetch(`${apiBase}/me/whatsapp`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body:    JSON.stringify(waForm),
-      });
-      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail ?? 'Error al guardar'); }
-      const data = await res.json();
-      setWaForm({ number: data.whatsapp_number ?? '', enabled: !!data.whatsapp_enabled });
-      addToast(data.whatsapp_enabled ? 'Avisos por WhatsApp activados' : 'Preferencias de WhatsApp guardadas', 'success');
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Error al guardar', 'error');
-    } finally {
-      setWaGuardando(false);
     }
   }
 
@@ -729,43 +704,42 @@ export default function PerfilPage() {
             <h2 className="text-base font-semibold" style={{ color: c.heading }}>
               Avisos por WhatsApp
             </h2>
+            <span style={{
+              fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+              color: '#9a7a3a', background: 'rgba(200,169,110,0.14)',
+              padding: '3px 9px', borderRadius: 99,
+            }}>
+              Próximamente
+            </span>
           </div>
           <p className="text-sm mb-5" style={{ color: c.text2 }}>
             Recibe un WhatsApp al instante cuando entre un lead <strong style={{ color: c.text1 }}>caliente</strong>.
             El primero en responder se lleva la operación.
           </p>
 
-          <form onSubmit={guardarWhatsapp} className="space-y-4">
-            <div>
-              <label style={labelStyle}>Tu número de WhatsApp</label>
-              <input
-                type="tel"
-                value={waForm.number}
-                onChange={e => setWaForm(p => ({ ...p, number: e.target.value }))}
-                onFocus={() => setFocusedInput('wa-number')}
-                onBlur={() => setFocusedInput(null)}
-                placeholder="+34 600 11 22 33"
-                style={inputStyleFor('wa-number')}
-              />
+          <div className="rounded-xl px-5 py-5"
+            style={{ background: c.muted, border: `1px solid ${c.inputBorder}` }}>
+            <div className="flex items-start gap-3">
+              <div style={{
+                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                background: 'rgba(37,211,102,0.14)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#25D366"
+                  strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 8v4l3 3" /><circle cx="12" cy="12" r="9" />
+                </svg>
+              </div>
+              <div style={{ flex: 1 }}>
+                <p className="text-sm font-semibold" style={{ color: c.text1, marginBottom: 3 }}>
+                  Estamos terminando la integración
+                </p>
+                <p className="text-xs" style={{ color: c.text2, lineHeight: 1.55 }}>
+                  En cuanto esté lista podrás activar aquí el aviso instantáneo de leads calientes por WhatsApp.
+                </p>
+              </div>
             </div>
-
-            <label className="flex items-center gap-3 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={waForm.enabled}
-                onChange={e => setWaForm(p => ({ ...p, enabled: e.target.checked }))}
-                style={{ width: 18, height: 18, accentColor: '#25D366', cursor: 'pointer' }}
-              />
-              <span className="text-sm" style={{ color: c.text1 }}>
-                Avisarme por WhatsApp de los leads calientes
-              </span>
-            </label>
-
-            <button type="submit" disabled={waGuardando}
-              style={{ ...btnPrimary, opacity: waGuardando ? 0.6 : 1 }}>
-              {waGuardando ? 'Guardando…' : 'Guardar preferencias'}
-            </button>
-          </form>
+          </div>
         </div>
 
         {/* ── Webhook a tu CRM ── */}
