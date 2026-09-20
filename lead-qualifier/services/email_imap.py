@@ -15,6 +15,7 @@ import logging
 import socket
 from email.header import decode_header
 from email.utils import parseaddr
+from html.parser import HTMLParser
 from typing import Callable
 
 logger = logging.getLogger(__name__)
@@ -68,25 +69,90 @@ def _decodificar_header(valor: str | None) -> str:
     return "".join(resultado).strip()
 
 
+class _HTMLATexto(HTMLParser):
+    """
+    Extrae el texto visible de un HTML, ignorando <script>/<style> y
+    metiendo un salto de línea en los tags de bloque para no pegar párrafos.
+    """
+
+    _BLOQUE = {"br", "p", "div", "tr", "li", "h1", "h2", "h3", "h4", "td"}
+
+    def __init__(self):
+        super().__init__()
+        self._partes: list[str] = []
+        self._ignorar = 0
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ("script", "style"):
+            self._ignorar += 1
+        elif tag in self._BLOQUE:
+            self._partes.append("\n")
+
+    def handle_endtag(self, tag):
+        if tag in ("script", "style") and self._ignorar > 0:
+            self._ignorar -= 1
+
+    def handle_data(self, data):
+        if not self._ignorar:
+            self._partes.append(data)
+
+    def texto(self) -> str:
+        crudo = "".join(self._partes)
+        # Colapsa espacios/tabs de cada línea pero conserva los saltos entre
+        # bloques — si no, un HTML maquetado con indentación se convierte en
+        # una sola palabra pegada por línea.
+        lineas = (" ".join(l.split()) for l in crudo.splitlines())
+        return "\n".join(l for l in lineas if l).strip()
+
+
+def _html_a_texto(html: str) -> str:
+    parser = _HTMLATexto()
+    try:
+        parser.feed(html)
+    except Exception:
+        # Un HTML mal formado no debe tirar el lead entero — nos quedamos con
+        # lo que se haya podido extraer hasta el fallo.
+        pass
+    return parser.texto()
+
+
 def _extraer_cuerpo(msg: email.message.Message) -> str:
-    """Extrae el cuerpo en texto plano del email."""
+    """
+    Extrae el cuerpo en texto plano del email.
+
+    Si no hay ninguna parte text/plain, cae a la parte text/html y le quita
+    las etiquetas — bastante habitual en avisos de portales inmobiliarios
+    (idealista, Fotocasa...) que mandan solo HTML maquetado, sin alternativa
+    en texto plano. Sin este fallback, esos leads se descartan en silencio:
+    mejor un texto con algo de ruido de maquetación que perder el lead entero.
+    """
     if msg.is_multipart():
+        html_fallback = ""
         for part in msg.walk():
             content_type = part.get_content_type()
             disposition = str(part.get("Content-Disposition", ""))
-            if content_type == "text/plain" and "attachment" not in disposition:
+            if "attachment" in disposition:
+                continue
+            if content_type == "text/plain":
                 try:
                     charset = part.get_content_charset() or "utf-8"
                     return part.get_payload(decode=True).decode(charset, errors="replace").strip()
                 except Exception:
                     continue
-        return ""
+            elif content_type == "text/html" and not html_fallback:
+                try:
+                    charset = part.get_content_charset() or "utf-8"
+                    html_fallback = part.get_payload(decode=True).decode(charset, errors="replace")
+                except Exception:
+                    continue
+        return _html_a_texto(html_fallback) if html_fallback else ""
     else:
         try:
             charset = msg.get_content_charset() or "utf-8"
-            return msg.get_payload(decode=True).decode(charset, errors="replace").strip()
+            cuerpo = msg.get_payload(decode=True).decode(charset, errors="replace").strip()
         except Exception:
             return str(msg.get_payload())
+        return _html_a_texto(cuerpo) if msg.get_content_type() == "text/html" else cuerpo
 
 
 def _es_automatico(email_addr: str) -> bool:

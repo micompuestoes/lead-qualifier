@@ -83,6 +83,73 @@ def test_parsear_mensaje_muy_corto_cumple_minimo_de_leadinput():
     assert len(parsed["message"]) >= 5
 
 
+# ── Fallback a HTML: portales sin alternativa en texto plano ──────────────────
+# Bug real: los avisos de idealista/Fotocasa (y muchos portales) suelen venir
+# solo en HTML maquetado, sin parte text/plain — antes de este fix, esos leads
+# se descartaban en silencio (parsear_email_raw devolvía None).
+
+def _email_html_bytes(from_addr: str, subject: str, html: str) -> bytes:
+    """Email de una sola parte, SOLO text/html (sin alternativa en texto plano)."""
+    msg = email.message.EmailMessage()
+    msg["From"] = from_addr
+    msg["Subject"] = subject
+    msg.set_content(html, subtype="html")
+    return msg.as_bytes()
+
+
+def test_parsear_email_solo_html_no_se_descarta():
+    html = "<html><body><p>Hola,</p><p>Busco piso de 3 habitaciones en Bilbao, presupuesto 250.000€.</p></body></html>"
+    raw = _email_html_bytes("contacto@portal-inmobiliario.example", "Nuevo contacto", html)
+    parsed = parsear_email_raw(raw)
+    assert parsed is not None
+    assert "piso de 3 habitaciones" in parsed["message"]
+    assert "<p>" not in parsed["message"]
+
+
+def test_parsear_email_html_ignora_script_y_style():
+    html = (
+        "<html><head><style>.x{color:red}</style></head><body>"
+        "<script>trackClick();</script>"
+        "<p>Quiero información sobre un ático en Valencia.</p>"
+        "</body></html>"
+    )
+    raw = _email_html_bytes("contacto@portal-inmobiliario.example", "", html)
+    parsed = parsear_email_raw(raw)
+    assert parsed is not None
+    assert "ático en Valencia" in parsed["message"]
+    assert "trackClick" not in parsed["message"]
+    assert "color:red" not in parsed["message"]
+
+
+def test_parsear_email_multipart_solo_html_usa_el_fallback():
+    """multipart/mixed o multipart/related con SOLO una parte text/html
+    (sin text/plain) — habitual cuando el correo lleva imágenes embebidas."""
+    msg = email.message.EmailMessage()
+    msg["From"] = "avisos@portal.example"
+    msg["Subject"] = "Contacto recibido"
+    msg.add_alternative(
+        "<html><body><p>Interesado en alquilar un local en Sevilla.</p></body></html>",
+        subtype="html",
+    )
+    parsed = parsear_email_raw(msg.as_bytes())
+    assert parsed is not None
+    assert "alquilar un local en Sevilla" in parsed["message"]
+
+
+def test_parsear_email_prefiere_text_plain_si_existe():
+    """Si el email SÍ trae text/plain, se sigue usando esa parte tal cual
+    (sin pasar por el parser de HTML) — el fallback es solo para cuando falta."""
+    msg = email.message.EmailMessage()
+    msg["From"] = "cliente@dominio.com"
+    msg["Subject"] = "Consulta"
+    msg.set_content("Texto plano de verdad.")
+    msg.add_alternative("<html><body><p>Versión en HTML, no debería usarse.</p></body></html>", subtype="html")
+    parsed = parsear_email_raw(msg.as_bytes())
+    assert parsed is not None
+    assert "Texto plano de verdad" in parsed["message"]
+    assert "no debería usarse" not in parsed["message"]
+
+
 # ── obtener_no_leidos: solo marca \\Seen si el procesamiento tuvo éxito ────────
 
 class _FakeImap:
