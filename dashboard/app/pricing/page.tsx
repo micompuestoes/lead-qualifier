@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { useTheme } from '@/components/ThemeProvider';
+import { useToast } from '@/components/Toast';
 import { PLANS } from '@/lib/plans';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
@@ -17,6 +18,7 @@ export default function PricingPage() {
   const { getToken } = useAuth();
   const router = useRouter();
   const { c, isDark } = useTheme();
+  const { addToast } = useToast();
   const [cargando, setCargando] = useState<string | null>(null);
   const [planActual, setPlanActual] = useState<string>('free');
 
@@ -41,8 +43,21 @@ export default function PricingPage() {
         body: JSON.stringify({ plan: planId }),
       });
       if (!res.ok) throw new Error('Error al crear sesión de pago');
-      const { url } = await res.json();
-      window.location.href = url;
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      // Cambio de plan aplicado directamente sobre la suscripción existente
+      // (Pro↔Agencia): no hay redirección a Stripe, se refleja aquí mismo.
+      setPlanActual(data.plan);
+      try {
+        const raw = localStorage.getItem('inmuebia-perfil');
+        const perfil = raw ? JSON.parse(raw) : {};
+        localStorage.setItem('inmuebia-perfil', JSON.stringify({ ...perfil, plan: data.plan }));
+      } catch {}
+      const nombrePlan = PLANES.find(p => p.id === data.plan)?.nombre ?? data.plan;
+      addToast(`Plan cambiado a ${nombrePlan}`, 'success');
     } catch {
       alert('No se pudo iniciar el pago. Inténtalo de nuevo.');
     } finally {
@@ -248,7 +263,7 @@ export default function PricingPage() {
                     onMouseEnter={e => { if (!cargando) (e.currentTarget as HTMLElement).style.opacity = '0.92'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1'; }}
                   >
-                    {cargando === plan.id ? 'Redirigiendo…' : (esDowngrade ? `Cambiar a ${plan.nombre}` : `Empezar con ${plan.nombre}`)}
+                    {cargando === plan.id ? 'Procesando…' : (esDowngrade ? `Cambiar a ${plan.nombre}` : `Empezar con ${plan.nombre}`)}
                   </button>
                 )}
               </div>
