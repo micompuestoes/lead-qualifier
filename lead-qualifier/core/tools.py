@@ -85,7 +85,13 @@ def _detectar_operacion(msg: str) -> str:
 
 
 def _detectar_tipo_inmueble(msg: str) -> str | None:
-    """Detecta el tipo de inmueble mencionado."""
+    """
+    Detecta el tipo de inmueble mencionado. Si esa mención concreta está
+    negada ("no quiero un ático, busco un piso"), no cuenta como ese tipo —
+    se sigue buscando otro que sí aparezca en positivo. Sin esto, el orden
+    del diccionario decidía: "atico" se comprueba antes que "piso", así que
+    el ejemplo de arriba devolvía "ático" (justo lo que el lead NO quiere).
+    """
     tipos = {
         "atico": "ático", "duplex": "dúplex", "chalet": "chalet", "chale": "chalet",
         "adosado": "adosado", "pareado": "pareado", "estudio": "estudio",
@@ -96,7 +102,7 @@ def _detectar_tipo_inmueble(msg: str) -> str | None:
         "finca": "finca", "masia": "masía", "cortijo": "cortijo",
     }
     for clave, etiqueta in tipos.items():
-        if re.search(rf"\b{clave}s?\b", msg):
+        if re.search(rf"\b{clave}s?\b", msg) and _sin_negacion_previa(clave, msg):
             return etiqueta
     return None
 

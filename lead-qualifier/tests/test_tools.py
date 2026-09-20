@@ -283,6 +283,14 @@ def test_negacion_urgente_no_se_confunde_con_urgencia_alta():
     assert intent["urgency_explicit_low"] is True
 
 
+def test_negacion_tipo_inmueble_no_se_confunde_con_positivo():
+    # "atico" se comprueba antes que "piso" en el diccionario de tipos, así
+    # que sin tener en cuenta la negación, este mensaje devolvía "ático" —
+    # justo lo que el lead dice explícitamente que NO quiere.
+    intent = analyze_intent("No quiero un ático, busco un piso con terraza.", "Test")
+    assert intent["property_type"] == "piso"
+
+
 def test_comprador_sin_hipoteca_garantizada_no_es_caliente():
     # Caso real reportado: el mismo mensaje marcaba financing=hipoteca_aprobada
     # (por el bug de detección de arriba) y sacaba 9/10 pese a decir
