@@ -22,6 +22,17 @@ def _limpiar_customer_id():
         conn.execute(text("UPDATE tenants SET stripe_customer_id = NULL WHERE id = :id"), {"id": T})
 
 
+def _fake_subscription(**campos) -> stripe.Subscription:
+    """
+    Construye un stripe.Subscription REAL (no un dict) como el que devuelve
+    la API de Stripe. Es deliberado: un dict soporta .get() y un StripeObject
+    NO — usar un dict aquí habría ocultado el bug real de producción donde
+    sub.get(...) lanzaba "'get' is a dict method, but a Subscription is not
+    a dict" porque el mock no se parecía a la respuesta real de Stripe.
+    """
+    return stripe.Subscription.construct_from(campos, "sk_test_dummy")
+
+
 # ── Checkout ────────────────────────────────────────────────────────────────
 
 def test_checkout_sin_stripe_configurado_da_503(client, monkeypatch):
@@ -99,6 +110,109 @@ def test_checkout_agencia_factura_por_asientos(client, monkeypatch):
     assert capturado["kw"]["line_items"][0]["quantity"] == _seat_count(T)
 
 
+# ── Cambio de plan (Pro↔Agencia) con una suscripción ya activa ────────────────
+# Bug real de auditoría: crear siempre un checkout nuevo, sin comprobar si el
+# tenant ya tenía una suscripción activa, dejaba DOS suscripciones cobrando a
+# la vez (Stripe no las fusiona solo) y la antigua quedaba huérfana, imposible
+# de cancelar desde /me/subscription (que solo conoce la más reciente).
+
+def test_checkout_con_suscripcion_activa_modifica_en_vez_de_crear_otra(client, monkeypatch):
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_dummy")
+    monkeypatch.setenv("STRIPE_PRICE_AGENCIA", "price_agencia_test")
+    set_tenant_plan(T, "pro", "sub_switch_test", "cus_switch_test")
+
+    monkeypatch.setattr(
+        stripe.Subscription, "retrieve",
+        lambda sub_id: _fake_subscription(
+            status="active",
+            items={"object": "list", "data": [{"id": "si_switch_test"}]},
+        ),
+    )
+
+    def _no_deberia_crear_checkout(**kw):
+        raise AssertionError("no debería crear una segunda suscripción")
+
+    monkeypatch.setattr(stripe.checkout.Session, "create", _no_deberia_crear_checkout)
+
+    capturado = {}
+
+    def _fake_modify(item_id, **kw):
+        capturado["item_id"] = item_id
+        capturado["kw"] = kw
+        return _fake_subscription()
+
+    monkeypatch.setattr(stripe.SubscriptionItem, "modify", _fake_modify)
+
+    from routers.billing import _seat_count
+    r = client.post("/billing/checkout", json={"plan": "agencia"})
+    assert r.status_code == 200
+    assert r.json() == {"changed": True, "plan": "agencia"}
+
+    assert capturado["item_id"] == "si_switch_test"
+    assert capturado["kw"]["price"] == "price_agencia_test"
+    assert capturado["kw"]["quantity"] == _seat_count(T)
+    assert capturado["kw"]["proration_behavior"] == "create_prorations"
+
+    tenant = get_tenant(T)
+    assert tenant["plan"] == "agencia"
+    assert tenant["stripe_subscription_id"] == "sub_switch_test"  # misma suscripción, no una nueva
+
+    set_tenant_plan(T, "free")  # dejar el estado limpio
+
+
+def test_checkout_con_suscripcion_cancelada_en_stripe_crea_una_nueva(client, monkeypatch):
+    """Si la suscripción guardada localmente ya no está activa en Stripe
+    (p. ej. el webhook de cancelación aún no ha llegado), no se intenta
+    modificarla — se cae al flujo normal de checkout."""
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_dummy")
+    monkeypatch.setenv("STRIPE_PRICE_PRO", "price_pro_test")
+    set_tenant_plan(T, "pro", "sub_stale_test", "cus_stale_test")
+
+    monkeypatch.setattr(
+        stripe.Subscription, "retrieve",
+        lambda sub_id: _fake_subscription(status="canceled"),
+    )
+
+    def _no_deberia_modificar(item_id, **kw):
+        raise AssertionError("no debería modificar una suscripción ya cancelada")
+
+    monkeypatch.setattr(stripe.SubscriptionItem, "modify", _no_deberia_modificar)
+    monkeypatch.setattr(
+        stripe.checkout.Session, "create",
+        lambda **kw: SimpleNamespace(url="https://checkout.stripe.com/fake-nueva"),
+    )
+
+    r = client.post("/billing/checkout", json={"plan": "pro"})
+    assert r.status_code == 200
+    assert r.json() == {"url": "https://checkout.stripe.com/fake-nueva"}
+
+    set_tenant_plan(T, "free")  # dejar el estado limpio
+
+
+def test_checkout_con_id_de_suscripcion_invalido_crea_una_nueva(client, monkeypatch):
+    """Si Stripe.Subscription.retrieve falla (ID obsoleto, cuenta de test
+    reseteada…), el checkout no debe romperse con un 500: se recupera creando
+    una suscripción nueva en vez de dejar al usuario atascado."""
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_dummy")
+    monkeypatch.setenv("STRIPE_PRICE_PRO", "price_pro_test")
+    set_tenant_plan(T, "pro", "sub_invalido_test", "cus_invalido_test")
+
+    def _falla(sub_id):
+        raise RuntimeError("No such subscription")
+
+    monkeypatch.setattr(stripe.Subscription, "retrieve", _falla)
+    monkeypatch.setattr(
+        stripe.checkout.Session, "create",
+        lambda **kw: SimpleNamespace(url="https://checkout.stripe.com/fake-recuperada"),
+    )
+
+    r = client.post("/billing/checkout", json={"plan": "pro"})
+    assert r.status_code == 200
+    assert r.json() == {"url": "https://checkout.stripe.com/fake-recuperada"}
+
+    set_tenant_plan(T, "free")  # dejar el estado limpio
+
+
 # ── Cancelación ─────────────────────────────────────────────────────────────
 
 def test_cancelar_sin_stripe_configurado_da_503(client, monkeypatch):
@@ -116,17 +230,6 @@ def test_cancelar_sin_subscription_id_da_404(client, monkeypatch):
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_dummy")
     set_tenant_plan(T, "pro", None, "cus_x")
     assert client.delete("/me/subscription").status_code == 404
-
-
-def _fake_subscription(**campos) -> stripe.Subscription:
-    """
-    Construye un stripe.Subscription REAL (no un dict) como el que devuelve
-    la API de Stripe. Es deliberado: un dict soporta .get() y un StripeObject
-    NO — usar un dict aquí habría ocultado el bug real de producción donde
-    sub.get(...) lanzaba "'get' is a dict method, but a Subscription is not
-    a dict" porque el mock no se parecía a la respuesta real de Stripe.
-    """
-    return stripe.Subscription.construct_from(campos, "sk_test_dummy")
 
 
 def test_cancelar_marca_cancel_at_period_end(client, monkeypatch):

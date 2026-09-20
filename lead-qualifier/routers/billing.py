@@ -3,7 +3,7 @@
 import json
 import logging
 import os
-from typing import Literal
+from typing import Literal, Optional
 
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -35,6 +35,19 @@ def _get_price_id(plan: str) -> str:
     if not price_id:
         raise HTTPException(status_code=503, detail=f"Price ID para '{plan}' no configurado en variables de entorno")
     return price_id
+
+
+def _plan_for_price(price_id: str) -> Optional[str]:
+    """Plan local correspondiente a un Price ID de Stripe (inverso de _get_price_id).
+    Usado para reconciliar el plan guardado con lo que la suscripción cobra de
+    verdad, incluidos los cambios hechos desde el Portal de Cliente de Stripe."""
+    if not price_id:
+        return None
+    if price_id == os.getenv("STRIPE_PRICE_PRO"):
+        return "pro"
+    if price_id == os.getenv("STRIPE_PRICE_AGENCIA"):
+        return "agencia"
+    return None
 
 
 def _seat_count(tenant_id: str) -> int:
@@ -84,7 +97,12 @@ async def create_checkout(
     data: CheckoutInput,
     tenant_id: str = Depends(get_tenant_id),
 ):
-    """Crea una sesión de Stripe Checkout y devuelve la URL de pago."""
+    """
+    Crea una sesión de Stripe Checkout y devuelve la URL de pago. Si el tenant
+    ya tiene una suscripción de pago activa (cambio de plan Pro↔Agencia), en
+    vez de crear una segunda suscripción modifica la existente y devuelve
+    {"changed": true} sin URL — no hay redirección a Stripe.
+    """
     if not _stripe_configured():
         raise HTTPException(status_code=503, detail="Pagos no configurados")
 
@@ -105,6 +123,29 @@ async def create_checkout(
 
     # Agencia se factura por asiento (nº de agentes); Pro es un único usuario.
     cantidad = _seat_count(tenant_id) if data.plan == "agencia" else 1
+
+    # Si ya hay una suscripción de pago activa, cambiar de plan (Pro↔Agencia)
+    # debe MODIFICAR esa misma suscripción, no crear una segunda: Stripe no
+    # fusiona suscripciones por su cuenta, así que un checkout nuevo dejaría la
+    # vieja huérfana cobrándose para siempre (bug real encontrado en auditoría).
+    sub_id = tenant.get("stripe_subscription_id") if tenant else None
+    sub = None
+    if sub_id:
+        try:
+            candidata = stripe.Subscription.retrieve(sub_id)
+            if candidata["status"] in ("active", "trialing", "past_due"):
+                sub = candidata
+        except Exception as exc:
+            logger.warning("No se pudo recuperar la suscripción %s de %s: %s", sub_id, tenant_id, exc)
+
+    if sub is not None:
+        item_id = sub["items"]["data"][0]["id"]
+        stripe.SubscriptionItem.modify(
+            item_id, price=price_id, quantity=cantidad, proration_behavior="create_prorations",
+        )
+        set_tenant_plan(tenant_id, data.plan, sub_id, customer_id)
+        logger.info("Plan cambiado en la misma suscripción: tenant %s → %s", tenant_id, data.plan)
+        return {"changed": True, "plan": data.plan}
 
     session = stripe.checkout.Session.create(
         customer=customer_id,
@@ -263,6 +304,21 @@ async def stripe_webhook(request: Request):
                 except Exception:
                     pass
                 logger.info("Suscripción cancelada: tenant %s → free", tenant["id"])
+        elif customer_id:
+            # No es una cancelación: puede ser un cambio de precio hecho fuera
+            # de /billing/checkout (p. ej. desde el Portal de Cliente de Stripe,
+            # si está configurado para permitirlo). Se reconcilia el plan local
+            # con el price real de la suscripción para no quedar desincronizado
+            # de lo que Stripe cobra de verdad. Idempotente con el cambio hecho
+            # por create_checkout: si ya coincide, no hace nada.
+            items    = obj.get("items", {}).get("data", [])
+            price_id = items[0].get("price", {}).get("id") if items else None
+            plan     = _plan_for_price(price_id)
+            if plan:
+                tenant = get_tenant_by_stripe_customer(customer_id)
+                if tenant and tenant.get("plan") != plan:
+                    set_tenant_plan(tenant["id"], plan, sub_id, customer_id)
+                    logger.info("Plan reconciliado desde Stripe: tenant %s → %s", tenant["id"], plan)
 
     elif etype == "invoice.payment_failed":
         # Pago fallido: avisamos para que actualice la tarjeta (evita baja involuntaria).

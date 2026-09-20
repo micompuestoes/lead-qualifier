@@ -359,6 +359,68 @@ def test_webhook_stripe_idempotente(client):
     assert client.get("/me/notifications").json()["unread"] == tras_primero
 
 
+def test_webhook_subscription_updated_reconcilia_cambio_de_plan_fuera_de_checkout(client, monkeypatch):
+    """
+    Bug real de auditoría: un cambio de plan hecho fuera de /billing/checkout
+    (p. ej. desde el Portal de Cliente de Stripe, si permite cambiar de precio)
+    no pasa por checkout.session.completed, así que el plan local se quedaba
+    desincronizado de lo que Stripe cobra de verdad. customer.subscription.updated
+    debe reconciliarlo comparando el price real de la suscripción.
+    """
+    monkeypatch.setenv("STRIPE_PRICE_AGENCIA", "price_agencia_test")
+    set_tenant_plan(T, "pro", "sub_reconcile_test", "cus_reconcile_test")
+
+    evento = {
+        "id": "evt_reconcile_1",
+        "type": "customer.subscription.updated",
+        "data": {"object": {
+            "id": "sub_reconcile_test",
+            "customer": "cus_reconcile_test",
+            "status": "active",
+            "items": {"data": [{"price": {"id": "price_agencia_test"}}]},
+        }},
+    }
+    r = client.post("/billing/webhook", json=evento)
+    assert r.status_code == 200
+    assert get_tenant(T)["plan"] == "agencia"
+
+    set_tenant_plan(T, "free")  # dejar el estado limpio
+
+
+def test_webhook_subscription_updated_no_toca_nada_si_el_precio_no_cambia(client, monkeypatch):
+    """Si el plan reportado ya coincide con el guardado, no hay nada que
+    reconciliar (evita escrituras/logs innecesarios en cada webhook normal)."""
+    monkeypatch.setenv("STRIPE_PRICE_PRO", "price_pro_test")
+    set_tenant_plan(T, "pro", "sub_sin_cambio", "cus_sin_cambio")
+
+    llamadas = {"set_plan": 0}
+    import routers.billing as billing_mod
+    original = billing_mod.set_tenant_plan
+
+    def _contador(*a, **kw):
+        llamadas["set_plan"] += 1
+        return original(*a, **kw)
+
+    monkeypatch.setattr(billing_mod, "set_tenant_plan", _contador)
+
+    evento = {
+        "id": "evt_reconcile_2",
+        "type": "customer.subscription.updated",
+        "data": {"object": {
+            "id": "sub_sin_cambio",
+            "customer": "cus_sin_cambio",
+            "status": "active",
+            "items": {"data": [{"price": {"id": "price_pro_test"}}]},
+        }},
+    }
+    r = client.post("/billing/webhook", json=evento)
+    assert r.status_code == 200
+    assert llamadas["set_plan"] == 0
+    assert get_tenant(T)["plan"] == "pro"
+
+    set_tenant_plan(T, "free")  # dejar el estado limpio
+
+
 def test_webhook_fail_closed_con_stripe_activo_sin_secret(client, monkeypatch):
     """Con pagos activos (STRIPE_SECRET_KEY) pero sin STRIPE_WEBHOOK_SECRET, el
     webhook debe rechazar todo: aceptar eventos sin firma permitiría falsear
