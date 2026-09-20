@@ -2,11 +2,22 @@
 
 // ── Fechas ────────────────────────────────────────────────────────────────────
 
+/**
+ * Fecha local (YYYY-MM-DD) de un Date, en la zona horaria del navegador — NO
+ * usar toISOString().slice(0,10) para esto: convierte a UTC, así que en España
+ * (UTC+1/+2) el resultado se queda en el día de ayer durante la primera hora
+ * o dos tras la medianoche local, y "hoy" vencía tarde o desaparecía.
+ */
+export function fechaLocalISO(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 /** Fecha de vencimiento (YYYY-MM-DD) en texto corto: "Hoy", "Mañana", "Ayer" o "12 ene". */
 export function formatearFechaVencimiento(isoDate: string): string {
-  const hoy = new Date().toISOString().slice(0, 10);
-  const manana = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
-  const ayer = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  const ahora = new Date();
+  const hoy = fechaLocalISO(ahora);
+  const manana = fechaLocalISO(new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() + 1));
+  const ayer = fechaLocalISO(new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() - 1));
   if (isoDate === hoy) return 'Hoy';
   if (isoDate === manana) return 'Mañana';
   if (isoDate === ayer) return 'Ayer';

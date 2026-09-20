@@ -12,7 +12,7 @@ import OnboardingChecklist, { type OnbStep } from '@/components/OnboardingCheckl
 import ProductTour from '@/components/ProductTour';
 import { useTheme } from '@/components/ThemeProvider';
 import PageHeader from '@/components/PageHeader';
-import { formatearFechaVencimiento } from '@/lib/utils';
+import { fechaLocalISO, formatearFechaVencimiento } from '@/lib/utils';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -260,8 +260,7 @@ export default function DashboardHome() {
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {tareas.slice(0, 6).map(t => {
-              const hoy = new Date().toISOString().slice(0, 10);
-              const vencido = t.due_date < hoy;
+              const vencido = t.due_date < fechaLocalISO(new Date());
               return (
                 <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 4px' }}>
                   <button onClick={() => completarTarea(t)} style={{
