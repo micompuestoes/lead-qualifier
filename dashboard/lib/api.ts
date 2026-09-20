@@ -16,6 +16,7 @@ import type {
   ActualizarRecordatorioPayload,
   PeriodoValor,
   ValorOperaciones,
+  Clasificacion,
 } from '@/types/lead';
 
 export const BASE = process.env.NEXT_PUBLIC_API_URL
@@ -87,6 +88,26 @@ async function handleResponse<T>(res: Response): Promise<T> {
     throw new Error(mensaje);
   }
   return res.json() as Promise<T>;
+}
+
+// ── Demo pública (landing, sin cuenta ni auth) ────────────────────────────────
+
+export interface ResultadoDemo {
+  classification: Clasificacion;
+  score: number;
+  reasoning: string;
+  generated_email: string;
+}
+
+// Sin getToken: es la única llamada de la app pensada para un visitante sin
+// cuenta. No guarda nada — solo devuelve cómo cualificaría Inmuebia ese mensaje.
+// `website` es el campo trampa anti-bots (debe llegar SIEMPRE vacío desde un humano).
+export async function cualificarDemo(payload: { message: string; name?: string; website?: string }): Promise<ResultadoDemo> {
+  const res = await apiFetch('/demo/qualify', null, {
+    method: 'POST',
+    body: JSON.stringify({ message: payload.message, name: payload.name || '', website: payload.website || '' }),
+  });
+  return handleResponse<ResultadoDemo>(res);
 }
 
 // ── Funciones de API (reciben getToken como primer argumento) ─────────────────

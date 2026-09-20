@@ -5,6 +5,7 @@
 
 import Link from 'next/link';
 import { PLANS } from '@/lib/plans';
+import DemoCualificador from '@/components/DemoCualificador';
 
 const GOLD = '#c8a96e';
 const INK  = '#1a1814';
@@ -155,12 +156,12 @@ export default function MarketingLanding() {
             }}>
               Empieza gratis — 10 leads/mes
             </Link>
-            <a href="#como-funciona" style={{
+            <a href="#pruebalo" style={{
               fontSize: 15, fontWeight: 600, color: INK, textDecoration: 'none',
               padding: '14px 28px', borderRadius: 13, background: 'transparent',
               border: '1.5px solid rgba(200,169,110,0.4)',
             }}>
-              Cómo funciona
+              Pruébalo sin registrarte
             </a>
           </div>
           <p style={{ fontSize: 13, color: '#8a8278', marginTop: 18 }}>Sin tarjeta · Sin permanencia · En español</p>
@@ -285,6 +286,8 @@ export default function MarketingLanding() {
           Mientras tanto, en tu panel: María ya aparece como lead caliente, la primera de la lista para llamar el lunes.
         </p>
       </section>
+
+      <DemoCualificador />
 
       {/* ── Ventajas ── */}
       <section style={{ ...sectionPad, padding: '40px 24px 72px' }}>
