@@ -74,6 +74,13 @@ export interface ActualizarEstadoPayload {
   deal_value?: number;
 }
 
+// Precisión de la IA reportada por el agente (👍/👎 sobre la clasificación)
+export interface FeedbackStats {
+  por_clasificacion: Record<string, { aciertos: number; fallos: number }>;
+  total_valorados: number;
+  precision: number | null;
+}
+
 // Respuesta de GET /stats (solo plan agencia)
 export interface Stats {
   total: number;
@@ -85,6 +92,7 @@ export interface Stats {
   tibios: number;
   frios: number;
   por_mes: { mes: string; total: number }[];
+  feedback: FeedbackStats;
 }
 
 export type PeriodoValor = 'semana' | 'mes' | 'año' | 'siempre';
@@ -115,6 +123,7 @@ export interface Perfil {
   logo_url?: string;
   form_title?: string;
   form_subtitle?: string;
+  webhook_url?: string;
 }
 
 // Respuesta de GET /me/imap

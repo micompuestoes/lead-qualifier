@@ -96,6 +96,24 @@ function IconTrend({ size = 18 }: { size?: number }) {
   );
 }
 
+function IconTarget({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="#c8a96e" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9"/>
+      <circle cx="12" cy="12" r="5"/>
+      <circle cx="12" cy="12" r="1"/>
+    </svg>
+  );
+}
+
+// Clasificación → misma paleta que la temperatura de leads, para coherencia visual
+const CLASIFICACION_META: Record<string, { label: string; color: string }> = {
+  CALIENTE: { label: TEMP.calientes.label, color: TEMP.calientes.color },
+  TIBIO:    { label: TEMP.tibios.label,    color: TEMP.tibios.color },
+  'FRÍO':   { label: TEMP.frios.label,     color: TEMP.frios.color },
+};
+
 // ── Loading / gate ─────────────────────────────────────────────────────────────
 
 function LoadingScreen() {
@@ -541,6 +559,68 @@ export default function EstadisticasPage() {
             })}
           </div>
         </div>
+      </div>
+
+      {/* ── Precisión de la IA (feedback 👍/👎 de los agentes) ── */}
+      <div style={{ ...cardStyle, marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+          <p style={sectionLabel}>Precisión de la IA</p>
+          <div style={{
+            width: 32, height: 32, borderRadius: 9, flexShrink: 0,
+            background: 'rgba(200,169,110,0.1)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <IconTarget />
+          </div>
+        </div>
+
+        {stats.feedback.total_valorados === 0 ? (
+          <p style={{ fontSize: 13, color: c.text2, lineHeight: 1.6 }}>
+            Todavía no hay leads valorados. Marca 👍 o 👎 en la ficha de un lead
+            para indicar si la IA acertó con su clasificación — con suficientes
+            valoraciones verás aquí si se equivoca sistemáticamente en algún
+            segmento.
+          </p>
+        ) : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 20 }}>
+              <p style={{ fontSize: 38, fontWeight: 700, lineHeight: 1, color: c.text1 }}>
+                {Math.round((stats.feedback.precision ?? 0) * 100)}%
+              </p>
+              <p style={{ fontSize: 13, color: c.text2 }}>
+                acierto sobre {stats.feedback.total_valorados} lead{stats.feedback.total_valorados === 1 ? '' : 's'} valorado{stats.feedback.total_valorados === 1 ? '' : 's'}
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {Object.entries(stats.feedback.por_clasificacion).map(([clave, v]) => {
+                const meta  = CLASIFICACION_META[clave] ?? { label: clave, color: c.text2 };
+                const total = v.aciertos + v.fallos;
+                const pct   = total > 0 ? Math.round((v.aciertos / total) * 100) : 0;
+                return (
+                  <div key={clave}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: meta.color, flexShrink: 0 }} />
+                        <span style={{ fontSize: 13, color: c.text1 }}>{meta.label}</span>
+                      </span>
+                      <span style={{ fontSize: 12, color: c.text2 }}>
+                        {v.aciertos} 👍 · {v.fallos} 👎 · {pct}%
+                      </span>
+                    </div>
+                    <div style={{ height: 4, borderRadius: 2, overflow: 'hidden', background: 'rgba(200,169,110,0.08)' }}>
+                      <div style={{
+                        height: '100%', borderRadius: 2,
+                        width: `${pct}%`, background: meta.color,
+                        transition: 'width 0.8s cubic-bezier(0.4,0,0.2,1)',
+                      }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── Ranking de agentes (solo agencias con equipo) ── */}

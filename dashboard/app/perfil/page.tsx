@@ -32,6 +32,9 @@ export default function PerfilPage() {
   const [waForm, setWaForm]       = useState({ number: '', enabled: false });
   const [waGuardando, setWaGuardando] = useState(false);
 
+  const [webhookUrl, setWebhookUrl]         = useState('');
+  const [webhookGuardando, setWebhookGuardando] = useState(false);
+
   const [aiForm, setAiForm]       = useState({ auto_send: true, brand_voice: '', followup_enabled: false });
   const [aiGuardando, setAiGuardando] = useState(false);
 
@@ -130,6 +133,7 @@ export default function PerfilPage() {
         setPerfil(data);
         setForm({ name: data.name ?? '', notify_email: data.notify_email ?? '' });
         setWaForm({ number: data.whatsapp_number ?? '', enabled: !!data.whatsapp_enabled });
+        setWebhookUrl(data.webhook_url ?? '');
         setAiForm({
           auto_send: data.auto_send_email !== false,
           brand_voice: data.brand_voice ?? '',
@@ -216,6 +220,27 @@ export default function PerfilPage() {
       addToast(err instanceof Error ? err.message : 'Error al guardar', 'error');
     } finally {
       setWaGuardando(false);
+    }
+  }
+
+  async function guardarWebhook(e: React.FormEvent) {
+    e.preventDefault();
+    setWebhookGuardando(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${apiBase}/me/webhook`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body:    JSON.stringify({ webhook_url: webhookUrl }),
+      });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail ?? 'Error al guardar'); }
+      const data = await res.json();
+      setWebhookUrl(data.webhook_url ?? '');
+      addToast(data.webhook_url ? 'Webhook activado' : 'Webhook desactivado', 'success');
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Error al guardar', 'error');
+    } finally {
+      setWebhookGuardando(false);
     }
   }
 
@@ -739,6 +764,40 @@ export default function PerfilPage() {
             <button type="submit" disabled={waGuardando}
               style={{ ...btnPrimary, opacity: waGuardando ? 0.6 : 1 }}>
               {waGuardando ? 'Guardando…' : 'Guardar preferencias'}
+            </button>
+          </form>
+        </div>
+
+        {/* ── Webhook a tu CRM ── */}
+        <div style={card}>
+          <h2 className="text-base font-semibold mb-1" style={{ color: c.heading }}>
+            Webhook a tu CRM
+          </h2>
+          <p className="text-sm mb-5" style={{ color: c.text2 }}>
+            Cada lead cualificado (formulario, email o API) se reenvía también por POST a esta
+            URL, además de guardarse en Inmuebia. Déjalo vacío para desactivarlo.
+          </p>
+
+          <form onSubmit={guardarWebhook} className="space-y-4">
+            <div>
+              <label style={labelStyle}>URL del webhook</label>
+              <input
+                type="url"
+                value={webhookUrl}
+                onChange={e => setWebhookUrl(e.target.value)}
+                onFocus={() => setFocusedInput('webhook-url')}
+                onBlur={() => setFocusedInput(null)}
+                placeholder="https://tu-crm.com/webhooks/inmuebia"
+                style={inputStyleFor('webhook-url')}
+              />
+              <p className="text-xs mt-1.5" style={{ color: c.text3 }}>
+                Debe empezar por https://
+              </p>
+            </div>
+
+            <button type="submit" disabled={webhookGuardando}
+              style={{ ...btnPrimary, opacity: webhookGuardando ? 0.6 : 1 }}>
+              {webhookGuardando ? 'Guardando…' : 'Guardar webhook'}
             </button>
           </form>
         </div>
