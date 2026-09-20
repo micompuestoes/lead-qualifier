@@ -37,6 +37,21 @@ def test_demo_qualify_devuelve_resultado_sin_guardar_nada(client):
     assert get_lead_count_this_month("dev-tenant") == antes
 
 
+def test_demo_qualify_sin_nombre_saluda_con_placeholder_sensato(client):
+    """Bug real encontrado probando en vivo: al no pedir nombre en el
+    formulario público, el valor por defecto "un cliente" partido por
+    espacios para sacar el primer_nombre daba "Hola un," sin sentido."""
+    _limpiar_bucket("demoip:testclient")
+    _limpiar_bucket("demo:global")
+
+    r = client.post("/demo/qualify", json={
+        "message": "Busco piso de 2 habitaciones en Bilbao, presupuesto 200.000 euros.",
+    })
+    assert r.status_code == 200
+    saludo = r.json()["generated_email"].split(",")[0]
+    assert saludo == "Hola Cliente"
+
+
 def test_demo_qualify_mensaje_demasiado_corto_da_422(client):
     r = client.post("/demo/qualify", json={"message": "hola"})
     assert r.status_code == 422

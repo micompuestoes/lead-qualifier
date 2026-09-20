@@ -65,8 +65,10 @@ def demo_qualify(data: DemoInput, request: Request):
         )
 
     message = data.message.strip()
-    name = data.name.strip() or "un cliente"
-    primer_nombre = name.split()[0] if name.split() else "cliente"
+    # "Cliente" (no "un cliente"): al partir por espacios para sacar el
+    # primer_nombre del saludo, "un cliente" daría "Hola un," sin sentido.
+    name = data.name.strip() or "Cliente"
+    primer_nombre = name.split()[0] if name.split() else "Cliente"
     firma = "Tu agencia"
     email_ficticio = "demo@ejemplo.com"
 
