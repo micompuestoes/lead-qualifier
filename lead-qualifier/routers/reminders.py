@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 
 from core.database import (
     create_reminder, delete_reminder, get_lead_by_id, get_pending_reminders,
-    get_reminder_by_id, get_reminders_for_lead, update_reminder,
+    get_reminder_by_id, get_reminders_for_lead, hoy_espana, update_reminder,
 )
 from deps import Caller, get_caller
 
@@ -81,7 +81,7 @@ async def listar_recordatorios_pendientes(
     Tareas de hoy: recordatorios sin completar que vencen hoy o antes (un
     agente solo ve los de sus leads asignados). Para el widget del dashboard.
     """
-    hasta = date.today().isoformat()
+    hasta = hoy_espana()
     reminders = get_pending_reminders(caller.tenant_id, agent_id=caller.agent_filter, hasta=hasta)
     return [_serializar(r) for r in reminders]
 

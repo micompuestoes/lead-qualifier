@@ -3,11 +3,22 @@ Tests de los recordatorios de seguimiento por lead: CRUD vía API, aislamiento
 por tenant/lead, y la consulta de "tareas de hoy" (get_pending_reminders).
 """
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
-from core.database import save_lead
+from core.database import hoy_espana, save_lead
 
 T = "dev-tenant"
+
+
+def test_hoy_espana_usa_la_zona_horaria_de_madrid_no_la_del_servidor():
+    """
+    Bug real de auditoría: date.today() usaba la hora del servidor (UTC en
+    Render), así que durante la primera hora o dos tras la medianoche en
+    España "hoy" seguía siendo ayer — un recordatorio que vencía justo ese
+    día no aparecía todavía en /reminders/pending.
+    """
+    assert hoy_espana() == datetime.now(ZoneInfo("Europe/Madrid")).date().isoformat()
 
 
 def _semilla_lead(lid, name="Lead Test"):
@@ -19,7 +30,7 @@ def _semilla_lead(lid, name="Lead Test"):
 
 def test_crear_listar_y_completar_recordatorio(client):
     _semilla_lead("R1")
-    manana = (date.today() + timedelta(days=1)).isoformat()
+    manana = (date.fromisoformat(hoy_espana()) + timedelta(days=1)).isoformat()
 
     r = client.post("/leads/R1/reminders", json={"note": "Llamar mañana", "due_date": manana})
     assert r.status_code == 201
@@ -46,9 +57,9 @@ def test_crear_listar_y_completar_recordatorio(client):
 
 def test_recordatorios_pendientes_de_hoy_filtra_por_fecha_y_estado(client):
     _semilla_lead("R2", "Lead Hoy")
-    hoy = date.today().isoformat()
-    ayer = (date.today() - timedelta(days=1)).isoformat()
-    manana = (date.today() + timedelta(days=1)).isoformat()
+    hoy = hoy_espana()
+    ayer = (date.fromisoformat(hoy) - timedelta(days=1)).isoformat()
+    manana = (date.fromisoformat(hoy) + timedelta(days=1)).isoformat()
 
     r_vencido = client.post("/leads/R2/reminders", json={"note": "Vencido", "due_date": ayer}).json()
     client.post("/leads/R2/reminders", json={"note": "De hoy", "due_date": hoy})
@@ -69,7 +80,7 @@ def test_recordatorios_pendientes_de_hoy_filtra_por_fecha_y_estado(client):
 
 def test_editar_y_eliminar_recordatorio(client):
     _semilla_lead("R3")
-    hoy = date.today().isoformat()
+    hoy = hoy_espana()
     rid = client.post("/leads/R3/reminders", json={"note": "Nota original", "due_date": hoy}).json()["id"]
 
     r = client.patch(f"/reminders/{rid}", json={"note": "Nota editada"})
@@ -84,6 +95,6 @@ def test_editar_y_eliminar_recordatorio(client):
 
 def test_recordatorio_rechaza_nota_vacia(client):
     _semilla_lead("R4")
-    hoy = date.today().isoformat()
+    hoy = hoy_espana()
     r = client.post("/leads/R4/reminders", json={"note": "", "due_date": hoy})
     assert r.status_code == 422

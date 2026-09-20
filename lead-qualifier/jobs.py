@@ -12,14 +12,15 @@ thread pool desde sus envoltorios async para no bloquear el event loop.
 import asyncio
 import logging
 import os
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 import runtime
 from core.agent import qualify_lead
 from core.database import (
     acquire_job_lock, get_all_tenants, get_closed_deals_value, get_digest_counts,
     get_leads_for_followup, get_pending_reminders, get_stale_pending_leads,
-    get_tenant, get_tenants_with_imap, mark_followup_sent, update_imap_last_sync,
+    get_tenant, get_tenants_with_imap, hoy_espana, mark_followup_sent,
+    update_imap_last_sync,
 )
 from models import LeadInput
 from pydantic import ValidationError
@@ -104,7 +105,7 @@ def _leads_sin_contactar_sync() -> None:
 def _recordatorios_hoy_sync() -> None:
     """Avisa a cada agencia de los recordatorios de seguimiento que vencen hoy o antes."""
     dashboard_url = os.getenv("DASHBOARD_URL", "")
-    hoy = date.today().isoformat()
+    hoy = hoy_espana()
     avisos = 0
     for t in get_all_tenants():
         if t.get("status") != "active":

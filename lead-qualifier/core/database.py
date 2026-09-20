@@ -14,6 +14,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import StaticPool
@@ -1599,6 +1600,18 @@ def delete_reminder(reminder_id: str, tenant_id: str) -> None:
             text("DELETE FROM lead_reminders WHERE id = :id AND tenant_id = :tid"),
             {"id": reminder_id, "tid": tenant_id},
         )
+
+
+def hoy_espana() -> str:
+    """
+    Fecha (YYYY-MM-DD) de "hoy" en la zona horaria de España, no en la del
+    servidor. Render corre en UTC: usar date.today() ahí hace que, durante la
+    primera hora o dos tras la medianoche en España (UTC+1/+2), "hoy" siga
+    siendo ayer — un recordatorio que vence justo hoy no aparecía todavía en
+    /reminders/pending, y uno que ya llevaba un día de retraso tampoco se
+    marcaba como vencido hasta que el reloj UTC alcanzaba la medianoche.
+    """
+    return datetime.now(ZoneInfo("Europe/Madrid")).date().isoformat()
 
 
 def get_pending_reminders(tenant_id: str, agent_id: Optional[str] = None,

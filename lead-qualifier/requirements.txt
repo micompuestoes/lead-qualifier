@@ -13,6 +13,11 @@ python-dotenv>=1.0.0       # Lectura del .env en local
 sqlalchemy>=2.0.0          # ORM/Core para SQLite (dev) y PostgreSQL (prod)
 psycopg2-binary>=2.9.9     # Driver PostgreSQL — necesario en producción
 
+# ── Fechas ──────────────────────────────────────
+tzdata>=2024.1             # Base de datos IANA de zonas horarias — las imágenes
+                            # Docker mínimas (como la de Render) no la traen instalada
+                            # a nivel de SO, y zoneinfo.ZoneInfo("Europe/Madrid") la necesita
+
 # ── HTTP / SSL ────────────────────────────────
 httpx>=0.27.0              # Cliente HTTP para el SDK de Anthropic
 certifi>=2024.0.0          # Certificados SSL fallback
