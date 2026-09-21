@@ -963,6 +963,32 @@ def get_stats(tenant_id: str) -> dict:
         "por_mes":      [{"mes": r[0], "total": r[1]} for r in ultimos_6],
         "feedback":     get_feedback_stats(tenant_id),
         "ai_cost_mes":  get_ai_cost_this_month(tenant_id),
+        "por_fuente":   get_source_stats(tenant_id),
+    }
+
+
+def get_source_stats(tenant_id: str) -> dict:
+    """
+    Leads agrupados por canal de entrada (formulario/email/api), con el nº de
+    CALIENTE de cada uno — para responder "qué canal trae los mejores leads".
+    La columna `source` se guarda en cada lead desde el principio (ver
+    save_lead) pero hasta ahora ningún cliente la consumía.
+    """
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT source,
+                       COUNT(*) AS total,
+                       SUM(CASE WHEN classification = 'CALIENTE' THEN 1 ELSE 0 END) AS calientes
+                FROM leads
+                WHERE tenant_id = :tid
+                GROUP BY source
+            """),
+            {"tid": tenant_id},
+        ).fetchall()
+    return {
+        (r[0] or "desconocido"): {"total": r[1], "calientes": r[2] or 0}
+        for r in rows
     }
 
 
@@ -1602,6 +1628,16 @@ def delete_reminder(reminder_id: str, tenant_id: str) -> None:
         )
 
 
+def ahora_espana() -> datetime:
+    """
+    Momento actual en la zona horaria de España, no en la del servidor
+    (Render corre en UTC). Base de hoy_espana() y de cualquier cálculo de
+    "inicio de esta semana/mes/año" que deba caer en la medianoche de
+    Madrid, no en la de UTC (ver _since_for_periodo en routers/stats.py).
+    """
+    return datetime.now(ZoneInfo("Europe/Madrid"))
+
+
 def hoy_espana() -> str:
     """
     Fecha (YYYY-MM-DD) de "hoy" en la zona horaria de España, no en la del
@@ -1611,7 +1647,7 @@ def hoy_espana() -> str:
     /reminders/pending, y uno que ya llevaba un día de retraso tampoco se
     marcaba como vencido hasta que el reloj UTC alcanzaba la medianoche.
     """
-    return datetime.now(ZoneInfo("Europe/Madrid")).date().isoformat()
+    return ahora_espana().date().isoformat()
 
 
 def get_pending_reminders(tenant_id: str, agent_id: Optional[str] = None,
