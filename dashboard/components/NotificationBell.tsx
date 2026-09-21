@@ -148,8 +148,15 @@ export default function NotificationBell({ placement = 'sidebar', enableAlerts =
     const now = Date.now();
     try { localStorage.setItem(SEEN_KEY, String(now)); } catch { /* ignore */ }
     setSeen(now);
-    setSys(prev => prev.map(n => ({ ...n, read: 1 })));
-    try { await apiFetch('/me/notifications/read', getToken, { method: 'POST' }); } catch { /* ignore */ }
+    // El estado local solo se actualiza tras confirmar el POST — antes se
+    // marcaba como leído de forma optimista SIN comprobar res.ok, así que un
+    // fallo (red, 500...) dejaba el contador en 0 hasta el siguiente sondeo
+    // (60s), momento en el que "resucitaban" solas las notificaciones que en
+    // realidad nunca se habían marcado como leídas en el servidor.
+    try {
+      const res = await apiFetch('/me/notifications/read', getToken, { method: 'POST' });
+      if (res.ok) setSys(prev => prev.map(n => ({ ...n, read: 1 })));
+    } catch { /* ignore: se reintentará en el siguiente sondeo o clic */ }
   }
 
   function abrirItem(it: Item) {
