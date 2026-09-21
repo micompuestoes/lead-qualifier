@@ -631,6 +631,40 @@ export default function EstadisticasPage() {
         )}
       </div>
 
+      {/* ── Embudo de conversión: de CALIENTE a Cerrado ── */}
+      <div style={{ ...cardStyle, marginBottom: 24 }}>
+        <p style={sectionLabel}>Embudo de conversión</p>
+        {stats.conversion.calientes === 0 ? (
+          <p style={{ fontSize: 13, color: c.text2, lineHeight: 1.6 }}>
+            Todavía no hay leads CALIENTE para calcular una tasa de conversión.
+          </p>
+        ) : (
+          <div style={{ display: 'flex', gap: 36, flexWrap: 'wrap' }}>
+            <div>
+              <p style={{ fontSize: 38, fontWeight: 700, lineHeight: 1, color: c.text1 }}>
+                {stats.conversion.tasa_conversion !== null
+                  ? `${Math.round(stats.conversion.tasa_conversion * 100)}%`
+                  : '—'}
+              </p>
+              <p style={{ fontSize: 13, color: c.text2, marginTop: 8 }}>
+                {stats.conversion.calientes_cerrados} de {stats.conversion.calientes} leads
+                CALIENTE cerrados
+              </p>
+            </div>
+            <div>
+              <p style={{ fontSize: 38, fontWeight: 700, lineHeight: 1, color: c.text1 }}>
+                {stats.conversion.tiempo_medio_cierre_dias !== null
+                  ? stats.conversion.tiempo_medio_cierre_dias
+                  : '—'}
+              </p>
+              <p style={{ fontSize: 13, color: c.text2, marginTop: 8 }}>
+                días de media hasta el cierre
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* ── Fuente de leads: qué canal convierte mejor ── */}
       {Object.keys(stats.por_fuente).length > 0 && (
         <div style={{ ...cardStyle, marginBottom: 24 }}>
@@ -663,10 +697,13 @@ export default function EstadisticasPage() {
         </div>
       )}
 
-      {/* ── Ranking de agentes (solo agencias con equipo) ── */}
-      {agentes.length > 1 && (
+      {/* ── Rendimiento por agente — también con un único agente (dueño en
+          solitario): antes se ocultaba sin equipo, así que una Agencia sin
+          invitar a nadie (pese a pagar el mínimo de 2 asientos) no veía nada
+          de la única sección realmente exclusiva del plan. ── */}
+      {agentes.length > 0 && (
         <div style={{ ...cardStyle, marginBottom: 24 }}>
-          <p style={sectionLabel}>Rendimiento por agente</p>
+          <p style={sectionLabel}>{agentes.length > 1 ? 'Rendimiento por agente' : 'Tu rendimiento'}</p>
 
           <div className="r-scroll-x">
            <div className="r-table">

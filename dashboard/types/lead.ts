@@ -94,6 +94,12 @@ export interface Stats {
   por_mes: { mes: string; total: number }[];
   feedback: FeedbackStats;
   por_fuente: Record<string, { total: number; calientes: number }>;
+  conversion: {
+    calientes: number;
+    calientes_cerrados: number;
+    tasa_conversion: number | null;
+    tiempo_medio_cierre_dias: number | null;
+  };
 }
 
 export type PeriodoValor = 'semana' | 'mes' | 'año' | 'siempre';

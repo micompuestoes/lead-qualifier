@@ -843,12 +843,21 @@ def get_agent_leaderboard(tenant_id: str) -> dict:
     """
     Ranking de rendimiento por agente: total de leads, calientes, cerrados,
     pendientes y score medio. Ordenado por operaciones cerradas.
+
+    Cuenta individual (sin equipo invitado): pick_next_agent nunca reparte
+    porque no hay a quién, así que assigned_to se queda NULL en todos los
+    leads del dueño — sin este caso especial, su fila salía siempre a cero
+    (todo su trabajo caía en "sin_asignar") y la sección entera se ocultaba
+    en el frontend por parecer vacía. Con un solo agente, todos los leads
+    son suyos aunque no tengan assigned_to.
     """
     agentes = _agentes_con_nombre(tenant_id)
+    solo = len(agentes) == 1
 
     with engine.connect() as conn:
+        filtro_asignado = "" if solo else "AND assigned_to IS NOT NULL"
         filas = conn.execute(
-            text("""
+            text(f"""
                 SELECT assigned_to,
                        COUNT(*)                                            AS total,
                        SUM(CASE WHEN score >= 8     THEN 1 ELSE 0 END)     AS calientes,
@@ -856,20 +865,22 @@ def get_agent_leaderboard(tenant_id: str) -> dict:
                        SUM(CASE WHEN status = 'PENDIENTE' THEN 1 ELSE 0 END) AS pendientes,
                        AVG(score)                                          AS score_avg
                 FROM leads
-                WHERE tenant_id = :tid AND assigned_to IS NOT NULL
+                WHERE tenant_id = :tid {filtro_asignado}
                 GROUP BY assigned_to
             """),
             {"tid": tenant_id},
         ).fetchall()
-        sin_asignar = conn.execute(
+        sin_asignar = 0 if solo else (conn.execute(
             text("SELECT COUNT(*) FROM leads WHERE tenant_id = :tid AND assigned_to IS NULL"),
             {"tid": tenant_id},
-        ).scalar() or 0
+        ).scalar() or 0)
 
     por_agente = {r[0]: r for r in filas}
     ranking = []
     for aid, nombre in agentes:
-        r = por_agente.get(aid)
+        # En cuenta individual, la fila del dueño agrupada bajo assigned_to
+        # NULL (por_agente.get(None)) es la suya: no hay nadie más a quien pueda pertenecer.
+        r = por_agente.get(aid) or (por_agente.get(None) if solo else None)
         ranking.append({
             "agent_id":   aid,
             "name":       nombre,
@@ -962,8 +973,56 @@ def get_stats(tenant_id: str) -> dict:
         "frios":        frios,
         "por_mes":      [{"mes": r[0], "total": r[1]} for r in ultimos_6],
         "feedback":     get_feedback_stats(tenant_id),
-        "ai_cost_mes":  get_ai_cost_this_month(tenant_id),
         "por_fuente":   get_source_stats(tenant_id),
+        "conversion":   get_conversion_stats(tenant_id),
+    }
+
+
+def get_conversion_stats(tenant_id: str) -> dict:
+    """
+    Embudo de conversión (CALIENTE → Cerrado) y tiempo medio hasta el cierre —
+    la pregunta real que un dueño de agencia paga el plan Agencia por poder
+    responder, calculada con datos que ya existen (classification, status,
+    created_at, closed_at) sin recopilar nada nuevo. La media de días se
+    calcula en Python, no en SQL, para que dé igual si el motor es SQLite
+    (dev/test) o PostgreSQL (prod) — sus funciones de fecha no son iguales.
+    """
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("""
+                SELECT
+                    SUM(CASE WHEN classification = 'CALIENTE' THEN 1 ELSE 0 END) AS calientes,
+                    SUM(CASE WHEN classification = 'CALIENTE' AND status = 'CERRADO'
+                             THEN 1 ELSE 0 END) AS calientes_cerrados
+                FROM leads
+                WHERE tenant_id = :tid
+            """),
+            {"tid": tenant_id},
+        ).fetchone()
+        fechas = conn.execute(
+            text("""
+                SELECT created_at, closed_at FROM leads
+                WHERE tenant_id = :tid AND status = 'CERRADO' AND closed_at IS NOT NULL
+            """),
+            {"tid": tenant_id},
+        ).fetchall()
+
+    calientes = row[0] or 0
+    calientes_cerrados = row[1] or 0
+
+    dias = []
+    for creado, cerrado in fechas:
+        try:
+            delta = datetime.fromisoformat(cerrado) - datetime.fromisoformat(creado)
+            dias.append(delta.total_seconds() / 86400)
+        except (ValueError, TypeError):
+            continue
+
+    return {
+        "calientes":                calientes,
+        "calientes_cerrados":       calientes_cerrados,
+        "tasa_conversion":          round(calientes_cerrados / calientes, 2) if calientes else None,
+        "tiempo_medio_cierre_dias": round(sum(dias) / len(dias), 1) if dias else None,
     }
 
 

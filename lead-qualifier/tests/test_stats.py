@@ -5,10 +5,14 @@ que ya calculaba `get_feedback_stats` en el backend pero que hasta ahora
 no consumía ningún cliente — quedaba huérfana.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from core.database import save_lead, set_lead_feedback, set_tenant_plan
+from sqlalchemy import text
+
+from core.database import (
+    engine, save_lead, set_lead_feedback, set_tenant_plan, update_lead_status,
+)
 
 T = "dev-tenant"
 
@@ -79,6 +83,66 @@ def test_stats_incluye_desglose_por_fuente(client):
     assert fuente["formulario"]["calientes"] >= 1
     assert fuente["email"]["total"] >= 1
     assert fuente["email"]["calientes"] >= 1
+
+
+def test_stats_incluye_embudo_de_conversion_y_tiempo_de_cierre(client):
+    """
+    Carencia real de auditoría: nada calculaba "de los leads CALIENTE,
+    cuántos se cierran de verdad" ni "cuánto se tarda en cerrar" — la
+    pregunta que un dueño de agencia paga el plan Agencia por poder
+    responder, con datos (classification, status, created_at, closed_at)
+    que ya existían.
+    """
+    set_tenant_plan(T, "agencia")
+    save_lead(lead_id="CV1", tenant_id=T, name="L1", email="cv1@test.com", phone=None,
+              message="m", classification="CALIENTE", score=9, reasoning="r",
+              generated_email="x", recommended_actions=[], intent_analysis={},
+              company_info={}, email_sent=1)
+    save_lead(lead_id="CV2", tenant_id=T, name="L2", email="cv2@test.com", phone=None,
+              message="m", classification="CALIENTE", score=8, reasoning="r",
+              generated_email="x", recommended_actions=[], intent_analysis={},
+              company_info={}, email_sent=1)
+
+    # CV1 se cierra: forzamos 4 días exactos entre creación y cierre.
+    update_lead_status("CV1", "CERRADO", tenant_id=T, deal_value=1000)
+    hace_4_dias = (datetime.now(timezone.utc) - timedelta(days=4)).isoformat()
+    ahora = datetime.now(timezone.utc).isoformat()
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE leads SET created_at = :c, closed_at = :z WHERE id = 'CV1'"),
+            {"c": hace_4_dias, "z": ahora},
+        )
+
+    body = client.get("/stats").json()
+    assert "conversion" in body
+    conv = body["conversion"]
+    assert conv["calientes"] >= 2
+    assert conv["calientes_cerrados"] >= 1
+    assert conv["tasa_conversion"] is not None
+    assert conv["tiempo_medio_cierre_dias"] is not None
+    assert conv["tiempo_medio_cierre_dias"] >= 3.9  # ~4 días, con margen
+
+
+def test_leaderboard_dueno_en_solitario_no_sale_a_cero(client):
+    """
+    Bug real de auditoría: sin equipo invitado, pick_next_agent nunca reparte
+    (no hay a quién), así que assigned_to se queda NULL en todos los leads del
+    dueño — su fila en el ranking salía siempre a cero (todo caía en
+    "sin_asignar"), y el frontend ocultaba la sección entera al parecer vacía,
+    pese a que Agencia ya cobra un mínimo de 2 asientos sin necesitar equipo.
+    """
+    set_tenant_plan(T, "agencia")
+    save_lead(lead_id="LB1", tenant_id=T, name="L1", email="lb1@test.com", phone=None,
+              message="m", classification="CALIENTE", score=9, reasoning="r",
+              generated_email="x", recommended_actions=[], intent_analysis={},
+              company_info={}, email_sent=1)
+
+    body = client.get("/stats/agents").json()
+    assert len(body["agents"]) == 1
+    dueno = body["agents"][0]
+    assert dueno["agent_id"] == T
+    assert dueno["total"] >= 1
+    assert body["sin_asignar"] == 0
 
 
 def test_since_for_periodo_calcula_el_limite_en_hora_de_espana():
