@@ -183,6 +183,15 @@ export default function AnunciosPage() {
       const data = await res.json();
       setDrafts(data.drafts);
       setEditado(data.drafts);
+      // Claude no siempre genera todos los canales pedidos — antes se
+      // mostraban en silencio solo los que sí llegaron, sin avisar de que
+      // faltaba alguno.
+      if (Array.isArray(data.canales_faltantes) && data.canales_faltantes.length > 0) {
+        const nombres = data.canales_faltantes
+          .map((id: string) => CANALES.find(c => c.id === id)?.label ?? id)
+          .join(', ');
+        addToast(`No se ha podido generar: ${nombres}. Puedes volver a intentarlo.`, 'error');
+      }
     } catch {
       addToast('Error al generar los anuncios', 'error');
     } finally {
@@ -190,10 +199,18 @@ export default function AnunciosPage() {
     }
   }
 
-  function copiar(canal: string, texto: string) {
-    navigator.clipboard.writeText(texto);
-    setCopiado(canal);
-    setTimeout(() => setCopiado(null), 2200);
+  async function copiar(canal: string, texto: string) {
+    // navigator.clipboard.writeText devuelve una promesa que puede rechazar
+    // (permiso denegado, contexto no seguro, pérdida de foco) — antes no se
+    // comprobaba, así que el botón decía "Copiado" aunque el portapapeles
+    // se hubiera quedado vacío de verdad.
+    try {
+      await navigator.clipboard.writeText(texto);
+      setCopiado(canal);
+      setTimeout(() => setCopiado(null), 2200);
+    } catch {
+      addToast('No se pudo copiar al portapapeles', 'error');
+    }
   }
 
   function inputStyle(name: string): React.CSSProperties {
@@ -353,7 +370,7 @@ export default function AnunciosPage() {
                 — opcional
               </span>
             </label>
-            <textarea value={form.notas} rows={3}
+            <textarea value={form.notas} rows={3} maxLength={1000}
               onChange={e => setForm(p => ({ ...p, notas: e.target.value }))}
               onFocus={() => setFocused('notas')} onBlur={() => setFocused(null)}
               placeholder="Detalles extra: recién reformado, gran luminosidad, muy tranquilo…"
