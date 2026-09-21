@@ -4,7 +4,7 @@ Tags: inmobiliaria, leads, formulario, contacto, real estate
 Requires at least: 5.8
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.0.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -52,6 +52,11 @@ Sí. El formulario hereda la tipografía de tu tema y puedes cambiar el color de
 acento desde Ajustes.
 
 == Changelog ==
+
+= 1.0.1 =
+* Corrige la URL de la API por defecto: apuntaba a un dominio que nunca se
+  llegó a configurar, así que las instalaciones nuevas fallaban en cada envío
+  sin ningún aviso.
 
 = 1.0.0 =
 * Primera versión: formulario por shortcode, envío server-side, honeypot,

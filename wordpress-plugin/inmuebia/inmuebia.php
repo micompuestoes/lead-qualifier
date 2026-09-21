@@ -3,7 +3,7 @@
  * Plugin Name:       Inmuebia — Captación de leads con IA
  * Plugin URI:        https://www.inmuebia.es
  * Description:       Inserta en tu web el formulario de Inmuebia. Cada consulta se cualifica con IA y llega a tu panel priorizada (CALIENTE/TIBIO/FRÍO). Usa el shortcode [inmuebia_formulario].
- * Version:           1.0.0
+ * Version:           1.0.1
  * Requires at least: 5.8
  * Requires PHP:      7.4
  * Author:            Inmuebia
@@ -18,10 +18,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Sin acceso directo.
 }
 
-define( 'INMUEBIA_VERSION', '1.0.0' );
+define( 'INMUEBIA_VERSION', '1.0.1' );
 // URL base de la API de Inmuebia. Se puede sobrescribir en Ajustes o con el
 // filtro `inmuebia_api_base` si tu backend está en otro dominio.
-define( 'INMUEBIA_DEFAULT_API_BASE', 'https://api.inmuebia.es' );
+// OJO: api.inmuebia.es nunca se llegó a configurar en DNS (dominio inexistente,
+// confirmado con varios resolutores) — con eso de valor por defecto, TODAS las
+// instalaciones del plugin fallaban en silencio en cada envío. El backend real
+// vive en la URL de Render hasta que (si acaso) se apunte un CNAME de verdad.
+define( 'INMUEBIA_DEFAULT_API_BASE', 'https://lead-qualifier-backend-33jt.onrender.com' );
 
 /* -------------------------------------------------------------------------
  *  Ajustes (Ajustes → Inmuebia)
