@@ -17,6 +17,7 @@ interface Tenant {
   created_at: string;
   cancelled_at?: string;
   seats?: number; // solo presente en tenants Agencia — asientos facturables reales
+  ai_cost_mes: number; // coste real de IA (USD) de este tenant en lo que va de mes
 }
 
 type EstadoFiltro = 'TODOS' | 'active' | 'cancelled';
@@ -254,6 +255,7 @@ export default function AdminDashboard({ tenants: inicial, error }: { tenants: T
                 <SortableTh label="Empresa" active={sortKey === 'name'}  dir={sortDir} onClick={() => toggleSort('name')}  style={thStyle} c={c} />
                 <th style={thStyle}>Plan</th>
                 <SortableTh label="Leads"   active={sortKey === 'leads'} dir={sortDir} onClick={() => toggleSort('leads')} style={{ ...thStyle, textAlign: 'center' }} c={c} center />
+                <th style={{ ...thStyle, textAlign: 'center' }}>IA (mes)</th>
                 <SortableTh label="Registro" active={sortKey === 'created'} dir={sortDir} onClick={() => toggleSort('created')} style={thStyle} c={c} />
                 <th style={{ ...thStyle, textAlign: 'center' }}>Estado</th>
                 <th style={{ ...thStyle, textAlign: 'center' }}>Acción</th>
@@ -282,6 +284,10 @@ export default function AdminDashboard({ tenants: inicial, error }: { tenants: T
                     {/* Leads */}
                     <td style={{ padding: '14px 18px', textAlign: 'center', fontWeight: 600, color: c.text1, fontVariantNumeric: 'tabular-nums' }}>
                       {t.lead_count}
+                    </td>
+                    {/* Coste IA (tu COGS de este tenant, no algo que vea la agencia) */}
+                    <td style={{ padding: '14px 18px', textAlign: 'center', color: c.text2, fontVariantNumeric: 'tabular-nums' }}>
+                      {t.ai_cost_mes > 0 ? `$${t.ai_cost_mes.toFixed(4)}` : '—'}
                     </td>
                     {/* Registro */}
                     <td style={{ padding: '14px 18px', color: c.text2 }}>{formatDate(t.created_at)}</td>

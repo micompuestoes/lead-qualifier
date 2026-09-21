@@ -490,6 +490,23 @@ def test_admin_lista_y_detalle_de_tenants(client, monkeypatch):
     assert client.get("/admin/tenants/tenant-inexistente", headers=h).status_code == 404
 
 
+def test_admin_lista_expone_coste_de_ia_por_tenant(client, monkeypatch):
+    """
+    ai_cost_mes se calculaba dentro de GET /stats (Estadísticas, de cara a la
+    agencia) pero ningún cliente lo mostraba — es el COGS de IA de Daniel, no
+    algo que le interese a la agencia. Se traslada al panel de admin, que es
+    donde de verdad hace falta.
+    """
+    monkeypatch.setenv("ADMIN_SECRET_KEY", "clave-admin-larga-de-test")
+    h = {"X-Admin-Key": "clave-admin-larga-de-test"}
+
+    r = client.get("/admin/tenants", headers=h)
+    assert r.status_code == 200
+    tenant = next(t for t in r.json()["tenants"] if t["id"] == T)
+    assert "ai_cost_mes" in tenant
+    assert isinstance(tenant["ai_cost_mes"], (int, float))
+
+
 def test_admin_lista_expone_asientos_reales_de_agencia(client, monkeypatch):
     """El MRR del panel admin depende de esto: Agencia se factura por asiento,
     no a precio plano, así que el backend debe exponer cuántos asientos tiene

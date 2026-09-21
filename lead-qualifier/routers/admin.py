@@ -9,7 +9,8 @@ from pydantic import BaseModel
 from config import MIN_AGENCY_SEATS
 from core.database import (
     admin_override_plan, count_leads_for_tenant, get_admin_overview,
-    get_agent_ids, get_all_tenants, get_tenant, set_tenant_status,
+    get_agent_ids, get_ai_cost_this_month, get_all_tenants, get_tenant,
+    set_tenant_status,
 )
 from deps import require_admin
 
@@ -57,6 +58,10 @@ async def admin_list_tenants(request: Request):
         # asumir un precio plano por tenant.
         if t.get("plan") == "agencia":
             t["seats"] = max(MIN_AGENCY_SEATS, len(get_agent_ids(t["id"])))
+        # Coste real de IA de este tenant en lo que va de mes (tu COGS, no algo
+        # que le interese a la agencia) — antes se calculaba dentro de GET /stats
+        # y no lo mostraba ningún cliente; este es su sitio, no Estadísticas.
+        t["ai_cost_mes"] = get_ai_cost_this_month(t["id"])["coste_usd"]
         resultado.append(t)
 
     activos    = sum(1 for t in resultado if t.get("status") == "active")
