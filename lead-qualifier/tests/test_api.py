@@ -213,6 +213,10 @@ def test_export_csv_respeta_plan_y_filtros(client):
     assert r.headers["content-type"].startswith("text/csv")
     assert "attachment" in r.headers["content-disposition"]
     assert r.text.startswith("﻿") and "María García" in r.text
+    # Bug de auditoría: el nombre del fichero usaba date.today() (UTC), no la
+    # fecha de España — mismo desfase ya corregido en recordatorios/Estadísticas.
+    from core.database import hoy_espana
+    assert f"leads-{hoy_espana()}.csv" in r.headers["content-disposition"]
 
     r = client.get("/leads/export", params={"classification": "CALIENTE"})
     assert "María García" in r.text and "Sofía Romero" not in r.text

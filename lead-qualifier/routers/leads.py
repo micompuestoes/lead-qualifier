@@ -223,11 +223,14 @@ async def export_leads(
     q, clasif, est = _filtros_validados(q, classification, status)
     leads = get_leads_export(caller.tenant_id, agent_id=caller.agent_filter,
                              q=q, classification=clasif, status=est)
-    from datetime import date
+    # Solo afecta al nombre del archivo (los datos de dentro llevan su propio
+    # created_at completo, sin tocar) — pero mismo detalle que ya cuidamos en
+    # el resto de la sesión: la fecha "de hoy" es la de España, no la de UTC.
+    from core.database import hoy_espana
     return Response(
         content=leads_to_csv(leads),
         media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f'attachment; filename="leads-{date.today().isoformat()}.csv"'},
+        headers={"Content-Disposition": f'attachment; filename="leads-{hoy_espana()}.csv"'},
     )
 
 
