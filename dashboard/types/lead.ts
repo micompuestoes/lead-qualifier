@@ -93,6 +93,7 @@ export interface Stats {
   frios: number;
   por_mes: { mes: string; total: number }[];
   feedback: FeedbackStats;
+  por_fuente: Record<string, { total: number; calientes: number }>;
 }
 
 export type PeriodoValor = 'semana' | 'mes' | 'año' | 'siempre';

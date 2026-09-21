@@ -114,6 +114,14 @@ const CLASIFICACION_META: Record<string, { label: string; color: string }> = {
   'FRÍO':   { label: TEMP.frios.label,     color: TEMP.frios.color },
 };
 
+// Canal de entrada del lead (columna `source` en BD) → etiqueta legible
+const FUENTE_META: Record<string, string> = {
+  formulario:  'Formulario público',
+  email:       'Bandeja de email',
+  api:         'API / manual',
+  desconocido: 'Desconocido',
+};
+
 // ── Loading / gate ─────────────────────────────────────────────────────────────
 
 function LoadingScreen() {
@@ -622,6 +630,38 @@ export default function EstadisticasPage() {
           </>
         )}
       </div>
+
+      {/* ── Fuente de leads: qué canal convierte mejor ── */}
+      {Object.keys(stats.por_fuente).length > 0 && (
+        <div style={{ ...cardStyle, marginBottom: 24 }}>
+          <p style={sectionLabel}>Fuente de leads</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {Object.entries(stats.por_fuente)
+              .sort(([, a], [, b]) => b.total - a.total)
+              .map(([clave, v]) => {
+                const label = FUENTE_META[clave] ?? clave;
+                const pctCaliente = v.total > 0 ? Math.round((v.calientes / v.total) * 100) : 0;
+                return (
+                  <div key={clave}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
+                      <span style={{ fontSize: 13, color: c.text1 }}>{label}</span>
+                      <span style={{ fontSize: 12, color: c.text2 }}>
+                        {v.total} lead{v.total === 1 ? '' : 's'} · {pctCaliente}% caliente
+                      </span>
+                    </div>
+                    <div style={{ height: 4, borderRadius: 2, overflow: 'hidden', background: 'rgba(200,169,110,0.08)' }}>
+                      <div style={{
+                        height: '100%', borderRadius: 2,
+                        width: `${pctCaliente}%`, background: TEMP.calientes.color,
+                        transition: 'width 0.8s cubic-bezier(0.4,0,0.2,1)',
+                      }} />
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
 
       {/* ── Ranking de agentes (solo agencias con equipo) ── */}
       {agentes.length > 1 && (
