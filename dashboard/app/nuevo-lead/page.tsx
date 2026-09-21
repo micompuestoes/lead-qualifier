@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth, useUser } from '@clerk/nextjs';
-import { cualificarLead } from '@/lib/api';
+import { cualificarLead, PlanRequiredError } from '@/lib/api';
 import type { LeadQualificado } from '@/types/lead';
 import LeadBadge from '@/components/LeadBadge';
 import ScoreBar from '@/components/ScoreBar';
@@ -52,16 +52,16 @@ function Confetti() {
 
 // ── Inputs con tema ───────────────────────────────────────────────────────────
 
-function Input({ id, name, type = 'text', value, onChange, placeholder, disabled, required, inputStyle, focusStyle }: {
+function Input({ id, name, type = 'text', value, onChange, placeholder, disabled, required, maxLength, inputStyle, focusStyle }: {
   id: string; name: string; type?: string; value: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  placeholder?: string; disabled?: boolean; required?: boolean;
+  placeholder?: string; disabled?: boolean; required?: boolean; maxLength?: number;
   inputStyle: React.CSSProperties; focusStyle: React.CSSProperties;
 }) {
   const [focused, setFocused] = useState(false);
   return (
     <input id={id} name={name} type={type} value={value} onChange={onChange}
-      placeholder={placeholder} disabled={disabled} required={required}
+      placeholder={placeholder} disabled={disabled} required={required} maxLength={maxLength}
       className="w-full px-4 py-2.5 rounded-xl text-sm transition-all outline-none disabled:cursor-not-allowed"
       style={{ ...inputStyle, ...(focused ? focusStyle : {}), opacity: disabled ? 0.6 : 1 }}
       onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
@@ -69,16 +69,16 @@ function Input({ id, name, type = 'text', value, onChange, placeholder, disabled
   );
 }
 
-function Textarea({ id, name, value, onChange, placeholder, disabled, inputStyle, focusStyle }: {
+function Textarea({ id, name, value, onChange, placeholder, disabled, maxLength, inputStyle, focusStyle }: {
   id: string; name: string; value: string;
   onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-  placeholder?: string; disabled?: boolean;
+  placeholder?: string; disabled?: boolean; maxLength?: number;
   inputStyle: React.CSSProperties; focusStyle: React.CSSProperties;
 }) {
   const [focused, setFocused] = useState(false);
   return (
     <textarea id={id} name={name} rows={5} value={value} onChange={onChange}
-      placeholder={placeholder} disabled={disabled}
+      placeholder={placeholder} disabled={disabled} maxLength={maxLength}
       className="w-full px-4 py-2.5 rounded-xl text-sm transition-all outline-none resize-none disabled:cursor-not-allowed"
       style={{ ...inputStyle, ...(focused ? focusStyle : {}), opacity: disabled ? 0.6 : 1 }}
       onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
@@ -97,6 +97,7 @@ export default function NuevoLeadPage() {
   const [form, setForm]               = useState<FormData>(FORM_VACIO);
   const [procesando, setProcesando]   = useState(false);
   const [error, setError]             = useState<string | null>(null);
+  const [upgradeUrl, setUpgradeUrl]   = useState<string | null>(null);
   const [resultado, setResultado]     = useState<LeadQualificado | null>(null);
   const [pasoActivo, setPasoActivo]   = useState(0);
   const [scoreVisible, setScoreVisible] = useState(0);
@@ -175,31 +176,54 @@ export default function NuevoLeadPage() {
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
-    if (error) setError(null);
+    if (error) { setError(null); setUpgradeUrl(null); }
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (procesando) return;
-    if (!form.name.trim() || !form.email.trim() || !form.message.trim()) {
-      setError('Nombre, email y mensaje son obligatorios.');
-      return;
+    // Límites alineados con LeadInput en el backend (models.py): antes solo
+    // se comprobaba que no estuviera vacío, así que un nombre/mensaje
+    // demasiado corto o demasiado largo no se avisaba aquí — se descubría
+    // tras el spinner de "Cualificando…", con un 422 en vez de un aviso
+    // in situ (mismo hueco ya tapado hoy en el formulario público).
+    const mensajeCompuesto = componerMensaje();
+    if (form.name.trim().length < 2) {
+      setError('Introduce el nombre (al menos 2 letras).'); return;
+    }
+    if (form.name.trim().length > 100) {
+      setError('El nombre es demasiado largo (máximo 100 caracteres).'); return;
+    }
+    if (!form.email.trim()) {
+      setError('El email es obligatorio.'); return;
+    }
+    if (mensajeCompuesto.length < 5) {
+      setError('El mensaje es demasiado corto (al menos 5 caracteres).'); return;
+    }
+    if (mensajeCompuesto.length > 2000) {
+      setError('El mensaje es demasiado largo (máximo 2000 caracteres).'); return;
     }
     try {
-      setProcesando(true); setError(null);
+      setProcesando(true); setError(null); setUpgradeUrl(null);
       const res = await cualificarLead({
         name: form.name.trim(), email: form.email.trim(),
-        phone: form.phone.trim() || undefined, message: componerMensaje(),
+        phone: form.phone.trim() || undefined, message: mensajeCompuesto,
       }, getToken);
       setResultado(res);
       addToast(`Lead cualificado — score ${res.score}/10`, res.score >= 7 ? 'info' : 'success');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al procesar el lead');
-      addToast('Error al procesar el lead', 'error');
+      // Antes se mostraba un toast genérico ("Error al procesar el lead")
+      // sin importar el fallo real — así, al agotar el límite de leads del
+      // plan free, el mensaje útil del backend (y el enlace para mejorar de
+      // plan) se perdían justo cuando el agente más los necesitaba.
+      const mensaje = e instanceof Error ? e.message : 'Error al procesar el lead';
+      setError(mensaje);
+      setUpgradeUrl(e instanceof PlanRequiredError ? e.upgradeUrl ?? null : null);
+      addToast(mensaje, 'error');
     } finally { setProcesando(false); }
   }
 
-  function resetear() { setForm(FORM_VACIO); setResultado(null); setError(null); setScoreVisible(0); setOperacion(''); setPresupuesto(''); setEsDemo(false); }
+  function resetear() { setForm(FORM_VACIO); setResultado(null); setError(null); setUpgradeUrl(null); setScoreVisible(0); setOperacion(''); setPresupuesto(''); setEsDemo(false); }
 
   // Estilos derivados del tema
   const inputStyle: React.CSSProperties = {
@@ -413,7 +437,7 @@ export default function NuevoLeadPage() {
             Nombre completo <span style={{ color: '#c8a96e' }}>*</span>
           </label>
           <Input id="name" name="name" value={form.name} onChange={handleChange}
-            placeholder="María García" disabled={procesando} required
+            placeholder="María García" disabled={procesando} required maxLength={100}
             inputStyle={inputStyle} focusStyle={focusStyle} />
         </div>
 
@@ -485,13 +509,19 @@ export default function NuevoLeadPage() {
             placeholder={operacion === 'Vender'
               ? 'Detalles del inmueble: zona, tipo (piso, casa…), m², nº de habitaciones, estado…'
               : 'Cuéntanos qué busca: zona, nº de habitaciones, tipo de inmueble, plazo…'}
-            disabled={procesando} inputStyle={inputStyle} focusStyle={focusStyle} />
+            disabled={procesando} maxLength={1900} inputStyle={inputStyle} focusStyle={focusStyle} />
         </div>
 
         {error && (
           <div className="rounded-xl px-4 py-3"
             style={{ background: 'rgba(180,83,9,0.08)', border: '1px solid rgba(180,83,9,0.2)' }}>
             <p className="text-sm" style={{ color: '#b45309' }}>{error}</p>
+            {upgradeUrl && (
+              <Link href={upgradeUrl} className="text-sm font-semibold underline"
+                style={{ color: '#b45309', display: 'inline-block', marginTop: 6 }}>
+                Mejorar mi plan
+              </Link>
+            )}
           </div>
         )}
 

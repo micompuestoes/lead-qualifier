@@ -1,6 +1,7 @@
 // Capa de acceso a la API FastAPI — todas las llamadas centralizadas aquí.
 // Auth: recibe getToken de useAuth() de Clerk — nunca usa window.Clerk directamente.
 
+import { fechaLocalISO } from '@/lib/utils';
 import type {
   Lead,
   LeadQualificado,
@@ -76,7 +77,11 @@ async function handleResponse<T>(res: Response): Promise<T> {
         mensaje = msgs.length ? msgs.join('. ') : JSON.stringify(d);
       } else if (d && typeof d === 'object') {
         mensaje = d.message ?? d.msg ?? JSON.stringify(d);
-        if (d.code === 'PLAN_REQUIRED') {
+        // PLAN_REQUIRED (plan insuficiente) y LEAD_LIMIT_REACHED (límite de
+        // leads del plan free agotado) son los dos 403 que traen upgrade_url
+        // — antes solo se reconocía el primero, así que /nuevo-lead perdía
+        // el enlace a "Mejorar mi plan" justo cuando el agente lo necesitaba.
+        if (d.code === 'PLAN_REQUIRED' || d.code === 'LEAD_LIMIT_REACHED') {
           planRequired = d.plan_required;
           upgradeUrl = d.upgrade_url;
         }
@@ -200,7 +205,12 @@ export async function exportarLeadsCSV(getToken: GetToken, filtros?: FiltrosLead
   const url  = URL.createObjectURL(blob);
   const a    = Object.assign(document.createElement('a'), {
     href: url,
-    download: `leads-${new Date().toISOString().slice(0, 10)}.csv`,
+    // El nombre del <a download> es lo que de verdad decide el nombre del
+    // archivo aquí (viene de un blob: URL, no de la petición original), así
+    // que la cabecera Content-Disposition del backend no llega a aplicarse
+    // — toISOString() convierte a UTC, el mismo desfase ya corregido en
+    // otros sitios de la sesión (recordatorios, filtros de Estadísticas).
+    download: `leads-${fechaLocalISO(new Date())}.csv`,
   });
   document.body.appendChild(a); a.click();
   document.body.removeChild(a); URL.revokeObjectURL(url);
