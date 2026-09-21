@@ -602,10 +602,18 @@ def test_equipo_eliminar_miembro_libera_el_asiento(client):
     from routers.billing import _seat_count
     set_tenant_plan(T, "agencia")
 
+    # S1 sigue asignado a user_ana desde test_equipo_asignacion_y_leaderboard.
+    assert get_lead_by_id("S1", T)["assigned_to"] == "user_ana"
+
     assert client.delete("/me/team/user_ana").status_code == 204
     assert client.get("/me/team").json()["total"] == 0
     # Sin miembros, el asiento factura el mínimo (MIN_AGENCY_SEATS), no 0.
     assert _seat_count(T) == MIN_AGENCY_SEATS
+
+    # Bug real de auditoría: el lead de la agente eliminada no debe quedar
+    # huérfano (assigned_to apuntando a alguien que ya no existe) — vuelve a
+    # "sin asignar" y sigue siendo visible/reasignable.
+    assert get_lead_by_id("S1", T)["assigned_to"] is None
 
     set_tenant_plan(T, "free")  # dejar el estado limpio
 

@@ -724,8 +724,21 @@ def add_team_member(owner_id: str, member_id: str, member_name: str = "",
 
 
 def remove_team_member(owner_id: str, member_id: str) -> None:
-    """Elimina un miembro del equipo."""
+    """
+    Elimina un miembro del equipo. Sus leads ya asignados se desvinculan
+    (assigned_to → NULL) en vez de quedarse apuntando a un agente que ya no
+    existe: sin esto, esos leads desaparecían a la vez del ranking (que solo
+    recorre los agentes actuales) y de "sin asignar" (que solo cuenta
+    assigned_to IS NULL) — quedaban huérfanos, invisibles en los dos sitios.
+    """
     with engine.begin() as conn:
+        conn.execute(
+            text("""
+                UPDATE leads SET assigned_to = NULL
+                WHERE tenant_id = :owner AND assigned_to = :member
+            """),
+            {"owner": owner_id, "member": member_id},
+        )
         conn.execute(
             text("DELETE FROM team_members WHERE owner_id=:owner AND member_id=:member"),
             {"owner": owner_id, "member": member_id},
