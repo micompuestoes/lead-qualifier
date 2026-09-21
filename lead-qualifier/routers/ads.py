@@ -6,9 +6,11 @@ from typing import Optional
 
 import anthropic
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from config import RATE_AD_TENANT_PER_HOUR, RATE_AD_TENANT_PER_MIN
 from deps import get_anthropic_client, get_tenant_id, require_plan
+from security import rate_limited
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +26,7 @@ class AdInput(BaseModel):
     ban:    Optional[str] = None
     precio: Optional[str] = None
     extras: list[str] = []
-    notas:  Optional[str] = None
+    notas:  Optional[str] = Field(default=None, max_length=1000)
     canales: list[str] = ["idealista", "rrss", "email"]
 
 
@@ -35,6 +37,11 @@ async def generate_ad(
 ):
     """Genera anuncios inmobiliarios para Idealista, RRSS y Email — plan Pro y superior."""
     require_plan(tenant_id, "pro")
+
+    # Acción manual (un agente la pulsa a mano), pero cada llamada es un uso
+    # real de la API de Claude — sin esto, no había ningún tope de coste.
+    if rate_limited(f"ad:{tenant_id}", RATE_AD_TENANT_PER_MIN, RATE_AD_TENANT_PER_HOUR):
+        raise HTTPException(status_code=429, detail="Demasiadas solicitudes. Intenta en unos minutos.")
 
     canales_validos = [c for c in data.canales if c in ("idealista", "rrss", "email")]
     if not canales_validos:
@@ -96,10 +103,20 @@ Canales solicitados: {", ".join(canales_validos)}
                 raw = raw[4:]
 
         result = json.loads(raw)
+
+        # Claude no siempre sigue al pie de la letra "incluye solo las claves
+        # solicitadas" — si falta algún canal pedido, se avisa explícitamente
+        # en vez de devolver los borradores que sí llegaron sin más contexto,
+        # para que el frontend pueda decírselo al agente en vez de callarlo.
+        drafts = result.get("drafts", {}) if isinstance(result, dict) else {}
+        faltantes = [c for c in canales_validos if c not in drafts]
+        if faltantes:
+            result["canales_faltantes"] = faltantes
         return result
 
     except json.JSONDecodeError as e:
-        raise HTTPException(status_code=500, detail=f"Error al parsear respuesta de IA: {str(e)}")
+        logger.warning("Respuesta de IA no era JSON válido en generador de anuncios: %s", e)
+        raise HTTPException(status_code=500, detail="La IA no ha devuelto una respuesta válida. Inténtalo de nuevo.")
     except anthropic.AuthenticationError:
         raise HTTPException(status_code=500, detail="API key de Anthropic inválida")
     except Exception as e:

@@ -48,6 +48,14 @@ RATE_DEMO_GLOBAL_PER_MIN = 15
 RATE_DEMO_GLOBAL_PER_HOUR = 100
 RATE_DEMO_GLOBAL_PER_DAY = 300
 
+# Rate limiting de /generate-ad. A diferencia de /qualify-lead (que recibe
+# tráfico real de clientes de forma continua), esto es una acción manual que
+# un agente pulsa a mano para un inmueble concreto — nadie legítimo necesita
+# generar decenas por minuto, así que el límite es mucho más ajustado. Antes
+# no tenía ningún tope: cada llamada cuesta un uso real de la API de Claude.
+RATE_AD_TENANT_PER_MIN = 5
+RATE_AD_TENANT_PER_HOUR = 30
+
 # Ventana anti-doble-envío: un lead con el mismo tenant, email y mensaje que
 # otro ya guardado hace menos de esto se considera un duplicado (doble clic o
 # reintento de red del formulario) y no se vuelve a cualificar ni a responder.
