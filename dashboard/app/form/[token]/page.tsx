@@ -26,11 +26,20 @@ interface FormState {
 
 type Paso = 'formulario' | 'enviando' | 'ok' | 'error' | 'token-invalido';
 
-// Validación en cliente (en español) — evita que el usuario vea errores del servidor
-function validar(f: FormState): string | null {
+// Validación en cliente (en español) — evita que el usuario vea errores del servidor.
+// Los máximos deben coincidir con LeadInput en el backend (models.py): validar
+// solo el mínimo dejaba que un visitante escribiera de más, viera el spinner de
+// "Enviando…" y solo entonces aterrizara en la pantalla de error completa — un
+// rodeo evitable con un aviso in situ, igual que ya hacíamos con el mínimo.
+// `mensajeCompuesto` es lo que de verdad se envía (ver componerMensaje): incluye
+// el prefijo de operación/presupuesto, así que es lo que hay que medir, no el
+// textarea a solas.
+function validar(f: FormState, mensajeCompuesto: string): string | null {
   if (f.name.trim().length < 2) return 'Introduce tu nombre (al menos 2 letras).';
+  if (f.name.trim().length > 100) return 'Tu nombre es demasiado largo (máximo 100 caracteres).';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) return 'Introduce un email válido.';
-  if (f.message.trim().length < 5) return 'Cuéntanos un poco más sobre lo que buscas (al menos 5 caracteres).';
+  if (mensajeCompuesto.length < 5) return 'Cuéntanos un poco más sobre lo que buscas (al menos 5 caracteres).';
+  if (mensajeCompuesto.length > 2000) return 'Tu mensaje es demasiado largo (máximo 2000 caracteres).';
   return null;
 }
 
@@ -133,25 +142,39 @@ export default function FormularioPublico({ params }: { params: { token: string 
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const mensajeCompuesto = componerMensaje();
     // Validación en cliente (en español) antes de enviar
-    const av = validar(form);
+    const av = validar(form, mensajeCompuesto);
     if (av) { setAviso(av); return; }
     if (!acepto) { setAviso('Debes aceptar la política de privacidad para enviar tu consulta.'); return; }
     setAviso('');
     setPaso('enviando');
     setError('');
+
+    // Un fallo de red (sin conexión, DNS, móvil con mala cobertura) hace que
+    // fetch() rechace con un TypeError cuyo mensaje viene en inglés del propio
+    // navegador ("Failed to fetch") — se captura aparte para no dejarlo escapar
+    // tal cual a una pantalla que por lo demás está toda en español.
+    let res: Response;
     try {
-      const res = await fetch(`${apiBase}/intake/${params.token}`, {
+      res = await fetch(`${apiBase}/intake/${params.token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: form.name,
           email: form.email,
           phone: form.phone || null,
-          message: componerMensaje(),
+          message: mensajeCompuesto,
           website: form.website || null,   // honeypot
         }),
       });
+    } catch {
+      setError('No se pudo enviar. Comprueba tu conexión e inténtalo de nuevo.');
+      setPaso('error');
+      return;
+    }
+
+    try {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(mensajeError(data.detail, `Error ${res.status} al enviar el formulario`));
@@ -355,7 +378,7 @@ export default function FormularioPublico({ params }: { params: { token: string 
 
           <div>
             <label style={labelStyle}>Nombre completo *</label>
-            <input type="text" name="name" required value={form.name} onChange={handleChange}
+            <input type="text" name="name" required maxLength={100} value={form.name} onChange={handleChange}
               onFocus={() => setFocused('name')} onBlur={() => setFocused(null)}
               placeholder="María García" style={inputStyle('name')} />
           </div>
@@ -420,7 +443,7 @@ export default function FormularioPublico({ params }: { params: { token: string 
             <label style={labelStyle}>
               {operacion === 'Vender' ? '¿Qué inmueble quieres vender? *' : '¿Qué estás buscando? *'}
             </label>
-            <textarea name="message" required rows={4} value={form.message} onChange={handleChange}
+            <textarea name="message" required rows={4} maxLength={1900} value={form.message} onChange={handleChange}
               onFocus={() => setFocused('message')} onBlur={() => setFocused(null)}
               placeholder={operacion === 'Vender'
                 ? 'Cuéntanos del inmueble: zona, tipo (piso, casa…), m², nº de habitaciones, estado…'
