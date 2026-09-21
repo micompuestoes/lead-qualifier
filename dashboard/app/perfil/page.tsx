@@ -297,14 +297,19 @@ export default function PerfilPage() {
   async function eliminarMiembro(memberId: string) {
     try {
       const token = await getToken();
-      await fetch(`${apiBase}/me/team/${memberId}`, {
+      const res = await fetch(`${apiBase}/me/team/${memberId}`, {
         method:  'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
+      // Un error HTTP (403, 500...) no hace que fetch() rechace — sin este
+      // chequeo, la fila se quitaba de la lista y se avisaba de "eliminado"
+      // aunque el borrado real hubiera fallado; el miembro reaparecía solo,
+      // sin explicación, en la siguiente carga de la página.
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail ?? 'Error al eliminar miembro'); }
       setEquipo(prev => prev.filter(m => m.member_id !== memberId));
       addToast('Miembro eliminado', 'success');
-    } catch {
-      addToast('Error al eliminar miembro', 'error');
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Error al eliminar miembro', 'error');
     }
   }
 
