@@ -5,6 +5,7 @@ import { useAuth } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { useTheme } from '@/components/ThemeProvider';
 import { useToast } from '@/components/Toast';
+import { obtenerMiPerfil } from '@/lib/api';
 import { PLANS } from '@/lib/plans';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
@@ -23,11 +24,23 @@ export default function PricingPage() {
   const [planActual, setPlanActual] = useState<string>('free');
 
   useEffect(() => {
+    // Semilla rápida desde cache para que la página no arranque en "free" a ciegas.
     try {
       const raw = localStorage.getItem('inmuebia-perfil');
       if (raw) setPlanActual(JSON.parse(raw).plan ?? 'free');
     } catch {}
-  }, []);
+    // Fuente de verdad real: si el plan cambió por webhook (p. ej. downgrade
+    // por impago) y el usuario entra directo aquí sin pasar antes por
+    // /leads o /perfil, la cache puede estar desactualizada.
+    obtenerMiPerfil(getToken).then(data => {
+      setPlanActual(data.plan ?? 'free');
+      try {
+        const raw = localStorage.getItem('inmuebia-perfil');
+        const perfil = raw ? JSON.parse(raw) : {};
+        localStorage.setItem('inmuebia-perfil', JSON.stringify({ ...perfil, plan: data.plan }));
+      } catch {}
+    }).catch(() => {});
+  }, [getToken]);
 
   async function contratar(planId: string) {
     if (planId === 'free') return;
@@ -234,7 +247,7 @@ export default function PricingPage() {
                   </button>
                 ) : plan.id === 'free' ? (
                   <button
-                    onClick={() => router.push('/leads')}
+                    onClick={() => router.push(esDowngrade ? '/perfil' : '/leads')}
                     style={{
                       width: '100%', padding: '12px', borderRadius: 12, fontSize: 14, fontWeight: 600,
                       background: 'transparent', color: c.text2,
@@ -244,7 +257,7 @@ export default function PricingPage() {
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(200,169,110,0.5)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = c.inputBorder; }}
                   >
-                    {esDowngrade ? 'Cambiar a Free' : 'Ir al dashboard'}
+                    {esDowngrade ? 'Gestionar mi suscripción' : 'Ir al dashboard'}
                   </button>
                 ) : (
                   <button

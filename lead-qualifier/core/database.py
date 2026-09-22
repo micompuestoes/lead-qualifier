@@ -160,6 +160,12 @@ def init_db() -> None:
         # Fecha en la que el lead pasó a CERRADO (no cuándo se creó) — permite
         # filtrar el valor cerrado por semana/mes/año en vez de solo en total.
         "ALTER TABLE leads ADD COLUMN closed_at TEXT",
+        # Invitación de equipo: un miembro nuevo entra 'pending' y solo cuenta
+        # como parte real del equipo (tenant, reparto, facturación) tras
+        # aceptar — antes, añadir a alguien por su user_id lo vinculaba de
+        # inmediato sin su consentimiento (ver accept_team_invite). Las filas
+        # ya existentes se consideran 'active' (ya estaban operando así).
+        "ALTER TABLE team_members ADD COLUMN status TEXT NOT NULL DEFAULT 'active'",
     ]:
         try:
             with engine.begin() as conn:
@@ -198,6 +204,7 @@ def init_db() -> None:
                 member_name     TEXT,
                 member_email    TEXT,
                 member_whatsapp TEXT,
+                status          TEXT NOT NULL DEFAULT 'active',
                 added_at        TEXT NOT NULL,
                 PRIMARY KEY (owner_id, member_id)
             )
@@ -279,6 +286,7 @@ def init_db() -> None:
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_api_key ON tenants (api_key)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_team_owner  ON team_members (owner_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_team_member ON team_members (member_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_team_member_status ON team_members (member_id, status)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_notif_tenant ON notifications (tenant_id, created_at)"))
         # Para la comprobación anti-doble-envío (mismo tenant+email en una ventana corta)
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_leads_tenant_email_created ON leads (tenant_id, email, created_at)"))
@@ -706,12 +714,19 @@ def disable_imap(tenant_id: str) -> None:
 
 def add_team_member(owner_id: str, member_id: str, member_name: str = "",
                     member_email: str = "", member_whatsapp: str = "") -> None:
-    """Añade un usuario de Clerk como miembro del equipo del tenant owner."""
+    """
+    Invita a un usuario de Clerk al equipo del tenant owner. Queda en estado
+    'pending' — NO cuenta como miembro real (tenant, reparto de leads,
+    facturación) hasta que el propio invitado la acepte con
+    accept_team_invite. Si ya existe una fila (invitación repetida, o
+    refrescar datos de contacto de alguien ya activo), su `status` no se
+    toca: solo el propio invitado puede activarla aceptando.
+    """
     with engine.begin() as conn:
         conn.execute(
             text("""
-                INSERT INTO team_members (owner_id, member_id, member_name, member_email, member_whatsapp, added_at)
-                VALUES (:owner, :member, :name, :email, :wa, :ts)
+                INSERT INTO team_members (owner_id, member_id, member_name, member_email, member_whatsapp, status, added_at)
+                VALUES (:owner, :member, :name, :email, :wa, 'pending', :ts)
                 ON CONFLICT (owner_id, member_id) DO UPDATE SET
                     member_name     = excluded.member_name,
                     member_email    = excluded.member_email,
@@ -721,6 +736,64 @@ def add_team_member(owner_id: str, member_id: str, member_name: str = "",
              "email": member_email or None, "wa": member_whatsapp or None,
              "ts": datetime.now(timezone.utc).isoformat()},
         )
+
+
+def accept_team_invite(owner_id: str, member_id: str) -> bool:
+    """
+    El invitado (member_id, autenticado como sí mismo) acepta unirse al
+    equipo de owner_id. Solo tiene efecto si había una invitación pendiente
+    de verdad — así es como se cierra el hueco de seguridad de añadir a
+    alguien sin su consentimiento. También descarta cualquier OTRA
+    invitación pendiente que el mismo usuario tuviera de otras agencias: no
+    se puede ser miembro activo de dos equipos a la vez.
+    Devuelve True si aceptó una invitación real.
+    """
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("""
+                UPDATE team_members SET status='active'
+                WHERE owner_id=:owner AND member_id=:member AND status='pending'
+            """),
+            {"owner": owner_id, "member": member_id},
+        )
+        aceptada = result.rowcount > 0
+        if aceptada:
+            conn.execute(
+                text("""
+                    DELETE FROM team_members
+                    WHERE member_id=:member AND status='pending' AND owner_id != :owner
+                """),
+                {"owner": owner_id, "member": member_id},
+            )
+    return aceptada
+
+
+def decline_team_invite(owner_id: str, member_id: str) -> bool:
+    """El invitado rechaza la invitación pendiente de owner_id. Devuelve True si había una."""
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("DELETE FROM team_members WHERE owner_id=:owner AND member_id=:member AND status='pending'"),
+            {"owner": owner_id, "member": member_id},
+        )
+    return result.rowcount > 0
+
+
+def get_pending_invites_for_member(member_id: str) -> list:
+    """Invitaciones de equipo pendientes de aceptar/rechazar por este usuario."""
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT tm.owner_id, t.name, t.email, tm.added_at
+                FROM team_members tm
+                JOIN tenants t ON t.id = tm.owner_id
+                WHERE tm.member_id = :member AND tm.status = 'pending'
+                ORDER BY tm.added_at
+            """),
+            {"member": member_id},
+        ).fetchall()
+    return [{
+        "owner_id": r[0], "owner_name": (r[1] or r[2] or r[0]), "added_at": r[3],
+    } for r in rows]
 
 
 def remove_team_member(owner_id: str, member_id: str) -> None:
@@ -746,11 +819,16 @@ def remove_team_member(owner_id: str, member_id: str) -> None:
 
 
 def get_team_members(owner_id: str) -> list:
-    """Devuelve los miembros del equipo del tenant (id, nombre y contacto)."""
+    """
+    Devuelve los miembros del equipo del tenant (id, nombre, contacto y
+    estado) — incluye tanto los activos como las invitaciones aún
+    'pending', para que el dueño vea en su panel qué invitaciones siguen sin
+    aceptar.
+    """
     with engine.connect() as conn:
         rows = conn.execute(
             text("""
-                SELECT member_id, member_name, member_email, member_whatsapp, added_at
+                SELECT member_id, member_name, member_email, member_whatsapp, added_at, status
                 FROM team_members WHERE owner_id=:owner ORDER BY added_at
             """),
             {"owner": owner_id},
@@ -758,7 +836,7 @@ def get_team_members(owner_id: str) -> list:
     return [{
         "member_id": r[0], "member_name": r[1] or "",
         "member_email": r[2] or "", "member_whatsapp": r[3] or "",
-        "added_at": r[4],
+        "added_at": r[4], "status": r[5] or "active",
     } for r in rows]
 
 
@@ -790,10 +868,15 @@ def get_agent_contact(tenant_id: str, agent_id: Optional[str]) -> dict:
 
 
 def get_owner_for_member(member_id: str) -> Optional[str]:
-    """Si el user_id es miembro de un equipo, devuelve el owner_id (tenant real)."""
+    """
+    Si el user_id es miembro ACTIVO de un equipo, devuelve el owner_id
+    (tenant real). Una invitación 'pending' (sin aceptar) NO cuenta — de lo
+    contrario, cualquiera podría re-vincular la cuenta de otra persona a la
+    suya sin su consentimiento con solo conocer su user_id de Clerk.
+    """
     with engine.connect() as conn:
         row = conn.execute(
-            text("SELECT owner_id FROM team_members WHERE member_id=:member LIMIT 1"),
+            text("SELECT owner_id FROM team_members WHERE member_id=:member AND status='active' LIMIT 1"),
             {"member": member_id},
         ).fetchone()
     return row[0] if row else None
@@ -804,11 +887,17 @@ def get_owner_for_member(member_id: str) -> Optional[str]:
 # ─────────────────────────────────────────────
 
 def _agentes_con_nombre(tenant_id: str) -> list:
-    """Lista de (agent_id, nombre) del equipo: el dueño primero, luego los miembros."""
+    """
+    Lista de (agent_id, nombre) del equipo: el dueño primero, luego los
+    miembros ACTIVOS (una invitación 'pending' aún sin aceptar no cuenta
+    para reparto de leads, facturación de asientos ni ranking).
+    """
     owner = get_tenant(tenant_id)
     nombre_owner = (owner.get("name") if owner else "") or "Cuenta principal"
     agentes = [(tenant_id, nombre_owner)]
     for m in get_team_members(tenant_id):
+        if m["status"] != "active":
+            continue
         agentes.append((m["member_id"], m["member_name"] or m["member_id"][:12]))
     return agentes
 
@@ -1556,8 +1645,16 @@ def set_lead_feedback(lead_id: str, tenant_id: str, feedback: Optional[int]) -> 
 def update_lead_status(lead_id: str, status: str, tenant_id: str, deal_value: Optional[float] = None) -> None:
     """
     Actualiza el estado de un lead, verificando que pertenece al tenant.
-    deal_value: importe (€) de la operación — solo tiene sentido al marcar CERRADO,
-    pero se guarda tal cual venga (None no toca la columna existente).
+
+    deal_value: importe (€) de la operación.
+    - Si se manda, siempre se guarda.
+    - Si NO se manda pero el lead ENTRA en CERRADO ahora mismo (no lo estaba
+      ya), se limpia cualquier importe de un cierre anterior: si no, un lead
+      reabierto y vuelto a cerrar sin dar un importe nuevo se quedaba con el
+      valor del cierre viejo pero atribuido (vía closed_at) a la fecha del
+      cierre nuevo — inflaba las estadísticas de "valor cerrado" del periodo.
+    - Si NO se manda y el lead ya estaba en otro estado (reabrir, o cambiar
+      entre estados sin pasar por CERRADO), el importe guardado no se toca.
 
     closed_at se fija solo al ENTRAR en CERRADO (no al re-guardar, p. ej. al
     editar el importe después) y se limpia si el lead sale de CERRADO — así
@@ -1566,19 +1663,23 @@ def update_lead_status(lead_id: str, status: str, tenant_id: str, deal_value: Op
     """
     now = datetime.now(timezone.utc).isoformat()
     with engine.begin() as conn:
-        campos, params = ["status = :status"], {"status": status, "id": lead_id, "tid": tenant_id}
-        if deal_value is not None:
-            campos.append("deal_value = :dv")
-            params["dv"] = deal_value
-        campos.append("""closed_at = CASE
-            WHEN :status = 'CERRADO' AND status != 'CERRADO' THEN :now
-            WHEN :status != 'CERRADO' THEN NULL
-            ELSE closed_at
-        END""")
-        params["now"] = now
         conn.execute(
-            text(f"UPDATE leads SET {', '.join(campos)} WHERE id = :id AND tenant_id = :tid"),
-            params,
+            text("""
+                UPDATE leads SET
+                    status = :status,
+                    deal_value = CASE
+                        WHEN :dv IS NOT NULL THEN :dv
+                        WHEN :status = 'CERRADO' AND status != 'CERRADO' THEN NULL
+                        ELSE deal_value
+                    END,
+                    closed_at = CASE
+                        WHEN :status = 'CERRADO' AND status != 'CERRADO' THEN :now
+                        WHEN :status != 'CERRADO' THEN NULL
+                        ELSE closed_at
+                    END
+                WHERE id = :id AND tenant_id = :tid
+            """),
+            {"status": status, "dv": deal_value, "now": now, "id": lead_id, "tid": tenant_id},
         )
     logger.info("Lead %s → estado %s (tenant: %s)", lead_id, status, tenant_id)
 

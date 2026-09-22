@@ -11,6 +11,7 @@ import type {
   Perfil,
   ImapStatus,
   EquipoMiembro,
+  InvitacionEquipo,
   AgenteRanking,
   Reminder,
   CrearRecordatorioPayload,
@@ -348,6 +349,36 @@ export async function obtenerEquipo(getToken: GetToken): Promise<EquipoMiembro[]
   const res = await apiFetch('/me/team', getToken, { cache: 'no-store' } as RequestInit);
   const data = await handleResponse<{ members?: EquipoMiembro[] }>(res);
   return data.members ?? [];
+}
+
+// Invitaciones de equipo recibidas por el usuario autenticado — de cualquier
+// plan, ya que cualquiera puede ser invitado por una agencia (ver
+// routers/team.py: se corrigió el bug de auditoría donde añadir a alguien
+// vinculaba su cuenta sin pedirle confirmación).
+export async function obtenerInvitacionesRecibidas(getToken: GetToken): Promise<InvitacionEquipo[]> {
+  const res = await apiFetch('/me/team/invites', getToken, { cache: 'no-store' } as RequestInit);
+  const data = await handleResponse<{ invites?: InvitacionEquipo[] }>(res);
+  return data.invites ?? [];
+}
+
+export async function aceptarInvitacionEquipo(ownerId: string, getToken: GetToken): Promise<void> {
+  const res = await apiFetch(`/me/team/invites/${ownerId}/accept`, getToken, { method: 'POST' });
+  await handleResponse(res);
+}
+
+export async function rechazarInvitacionEquipo(ownerId: string, getToken: GetToken): Promise<void> {
+  const res = await apiFetch(`/me/team/invites/${ownerId}/decline`, getToken, { method: 'POST' });
+  await handleResponse(res);
+}
+
+// Autoservicio: un miembro abandona el equipo del que forma parte. Antes no
+// existía ninguna forma de hacer esto sin depender del dueño del equipo.
+export async function salirDelEquipo(getToken: GetToken): Promise<void> {
+  const res = await apiFetch('/me/membership', getToken, { method: 'DELETE' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? 'No se pudo abandonar el equipo');
+  }
 }
 
 // ── Helpers internos ──────────────────────────────────────────────────────────

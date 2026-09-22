@@ -121,6 +121,7 @@ export interface Perfil {
   status: string;
   created_at: string;
   is_admin?: boolean;
+  is_owner?: boolean;
   whatsapp_number?: string;
   whatsapp_enabled?: boolean;
   auto_send_email?: boolean;
@@ -150,6 +151,16 @@ export interface EquipoMiembro {
   member_name?: string;
   member_email?: string;
   member_whatsapp?: string;
+  added_at: string;
+  status: 'pending' | 'active';
+}
+
+// Invitación de equipo recibida (GET /me/team/invites) — visible a
+// cualquier usuario, no solo a los de plan agencia: cualquiera puede ser
+// invitado por otra agencia.
+export interface InvitacionEquipo {
+  owner_id: string;
+  owner_name: string;
   added_at: string;
 }
 

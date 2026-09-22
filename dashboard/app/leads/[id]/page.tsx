@@ -9,7 +9,7 @@ import {
   obtenerLead, actualizarEstado, eliminarLead, asignarLead, apiFetch, enviarEmailLead, feedbackLead,
   recalcularPuntuacion, obtenerRecordatoriosLead, crearRecordatorio, actualizarRecordatorio, eliminarRecordatorio,
 } from '@/lib/api';
-import { formatearFecha, formatearFechaVencimiento, generarAsunto, parsearReasoning } from '@/lib/utils';
+import { fechaLocalISO, formatearFecha, formatearFechaVencimiento, generarAsunto, parsearReasoning } from '@/lib/utils';
 import type { Lead, EstadoLead, Reminder } from '@/types/lead';
 import { useTheme } from '@/components/ThemeProvider';
 import { useToast } from '@/components/Toast';
@@ -97,7 +97,7 @@ export default function LeadDetallePage() {
   // Recordatorios de seguimiento ("llamar el jueves"...)
   const [recordatorios, setRecordatorios]       = useState<Reminder[]>([]);
   const [nuevaNota, setNuevaNota]               = useState('');
-  const [nuevaFecha, setNuevaFecha]             = useState(() => new Date().toISOString().slice(0, 10));
+  const [nuevaFecha, setNuevaFecha]             = useState(() => fechaLocalISO(new Date()));
   const [creandoRecordatorio, setCreandoRecordatorio] = useState(false);
 
   useEffect(() => {
@@ -698,7 +698,7 @@ export default function LeadDetallePage() {
             {recordatorios.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 14 }}>
                 {recordatorios.map(r => {
-                  const hoy = new Date().toISOString().slice(0, 10);
+                  const hoy = fechaLocalISO(new Date());
                   const vencido = !r.done && r.due_date < hoy;
                   return (
                     <div key={r.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 4px' }}>

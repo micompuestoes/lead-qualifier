@@ -16,10 +16,14 @@ export default function EmailUI({ email, leadEmail, asunto }: Props) {
   const [copiado, setCopiado] = useState(false);
 
   async function copiarCompleto() {
-    await navigator.clipboard.writeText(`Para: ${leadEmail}\nAsunto: ${asunto}\n\n${email}`);
-    setCopiado(true);
-    addToast('Email copiado al portapapeles', 'success');
-    setTimeout(() => setCopiado(false), 2000);
+    try {
+      await navigator.clipboard.writeText(`Para: ${leadEmail}\nAsunto: ${asunto}\n\n${email}`);
+      setCopiado(true);
+      addToast('Email copiado al portapapeles', 'success');
+      setTimeout(() => setCopiado(false), 2000);
+    } catch {
+      addToast('No se pudo copiar al portapapeles', 'error');
+    }
   }
 
   function abrirGmail() {

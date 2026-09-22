@@ -109,8 +109,14 @@ function IconMoon() {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface NavLink { href: string; label: string; icon: React.ReactNode }
+interface NavLink { href: string; label: string; icon: React.ReactNode; requiredPlan?: 'free' | 'pro' | 'agencia' }
 interface Perfil  { plan: string; name: string; is_admin: boolean }
+
+const PLAN_ORDEN: Record<string, number> = { free: 0, pro: 1, agencia: 2 };
+function tienePlanMinimo(actual: string, requerido?: string): boolean {
+  if (!requerido) return true;
+  return (PLAN_ORDEN[actual] ?? 0) >= (PLAN_ORDEN[requerido] ?? 0);
+}
 
 const planConfig: Record<string, { label: string; bg: string; color: string }> = {
   free:    { label: 'Gratuito', bg: 'rgba(122,116,104,0.1)',  color: '#9a9490' },
@@ -123,10 +129,13 @@ const principalLinks: NavLink[] = [
   { href: '/leads',      label: 'Leads',      icon: <IconLeads /> },
   { href: '/nuevo-lead', label: 'Nuevo lead', icon: <IconPlus />  },
 ];
+// requiredPlan refleja lo que exige de verdad el backend (deps.require_plan)
+// para cada función — no todo "Herramientas" es de plan Agencia:
+// /me/form-branding no exige plan, /generate-ad exige "pro", solo Estadísticas exige "agencia".
 const herramientasLinks: NavLink[] = [
-  { href: '/formulario',   label: 'Mi formulario', icon: <IconForm />  },
-  { href: '/anuncios',     label: 'Anuncios IA',   icon: <IconAd />    },
-  { href: '/estadisticas', label: 'Estadísticas',  icon: <IconStats /> },
+  { href: '/formulario',   label: 'Mi formulario', icon: <IconForm />,  requiredPlan: 'free'    },
+  { href: '/anuncios',     label: 'Anuncios IA',   icon: <IconAd />,    requiredPlan: 'pro'     },
+  { href: '/estadisticas', label: 'Estadísticas',  icon: <IconStats />, requiredPlan: 'agencia' },
 ];
 const cuentaLinks: NavLink[] = [
   { href: '/perfil', label: 'Mi perfil', icon: <IconProfile /> },
@@ -379,14 +388,18 @@ export default function Sidebar() {
         <SectionLabel c={c}>Principal</SectionLabel>
         {principalLinks.map(l => <NavItem key={l.href} link={l} active={esActivo(l.href)} c={c} />)}
 
-        {perfil.plan === 'agencia' && (
-          <>
-            <div style={{ marginTop: 18 }}>
-              <SectionLabel c={c}>Herramientas</SectionLabel>
-            </div>
-            {herramientasLinks.map(l => <NavItem key={l.href} link={l} active={esActivo(l.href)} c={c} />)}
-          </>
-        )}
+        {(() => {
+          const visibles = herramientasLinks.filter(l => tienePlanMinimo(perfil.plan, l.requiredPlan));
+          if (visibles.length === 0) return null;
+          return (
+            <>
+              <div style={{ marginTop: 18 }}>
+                <SectionLabel c={c}>Herramientas</SectionLabel>
+              </div>
+              {visibles.map(l => <NavItem key={l.href} link={l} active={esActivo(l.href)} c={c} />)}
+            </>
+          );
+        })()}
 
         <div style={{ marginTop: 18 }}>
           <SectionLabel c={c}>Cuenta</SectionLabel>

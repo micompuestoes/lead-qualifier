@@ -13,14 +13,15 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 import runtime
 from core.agent import qualify_lead
 from core.database import (
-    acquire_job_lock, get_all_tenants, get_closed_deals_value, get_digest_counts,
-    get_leads_for_followup, get_pending_reminders, get_stale_pending_leads,
-    get_tenant, get_tenants_with_imap, hoy_espana, mark_followup_sent,
-    update_imap_last_sync,
+    acquire_job_lock, add_notification, get_all_tenants, get_closed_deals_value,
+    get_digest_counts, get_leads_for_followup, get_notifications,
+    get_pending_reminders, get_stale_pending_leads, get_tenant,
+    get_tenants_with_imap, hoy_espana, mark_followup_sent, update_imap_last_sync,
 )
 from models import LeadInput
 from pydantic import ValidationError
@@ -191,6 +192,51 @@ async def enviar_seguimientos() -> None:
 # Sync IMAP (bandeja de entrada → leads)
 # ─────────────────────────────────────────────
 
+# Umbral sin sincronizar (desde el último éxito) a partir del cual se avisa a
+# la agencia: antes, un fallo de IMAP (credenciales caducadas, servidor caído)
+# era completamente silencioso — el único síntoma era que "Última
+# sincronización" en /perfil dejaba de avanzar, y nadie lo mira activamente.
+ALERTA_IMAP_HORAS = 12
+
+
+def _hace_menos_de(iso_ts: Optional[str], horas: int) -> bool:
+    if not iso_ts:
+        return False
+    try:
+        momento = datetime.fromisoformat(iso_ts)
+    except ValueError:
+        return False
+    if momento.tzinfo is None:
+        momento = momento.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - momento < timedelta(hours=horas)
+
+
+def _alertar_imap_caido_si_procede(tenant_id: str) -> None:
+    """
+    Crea una notificación de sistema si el correo entrante lleva caído más de
+    ALERTA_IMAP_HORAS desde el último sync con éxito. Se avisa una sola vez
+    por incidencia (no en cada ciclo del job) comprobando si ya hay un aviso
+    del mismo tipo en las últimas ALERTA_IMAP_HORAS.
+    """
+    tenant = get_tenant(tenant_id)
+    if not tenant:
+        return
+    if not _hace_menos_de(tenant.get("imap_last_sync"), ALERTA_IMAP_HORAS):
+        recientes = get_notifications(tenant_id, limit=5)
+        ya_avisado = any(
+            n.get("type") == "imap_sync_error" and _hace_menos_de(n.get("created_at"), ALERTA_IMAP_HORAS)
+            for n in recientes
+        )
+        if not ya_avisado:
+            add_notification(
+                tenant_id, "imap_sync_error",
+                "El correo entrante ha dejado de sincronizarse",
+                f"No hemos podido conectar con tu bandeja de email desde hace más de "
+                f"{ALERTA_IMAP_HORAS} horas. Revisa la contraseña y la conexión en "
+                "Mi perfil → Email entrante.",
+            )
+
+
 async def sync_imap_todos() -> None:
     """Job del scheduler: procesa la bandeja IMAP de cada tenant activo."""
     # Lock por ventana de 10 min: dos instancias leyendo la misma bandeja
@@ -206,6 +252,7 @@ async def sync_imap_todos() -> None:
             await _sync_imap_tenant(t)
         except Exception as exc:
             logger.error("IMAP sync error (tenant %s): %s", t["id"], exc)
+            _alertar_imap_caido_si_procede(t["id"])
 
 
 async def _sync_imap_tenant(t: dict) -> None:

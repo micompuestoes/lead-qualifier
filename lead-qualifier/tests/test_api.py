@@ -200,6 +200,19 @@ def test_cerrar_lead_con_valor_de_operacion(client):
     assert r.status_code == 200
     assert r.json()["deal_value"] == 250000
 
+    # Bug real de auditoría: volver a cerrar (desde otro estado) SIN dar un
+    # importe nuevo se quedaba con el valor del cierre anterior (250000) pero
+    # bajo la fecha de este cierre nuevo — inflaba "valor cerrado esta
+    # semana/mes". Un cierre nuevo sin importe debe limpiarlo, no arrastrarlo.
+    r = client.patch("/leads/S4/status", json={"status": "CERRADO"})
+    assert r.status_code == 200
+    assert r.json()["deal_value"] is None
+
+    # Vuelve a un estado no-cerrado: S4 es un lead compartido por todo el
+    # archivo (T="dev-tenant") y dejarlo CERRADO con un cierre recién forzado
+    # distorsionaría el tiempo medio de cierre que calcula test_stats.py.
+    client.patch("/leads/S4/status", json={"status": "CONTACTADO"})
+
 
 # ── Export CSV: gate de plan + filtros ────────────────────────────────────────
 
@@ -229,7 +242,19 @@ def test_equipo_asignacion_y_leaderboard(client):
     r = client.post("/me/team", json={"member_id": "user_ana", "member_name": "Ana",
                                       "member_email": "ana@test.com", "member_whatsapp": "600112233"})
     assert r.status_code == 201
+    assert r.json()["status"] == "pending"          # invitación, no vinculación directa
     assert r.json()["member_whatsapp"] == "34600112233"   # normalizado a formato Meta
+
+    # Bug real de auditoría corregido: añadir a alguien por su user_id lo
+    # vinculaba de inmediato sin su consentimiento. Ahora queda 'pending' y
+    # NO cuenta para reparto/facturación hasta que el propio invitado acepta
+    # — impersonar a Ana exigiría un JWT real de Clerk, así que se acepta
+    # directamente a nivel de BD (mismo patrón que el resto del archivo).
+    from core.database import accept_team_invite, get_owner_for_member
+    assert get_owner_for_member("user_ana") is None   # aún no vinculada
+    assert accept_team_invite(T, "user_ana") is True
+    assert get_owner_for_member("user_ana") == T
+    assert accept_team_invite(T, "user_ana") is False  # ya aceptada: no repite el efecto
 
     r = client.patch("/leads/S1/assign", json={"agent_id": "user_ana"})
     assert r.status_code == 200 and r.json()["assigned_to"] == "user_ana"

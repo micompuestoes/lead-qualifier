@@ -2,7 +2,7 @@
 
 // Tarjeta de lead — navegación, cambio inline de estado, tema claro/oscuro
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import type { Lead, EstadoLead } from '@/types/lead';
@@ -62,6 +62,11 @@ function StatusDropdown({ leadId, status: initialStatus, onStatusChange }: Statu
   const [status, setStatus]     = useState<EstadoLead>(initialStatus);
   const [open, setOpen]         = useState(false);
   const [guardando, setGuardando] = useState(false);
+
+  // Sin esto, un cambio de estado desde fuera (otro miembro del equipo, o un
+  // refetch de la lista) no se reflejaba en una tarjeta ya renderizada — el
+  // estado local solo se inicializaba una vez, en el primer render.
+  useEffect(() => { setStatus(initialStatus); }, [initialStatus]);
 
   const est = ESTADO_ESTILOS[status];
 

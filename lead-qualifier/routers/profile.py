@@ -12,7 +12,7 @@ from core.database import (
     mark_notifications_read, update_ai_settings, update_form_branding,
     update_tenant_profile, update_webhook_url, update_whatsapp_config,
 )
-from deps import get_tenant_id
+from deps import Caller, get_caller, get_tenant_id
 from services.whatsapp import normalize_phone
 
 logger = logging.getLogger(__name__)
@@ -50,8 +50,9 @@ class AiSettingsInput(BaseModel):
 
 
 @router.get("/me")
-async def get_my_profile(tenant_id: str = Depends(get_tenant_id)):
+async def get_my_profile(caller: Caller = Depends(get_caller)):
     """Devuelve el perfil del tenant autenticado (nombre, email, api_key, etc.)."""
+    tenant_id = caller.tenant_id
     ensure_tenant(tenant_id)
     tenant = get_tenant(tenant_id)
     # No exponer campos sensibles innecesarios
@@ -66,6 +67,7 @@ async def get_my_profile(tenant_id: str = Depends(get_tenant_id)):
         "status":       tenant.get("status", "active"),
         "created_at":   tenant.get("created_at", ""),
         "is_admin":     bool(admin_id and tenant_id == admin_id),
+        "is_owner":     caller.is_owner,
         "whatsapp_number":  tenant.get("whatsapp_number", "") or "",
         "whatsapp_enabled": bool(tenant.get("whatsapp_enabled")),
         "auto_send_email":  True if tenant.get("auto_send_email") is None else bool(tenant.get("auto_send_email")),
@@ -82,12 +84,13 @@ async def get_my_profile(tenant_id: str = Depends(get_tenant_id)):
 @router.patch("/me")
 async def update_my_profile(
     body: ActualizarPerfilInput,
-    tenant_id: str = Depends(get_tenant_id),
+    caller: Caller = Depends(get_caller),
 ):
     """Actualiza el nombre comercial y el email de notificaciones."""
+    tenant_id = caller.tenant_id
     ensure_tenant(tenant_id)
     update_tenant_profile(tenant_id, body.name.strip(), body.notify_email.strip())
-    return await get_my_profile(tenant_id)
+    return await get_my_profile(caller)
 
 
 @router.get("/me/notifications")

@@ -6,8 +6,11 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/Toast';
 import { useTheme } from '@/components/ThemeProvider';
 import PageHeader from '@/components/PageHeader';
-import { obtenerEquipo, obtenerImapStatus, obtenerMiPerfil } from '@/lib/api';
-import type { EquipoMiembro as TeamMember, ImapStatus, Perfil } from '@/types/lead';
+import {
+  aceptarInvitacionEquipo, obtenerEquipo, obtenerImapStatus, obtenerInvitacionesRecibidas,
+  obtenerMiPerfil, rechazarInvitacionEquipo, salirDelEquipo,
+} from '@/lib/api';
+import type { EquipoMiembro as TeamMember, ImapStatus, InvitacionEquipo, Perfil } from '@/types/lead';
 
 const planConfig: Record<string, { label: string; bg: string; color: string }> = {
   free:    { label: 'Gratuito', bg: 'rgba(122,116,104,0.12)', color: '#9a9490' },
@@ -41,6 +44,11 @@ export default function PerfilPage() {
   const [nuevoEmail, setNuevoEmail]       = useState('');
   const [nuevoWhatsapp, setNuevoWhatsapp] = useState('');
   const [agregandoMiembro, setAgregandoMiembro] = useState(false);
+
+  // Invitaciones de equipo recibidas — de cualquier plan/cuenta, no solo Agencia.
+  const [invitaciones, setInvitaciones]           = useState<InvitacionEquipo[]>([]);
+  const [respondiendoInvite, setRespondiendoInvite] = useState<string | null>(null);
+  const [saliendoEquipo, setSaliendoEquipo]         = useState(false);
 
   const [imap, setImap]                   = useState<ImapStatus>({ configured: false });
   const [imapForm, setImapForm]           = useState({ email: '', password: '', host: '' });
@@ -139,6 +147,9 @@ export default function PerfilPage() {
         // plan agencia): un fallo aquí no debe impedir ver el resto del perfil.
         obtenerImapStatus(getToken).then(setImap).catch(() => {});
         obtenerEquipo(getToken).then(setEquipo).catch(() => {});
+        // Invitaciones recibidas: de CUALQUIER cuenta, no solo plan agencia
+        // — cualquiera puede ser invitado por una agencia.
+        obtenerInvitacionesRecibidas(getToken).then(setInvitaciones).catch(() => {});
       } catch {
         addToast('No se pudo cargar el perfil', 'error');
       } finally {
@@ -160,12 +171,12 @@ export default function PerfilPage() {
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body:    JSON.stringify(form),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail ?? 'Error al guardar'); }
       const data = await res.json();
       setPerfil(data);
       addToast('Perfil actualizado', 'success');
-    } catch {
-      addToast('Error al guardar', 'error');
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Error al guardar', 'error');
     } finally {
       setGuardando(false);
     }
@@ -284,9 +295,10 @@ export default function PerfilPage() {
         member_email: data.member_email ?? nuevoEmail.trim(),
         member_whatsapp: data.member_whatsapp ?? '',
         added_at: new Date().toISOString(),
+        status: (data.status ?? 'pending') as 'pending' | 'active',
       }]);
       setNuevoMiembro(''); setNuevoNombre(''); setNuevoEmail(''); setNuevoWhatsapp('');
-      addToast('Miembro añadido correctamente', 'success');
+      addToast('Invitación enviada — quedará pendiente hasta que la acepte', 'success');
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Error al añadir miembro', 'error');
     } finally {
@@ -310,6 +322,46 @@ export default function PerfilPage() {
       addToast('Miembro eliminado', 'success');
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Error al eliminar miembro', 'error');
+    }
+  }
+
+  async function aceptarInvitacion(ownerId: string) {
+    setRespondiendoInvite(ownerId);
+    try {
+      await aceptarInvitacionEquipo(ownerId, getToken);
+      addToast('Te has unido al equipo', 'success');
+      // Al aceptar, esta cuenta pasa a ser miembro de otra agencia: el resto
+      // del perfil (leads, plan, equipo propio...) cambia de raíz. Recargar
+      // es más seguro que intentar remendar el estado local a mano.
+      window.location.reload();
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'No se pudo aceptar la invitación', 'error');
+      setRespondiendoInvite(null);
+    }
+  }
+
+  async function rechazarInvitacion(ownerId: string) {
+    setRespondiendoInvite(ownerId);
+    try {
+      await rechazarInvitacionEquipo(ownerId, getToken);
+      setInvitaciones(prev => prev.filter(i => i.owner_id !== ownerId));
+      addToast('Invitación rechazada', 'success');
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'No se pudo rechazar la invitación', 'error');
+    } finally {
+      setRespondiendoInvite(null);
+    }
+  }
+
+  async function salirEquipo() {
+    setSaliendoEquipo(true);
+    try {
+      await salirDelEquipo(getToken);
+      addToast('Has abandonado el equipo', 'success');
+      window.location.reload();
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'No se pudo abandonar el equipo', 'error');
+      setSaliendoEquipo(false);
     }
   }
 
@@ -799,11 +851,15 @@ export default function PerfilPage() {
                   <input readOnly value={formUrl}
                     style={{ ...inputStyleFor('formurl'), fontFamily: 'monospace', fontSize: 12, flex: 1 }} />
                   <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(formUrl);
-                      setCopiadoFormUrl(true);
-                      setTimeout(() => setCopiadoFormUrl(false), 2000);
-                      addToast('Enlace copiado', 'success');
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(formUrl);
+                        setCopiadoFormUrl(true);
+                        setTimeout(() => setCopiadoFormUrl(false), 2000);
+                        addToast('Enlace copiado', 'success');
+                      } catch {
+                        addToast('No se pudo copiar al portapapeles', 'error');
+                      }
                     }}
                     style={{ ...btnSecondary, padding: '10px 14px', minWidth: 76, whiteSpace: 'nowrap' }}
                   >
@@ -827,11 +883,15 @@ export default function PerfilPage() {
                   <input readOnly value={perfil.api_key}
                     style={{ ...inputStyleFor('apikey'), fontFamily: 'monospace', fontSize: 12, flex: 1 }} />
                   <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(perfil!.api_key);
-                      setCopiadoApiKey(true);
-                      setTimeout(() => setCopiadoApiKey(false), 2000);
-                      addToast('API Key copiada', 'success');
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(perfil!.api_key);
+                        setCopiadoApiKey(true);
+                        setTimeout(() => setCopiadoApiKey(false), 2000);
+                        addToast('API Key copiada', 'success');
+                      } catch {
+                        addToast('No se pudo copiar al portapapeles', 'error');
+                      }
                     }}
                     style={{ ...btnSecondary, padding: '10px 14px', minWidth: 76, whiteSpace: 'nowrap' }}
                   >
@@ -902,8 +962,63 @@ export default function PerfilPage() {
           )}
         </div>
 
-        {/* ── Equipo — solo plan agencia ── */}
+        {/* ── Equipo ── */}
         <SectionLabel>Equipo</SectionLabel>
+
+        {/* Invitaciones recibidas — visibles para cualquier cuenta, no solo Agencia:
+            cualquiera puede ser invitado por otra agencia. Requiere aceptación
+            explícita: antes, quien te invitaba vinculaba tu cuenta sin preguntar. */}
+        {invitaciones.length > 0 && invitaciones.map(inv => (
+          <div key={inv.owner_id} style={{
+            ...card, background: 'rgba(200,169,110,0.08)', border: '1px solid rgba(200,169,110,0.35)',
+          }}>
+            <h2 className="text-base font-semibold mb-1" style={{ color: c.heading }}>
+              Invitación de equipo
+            </h2>
+            <p className="text-sm mb-4" style={{ color: c.text2, lineHeight: 1.55 }}>
+              <strong style={{ color: c.text1 }}>{inv.owner_name}</strong> te ha invitado a unirte
+              a su equipo. Si aceptas, tu cuenta pasará a formar parte de esa agencia: verás
+              sus leads (no los tuyos) y podrás abandonar el equipo cuando quieras desde aquí mismo.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => aceptarInvitacion(inv.owner_id)}
+                disabled={respondiendoInvite === inv.owner_id}
+                style={{ ...btnPrimary, opacity: respondiendoInvite === inv.owner_id ? 0.6 : 1 }}
+              >
+                {respondiendoInvite === inv.owner_id ? 'Procesando…' : 'Aceptar'}
+              </button>
+              <button
+                onClick={() => rechazarInvitacion(inv.owner_id)}
+                disabled={respondiendoInvite === inv.owner_id}
+                style={{ ...btnSecondary, opacity: respondiendoInvite === inv.owner_id ? 0.6 : 1 }}
+              >
+                Rechazar
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {/* Autoservicio: abandonar el equipo del que ya formo parte — antes solo
+            el dueño (o alguien con acceso de admin) podía revertir esto. */}
+        {perfil && perfil.is_owner === false && (
+          <div style={card}>
+            <h2 className="text-base font-semibold mb-1" style={{ color: c.heading }}>
+              Formas parte de un equipo
+            </h2>
+            <p className="text-sm mb-4" style={{ color: c.text2, lineHeight: 1.55 }}>
+              Ves los leads y datos del equipo al que perteneces, no los de una cuenta propia.
+            </p>
+            <button
+              onClick={salirEquipo}
+              disabled={saliendoEquipo}
+              style={{ ...btnSecondary, opacity: saliendoEquipo ? 0.6 : 1, color: '#b45309' }}
+            >
+              {saliendoEquipo ? 'Abandonando…' : 'Abandonar el equipo'}
+            </button>
+          </div>
+        )}
+
         {perfil?.plan !== 'agencia' ? (
           /* ── Bloqueado para planes Free y Pro ── */
           <div style={card}>
@@ -966,11 +1081,19 @@ export default function PerfilPage() {
                     className="flex items-center justify-between px-4 py-2.5 rounded-xl"
                     style={{ background: c.muted, border: `1px solid ${c.divider}` }}>
                     <span className="min-w-0">
-                      {m.member_name && (
-                        <span className="text-sm font-medium block truncate" style={{ color: c.text1 }}>
-                          {m.member_name}
-                        </span>
-                      )}
+                      <span className="flex items-center gap-2">
+                        {m.member_name && (
+                          <span className="text-sm font-medium truncate" style={{ color: c.text1 }}>
+                            {m.member_name}
+                          </span>
+                        )}
+                        {m.status === 'pending' && (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0"
+                            style={{ background: 'rgba(200,169,110,0.18)', color: '#9a7a3a' }}>
+                            Pendiente
+                          </span>
+                        )}
+                      </span>
                       {(m.member_email || m.member_whatsapp) && (
                         <span className="text-xs truncate block" style={{ color: c.text2 }}>
                           {[m.member_email, m.member_whatsapp].filter(Boolean).join(' · ')}
@@ -985,7 +1108,7 @@ export default function PerfilPage() {
                       className="text-xs font-medium ml-3 shrink-0 transition-colors"
                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#b45309' }}
                     >
-                      Eliminar
+                      {m.status === 'pending' ? 'Cancelar invitación' : 'Eliminar'}
                     </button>
                   </li>
                 ))}
@@ -1070,11 +1193,15 @@ export default function PerfilPage() {
                 style={{ borderBottom: `1px solid ${c.divider}` }}>
                 <span className="text-sm" style={{ color: c.text2 }}>ID de usuario</span>
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(user.id);
-                    setCopiadoId(true);
-                    setTimeout(() => setCopiadoId(false), 2000);
-                    addToast('ID copiado', 'success');
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(user.id);
+                      setCopiadoId(true);
+                      setTimeout(() => setCopiadoId(false), 2000);
+                      addToast('ID copiado', 'success');
+                    } catch {
+                      addToast('No se pudo copiar al portapapeles', 'error');
+                    }
                   }}
                   className="text-xs font-mono transition-colors"
                   style={{
