@@ -223,13 +223,26 @@ export default function Sidebar() {
   const { getToken } = useAuth();
   const { c, isDark, toggle } = useTheme();
 
-  // Arranca con el cache para que el plan sea correcto al instante
-  const [perfil, setPerfil]         = useState<Perfil>(() => leerCache() ?? { plan: 'free', name: '', is_admin: false });
+  // El primer render (tanto en el servidor como en la pasada de hidratación
+  // del cliente) tiene que producir el MISMO html — leer localStorage aquí
+  // dentro rompía eso: el servidor nunca tiene window, así que renderizaba
+  // 'free', pero el cliente sí y podía hidratar ya con 'agencia' → React
+  // detectaba el descuadre y tiraba el error de hidratación #418/423/425 en
+  // consola en TODAS las páginas. La cache se aplica aparte, en un efecto
+  // que solo corre tras montar (después de que hidratación ya coincidió).
+  const [perfil, setPerfil]         = useState<Perfil>({ plan: 'free', name: '', is_admin: false });
   const [reconectando, setReconectando] = useState(false);
   const [abierto, setAbierto]       = useState(false);  // cajón móvil
 
   // Cierra el cajón al cambiar de página
   useEffect(() => { setAbierto(false); }, [pathname]);
+
+  // Aplica la cache (si hay) justo después de montar — el plan real llega
+  // enseguida de todos modos vía el fetch de /me más abajo.
+  useEffect(() => {
+    const cache = leerCache();
+    if (cache) setPerfil(cache);
+  }, []);
 
   useEffect(() => {
     let cancelado = false;
