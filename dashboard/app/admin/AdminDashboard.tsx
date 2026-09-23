@@ -98,6 +98,27 @@ export default function AdminDashboard({ tenants: inicial, error }: { tenants: T
     }
   }
 
+  // Cambia el plan a mano (red de seguridad si el webhook de Stripe falla).
+  // OJO: no toca la suscripción real en Stripe — si el tenant tiene una
+  // suscripción de pago activa de verdad, Stripe seguiría cobrándola aunque
+  // aquí se le baje a Free. Para clientes reales, cancela primero en Stripe.
+  async function cambiarPlan(tenantId: string, nuevoPlan: 'free' | 'pro' | 'agencia') {
+    setLoading(tenantId);
+    try {
+      const res = await fetch(`/api/admin/tenant-plan`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId, plan: nuevoPlan }),
+      });
+      if (!res.ok) throw new Error('Error al actualizar');
+      setTenants(prev => prev.map(t => t.id === tenantId ? { ...t, plan: nuevoPlan } : t));
+    } catch {
+      alert('No se pudo cambiar el plan. Comprueba que ADMIN_SECRET_KEY está configurada.');
+    } finally {
+      setLoading(null);
+    }
+  }
+
   // ── Métricas ──
   const metrics = useMemo(() => {
     const total      = tenants.length;
@@ -314,16 +335,27 @@ export default function AdminDashboard({ tenants: inicial, error }: { tenants: T
                     <td style={{ padding: '14px 18px', textAlign: 'center' }}>
                       {loading === t.id ? (
                         <div className="animate-spin" style={{ width: 15, height: 15, margin: '0 auto', borderRadius: '50%', border: '2px solid rgba(200,169,110,0.3)', borderTopColor: '#c8a96e' }} />
-                      ) : t.status === 'active' ? (
-                        <button onClick={() => cambiarEstado(t.id, 'cancelled')}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#b45309' }}>
-                          Cancelar
-                        </button>
                       ) : (
-                        <button onClick={() => cambiarEstado(t.id, 'active')}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#3a8a4a' }}>
-                          Reactivar
-                        </button>
+                        <div className="flex flex-col items-center" style={{ gap: 4 }}>
+                          {t.status === 'active' ? (
+                            <button onClick={() => cambiarEstado(t.id, 'cancelled')}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#b45309' }}>
+                              Cancelar
+                            </button>
+                          ) : (
+                            <button onClick={() => cambiarEstado(t.id, 'active')}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#3a8a4a' }}>
+                              Reactivar
+                            </button>
+                          )}
+                          {t.plan !== 'free' && (
+                            <button onClick={() => cambiarPlan(t.id, 'free')}
+                              title="Cambia el plan a mano — no toca la suscripción real en Stripe"
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 500, color: c.text3 }}>
+                              Cambiar a Free
+                            </button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>
