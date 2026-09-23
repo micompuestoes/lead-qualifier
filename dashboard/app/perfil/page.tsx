@@ -31,12 +31,22 @@ export default function PerfilPage() {
   const [cargando, setCargando]   = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [form, setForm]           = useState({ name: '', notify_email: '' });
+  // Tarjetas "resumen + Cambiar": ocultas por defecto para no abrumar con
+  // formularios que casi nunca hace falta tocar — se expanden solo al pedirlo.
+  // El snapshot guarda el valor de antes de abrir el formulario, para poder
+  // descartar los cambios sin guardar si se pulsa "Cancelar".
+  const [editandoEmpresa, setEditandoEmpresa] = useState(false);
+  const [formSnapshot, setFormSnapshot] = useState(form);
 
   const [webhookUrl, setWebhookUrl]         = useState('');
   const [webhookGuardando, setWebhookGuardando] = useState(false);
+  const [editandoWebhook, setEditandoWebhook]   = useState(false);
+  const [webhookSnapshot, setWebhookSnapshot]   = useState('');
 
   const [aiForm, setAiForm]       = useState({ auto_send: true, brand_voice: '', followup_enabled: false });
   const [aiGuardando, setAiGuardando] = useState(false);
+  const [editandoIa, setEditandoIa]   = useState(false);
+  const [aiFormSnapshot, setAiFormSnapshot] = useState(aiForm);
 
   const [equipo, setEquipo]               = useState<TeamMember[]>([]);
   const [nuevoMiembro, setNuevoMiembro]   = useState('');
@@ -44,6 +54,7 @@ export default function PerfilPage() {
   const [nuevoEmail, setNuevoEmail]       = useState('');
   const [nuevoWhatsapp, setNuevoWhatsapp] = useState('');
   const [agregandoMiembro, setAgregandoMiembro] = useState(false);
+  const [mostrarFormMiembro, setMostrarFormMiembro] = useState(false);
 
   // Invitaciones de equipo recibidas — de cualquier plan/cuenta, no solo Agencia.
   const [invitaciones, setInvitaciones]           = useState<InvitacionEquipo[]>([]);
@@ -59,6 +70,7 @@ export default function PerfilPage() {
   const [copiadoApiKey, setCopiadoApiKey]   = useState(false);
   const [copiadoFormUrl, setCopiadoFormUrl] = useState(false);
   const [copiadoId, setCopiadoId]           = useState(false);
+  const [mostrarAvanzadoFormulario, setMostrarAvanzadoFormulario] = useState(false);
 
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
@@ -174,12 +186,23 @@ export default function PerfilPage() {
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail ?? 'Error al guardar'); }
       const data = await res.json();
       setPerfil(data);
+      setEditandoEmpresa(false);
       addToast('Perfil actualizado', 'success');
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Error al guardar', 'error');
     } finally {
       setGuardando(false);
     }
+  }
+
+  function cambiarEmpresa() {
+    setFormSnapshot(form);
+    setEditandoEmpresa(true);
+  }
+
+  function cancelarEmpresa() {
+    setForm(formSnapshot);
+    setEditandoEmpresa(false);
   }
 
   async function guardarAi(e: React.FormEvent) {
@@ -202,11 +225,22 @@ export default function PerfilPage() {
       addToast(data.auto_send_email
         ? 'Respuestas automáticas activadas'
         : 'Modo revisión activado: los emails quedarán como borrador', 'success');
+      setEditandoIa(false);
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Error al guardar', 'error');
     } finally {
       setAiGuardando(false);
     }
+  }
+
+  function cambiarIa() {
+    setAiFormSnapshot(aiForm);
+    setEditandoIa(true);
+  }
+
+  function cancelarIa() {
+    setAiForm(aiFormSnapshot);
+    setEditandoIa(false);
   }
 
   async function guardarWebhook(e: React.FormEvent) {
@@ -222,12 +256,23 @@ export default function PerfilPage() {
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail ?? 'Error al guardar'); }
       const data = await res.json();
       setWebhookUrl(data.webhook_url ?? '');
+      setEditandoWebhook(false);
       addToast(data.webhook_url ? 'Webhook activado' : 'Webhook desactivado', 'success');
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Error al guardar', 'error');
     } finally {
       setWebhookGuardando(false);
     }
+  }
+
+  function cambiarWebhook() {
+    setWebhookSnapshot(webhookUrl);
+    setEditandoWebhook(true);
+  }
+
+  function cancelarWebhook() {
+    setWebhookUrl(webhookSnapshot);
+    setEditandoWebhook(false);
   }
 
   async function conectarImap(e: React.FormEvent) {
@@ -298,6 +343,7 @@ export default function PerfilPage() {
         status: (data.status ?? 'pending') as 'pending' | 'active',
       }]);
       setNuevoMiembro(''); setNuevoNombre(''); setNuevoEmail(''); setNuevoWhatsapp('');
+      setMostrarFormMiembro(false);
       addToast('Invitación enviada — quedará pendiente hasta que la acepte', 'success');
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Error al añadir miembro', 'error');
@@ -480,47 +526,71 @@ export default function PerfilPage() {
 
         {/* ── Datos de la empresa ── */}
         <div style={card}>
-          <h2 className="text-base font-semibold mb-5" style={{ color: c.heading }}>
-            Datos de la empresa
-          </h2>
-          <form onSubmit={guardar} className="space-y-4">
-            <div>
-              <label style={labelStyle}>Nombre de la empresa</label>
-              <input
-                type="text"
-                value={form.name}
-                onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-                onFocus={() => setFocusedInput('name')}
-                onBlur={() => setFocusedInput(null)}
-                placeholder="Casas García Inmobiliaria"
-                style={inputStyleFor('name')}
-              />
+          <div className="flex items-center justify-between gap-4 mb-1">
+            <h2 className="text-base font-semibold" style={{ color: c.heading }}>
+              Datos de la empresa
+            </h2>
+            {!editandoEmpresa && (
+              <button onClick={cambiarEmpresa} style={{ ...btnSecondary, padding: '7px 14px', fontSize: 13, flexShrink: 0 }}>
+                Cambiar
+              </button>
+            )}
+          </div>
+
+          {!editandoEmpresa ? (
+            <div className="min-w-0 mt-3">
+              <p className="text-sm font-medium truncate" style={{ color: c.text1 }}>
+                {form.name || 'Sin nombre configurado'}
+              </p>
+              <p className="text-xs truncate mt-0.5" style={{ color: c.text2 }}>
+                {form.notify_email || 'Sin email de notificaciones'}
+              </p>
             </div>
-            <div>
-              <label style={labelStyle}>
-                Email de notificaciones
-                <span style={{ color: c.text3, textTransform: 'none', fontWeight: 400, marginLeft: 6 }}>
-                  · aquí llegan los avisos de nuevos leads
-                </span>
-              </label>
-              <input
-                type="email"
-                value={form.notify_email}
-                onChange={e => setForm(p => ({ ...p, notify_email: e.target.value }))}
-                onFocus={() => setFocusedInput('notify')}
-                onBlur={() => setFocusedInput(null)}
-                placeholder="hola@tuempresa.com"
-                style={inputStyleFor('notify')}
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={guardando}
-              style={{ ...btnPrimary, opacity: guardando ? 0.6 : 1 }}
-            >
-              {guardando ? 'Guardando…' : 'Guardar cambios'}
-            </button>
-          </form>
+          ) : (
+            <form onSubmit={guardar} className="space-y-4 mt-4">
+              <div>
+                <label style={labelStyle}>Nombre de la empresa</label>
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                  onFocus={() => setFocusedInput('name')}
+                  onBlur={() => setFocusedInput(null)}
+                  placeholder="Casas García Inmobiliaria"
+                  style={inputStyleFor('name')}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>
+                  Email de notificaciones
+                  <span style={{ color: c.text3, textTransform: 'none', fontWeight: 400, marginLeft: 6 }}>
+                    · aquí llegan los avisos de nuevos leads
+                  </span>
+                </label>
+                <input
+                  type="email"
+                  value={form.notify_email}
+                  onChange={e => setForm(p => ({ ...p, notify_email: e.target.value }))}
+                  onFocus={() => setFocusedInput('notify')}
+                  onBlur={() => setFocusedInput(null)}
+                  placeholder="hola@tuempresa.com"
+                  style={inputStyleFor('notify')}
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={guardando}
+                  style={{ ...btnPrimary, opacity: guardando ? 0.6 : 1 }}
+                >
+                  {guardando ? 'Guardando…' : 'Guardar cambios'}
+                </button>
+                <button type="button" onClick={cancelarEmpresa} style={btnSecondary}>
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          )}
         </div>
 
         <SectionLabel>Captación de leads</SectionLabel>
@@ -563,88 +633,101 @@ export default function PerfilPage() {
                   </a>
                 </div>
               </div>
-              {/* API Key */}
-              <div>
-                <label style={labelStyle}>
-                  API Key
-                  <span style={{ color: c.text3, textTransform: 'none', fontWeight: 400, marginLeft: 6 }}>
-                    · para integraciones propias
-                  </span>
-                </label>
-                <div className="flex gap-2">
-                  <input readOnly value={perfil.api_key}
-                    style={{ ...inputStyleFor('apikey'), fontFamily: 'monospace', fontSize: 12, flex: 1 }} />
-                  <button
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(perfil!.api_key);
-                        setCopiadoApiKey(true);
-                        setTimeout(() => setCopiadoApiKey(false), 2000);
-                        addToast('API Key copiada', 'success');
-                      } catch {
-                        addToast('No se pudo copiar al portapapeles', 'error');
-                      }
-                    }}
-                    style={{ ...btnSecondary, padding: '10px 14px', minWidth: 76, whiteSpace: 'nowrap' }}
-                  >
-                    {copiadoApiKey ? '✓ Copiado' : 'Copiar'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Plugin de WordPress (Pro y Agencia) — misma clave de arriba, sin tocar código */}
-              {perfil?.plan === 'pro' || perfil?.plan === 'agencia' ? (
-                <div style={{
-                  marginTop: 4, padding: 16, borderRadius: 12,
-                  background: c.muted, border: c.cardBorder,
-                }}>
-                  <p className="text-sm font-semibold mb-1" style={{ color: c.text1 }}>
-                    ¿Tu web es de WordPress?
-                  </p>
-                  <p className="text-sm mb-3" style={{ color: c.text2 }}>
-                    Instala nuestro plugin gratuito, pega la API Key de arriba en sus ajustes
-                    y añade <code>[inmuebia_formulario]</code> en cualquier página — el
-                    formulario aparece con los colores de tu marca, sin salir de tu web.
-                  </p>
-                  <a href="/inmuebia-wordpress-plugin.zip" download
-                    style={{ ...btnSecondary, display: 'inline-flex', textDecoration: 'none', padding: '10px 16px' }}>
-                    Descargar plugin (.zip)
-                  </a>
-                </div>
+              {!mostrarAvanzadoFormulario ? (
+                <button
+                  type="button"
+                  onClick={() => setMostrarAvanzadoFormulario(true)}
+                  className="text-xs font-medium"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: c.text2 }}
+                >
+                  Más opciones (API key, plugin de WordPress) ↓
+                </button>
               ) : (
-                <div style={{
-                  marginTop: 4, padding: 16, borderRadius: 12,
-                  background: c.muted, border: c.cardBorder,
-                }}>
-                  <div className="flex items-start gap-3">
-                    <div style={{
-                      width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                      background: 'rgba(200,169,110,0.14)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#c8a96e"
-                        strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
-                      </svg>
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <p className="text-sm font-semibold" style={{ color: c.text1, marginBottom: 3 }}>
-                        Plugin de WordPress — disponible en el plan Pro y Agencia
-                      </p>
-                      <p className="text-xs" style={{ color: c.text2, lineHeight: 1.55, marginBottom: 14 }}>
-                        Inserta el formulario directamente en tu web de WordPress, con los
-                        colores de tu marca y sin salir de tu dominio.
-                      </p>
-                      <button onClick={() => router.push('/pricing')}
-                        style={{ ...btnPrimary, padding: '9px 18px', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1a1814" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                        </svg>
-                        Mejorar mi plan
-                      </button>
-                    </div>
+                <>
+                {/* API Key */}
+                <div>
+                  <label style={labelStyle}>
+                    API Key
+                    <span style={{ color: c.text3, textTransform: 'none', fontWeight: 400, marginLeft: 6 }}>
+                      · para integraciones propias
+                    </span>
+                  </label>
+                  <div className="flex gap-2">
+                    <input readOnly value={perfil.api_key}
+                      style={{ ...inputStyleFor('apikey'), fontFamily: 'monospace', fontSize: 12, flex: 1 }} />
+                    <button
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(perfil!.api_key);
+                          setCopiadoApiKey(true);
+                          setTimeout(() => setCopiadoApiKey(false), 2000);
+                          addToast('API Key copiada', 'success');
+                        } catch {
+                          addToast('No se pudo copiar al portapapeles', 'error');
+                        }
+                      }}
+                      style={{ ...btnSecondary, padding: '10px 14px', minWidth: 76, whiteSpace: 'nowrap' }}
+                    >
+                      {copiadoApiKey ? '✓ Copiado' : 'Copiar'}
+                    </button>
                   </div>
                 </div>
+
+                {/* Plugin de WordPress (Pro y Agencia) — misma clave de arriba, sin tocar código */}
+                {perfil?.plan === 'pro' || perfil?.plan === 'agencia' ? (
+                  <div style={{
+                    marginTop: 4, padding: 16, borderRadius: 12,
+                    background: c.muted, border: c.cardBorder,
+                  }}>
+                    <p className="text-sm font-semibold mb-1" style={{ color: c.text1 }}>
+                      ¿Tu web es de WordPress?
+                    </p>
+                    <p className="text-sm mb-3" style={{ color: c.text2 }}>
+                      Instala nuestro plugin gratuito, pega la API Key de arriba en sus ajustes
+                      y añade <code>[inmuebia_formulario]</code> en cualquier página — el
+                      formulario aparece con los colores de tu marca, sin salir de tu web.
+                    </p>
+                    <a href="/inmuebia-wordpress-plugin.zip" download
+                      style={{ ...btnSecondary, display: 'inline-flex', textDecoration: 'none', padding: '10px 16px' }}>
+                      Descargar plugin (.zip)
+                    </a>
+                  </div>
+                ) : (
+                  <div style={{
+                    marginTop: 4, padding: 16, borderRadius: 12,
+                    background: c.muted, border: c.cardBorder,
+                  }}>
+                    <div className="flex items-start gap-3">
+                      <div style={{
+                        width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                        background: 'rgba(200,169,110,0.14)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#c8a96e"
+                          strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
+                        </svg>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <p className="text-sm font-semibold" style={{ color: c.text1, marginBottom: 3 }}>
+                          Plugin de WordPress — disponible en el plan Pro y Agencia
+                        </p>
+                        <p className="text-xs" style={{ color: c.text2, lineHeight: 1.55, marginBottom: 14 }}>
+                          Inserta el formulario directamente en tu web de WordPress, con los
+                          colores de tu marca y sin salir de tu dominio.
+                        </p>
+                        <button onClick={() => router.push('/pricing')}
+                          style={{ ...btnPrimary, padding: '9px 18px', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1a1814" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                          </svg>
+                          Mejorar mi plan
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                </>
               )}
             </div>
           ) : (
@@ -791,91 +874,99 @@ export default function PerfilPage() {
 
         {/* ── Webhook a tu CRM ── */}
         <div style={card}>
-          <h2 className="text-base font-semibold mb-1" style={{ color: c.heading }}>
-            Webhook a tu CRM
-          </h2>
-          <p className="text-sm mb-5" style={{ color: c.text2 }}>
-            Cada lead cualificado (formulario, email o API) se reenvía también por POST a esta
-            URL, además de guardarse en Inmuebia. Déjalo vacío para desactivarlo.
-          </p>
+          <div className="flex items-center justify-between gap-4 mb-1">
+            <h2 className="text-base font-semibold" style={{ color: c.heading }}>
+              Webhook a tu CRM
+            </h2>
+            {!editandoWebhook && (
+              <button onClick={cambiarWebhook} style={{ ...btnSecondary, padding: '7px 14px', fontSize: 13, flexShrink: 0 }}>
+                {webhookUrl ? 'Cambiar' : 'Configurar'}
+              </button>
+            )}
+          </div>
 
-          <form onSubmit={guardarWebhook} className="space-y-4">
-            <div>
-              <label style={labelStyle}>URL del webhook</label>
-              <input
-                type="url"
-                value={webhookUrl}
-                onChange={e => setWebhookUrl(e.target.value)}
-                onFocus={() => setFocusedInput('webhook-url')}
-                onBlur={() => setFocusedInput(null)}
-                placeholder="https://tu-crm.com/webhooks/inmuebia"
-                style={inputStyleFor('webhook-url')}
-              />
-              <p className="text-xs mt-1.5" style={{ color: c.text3 }}>
-                Debe empezar por https://
+          {!editandoWebhook ? (
+            <p className="text-sm truncate mt-3" style={{ color: webhookUrl ? c.text1 : c.text3, fontFamily: webhookUrl ? 'monospace' : 'inherit', fontSize: webhookUrl ? 13 : 14 }}>
+              {webhookUrl || 'No configurado — cada lead se guarda solo en Inmuebia.'}
+            </p>
+          ) : (
+            <>
+              <p className="text-sm mb-5 mt-3" style={{ color: c.text2 }}>
+                Cada lead cualificado (formulario, email o API) se reenvía también por POST a esta
+                URL, además de guardarse en Inmuebia. Déjalo vacío para desactivarlo.
               </p>
-            </div>
 
-            <button type="submit" disabled={webhookGuardando}
-              style={{ ...btnPrimary, opacity: webhookGuardando ? 0.6 : 1 }}>
-              {webhookGuardando ? 'Guardando…' : 'Guardar webhook'}
-            </button>
-          </form>
+              <form onSubmit={guardarWebhook} className="space-y-4">
+                <div>
+                  <label style={labelStyle}>URL del webhook</label>
+                  <input
+                    type="url"
+                    value={webhookUrl}
+                    onChange={e => setWebhookUrl(e.target.value)}
+                    onFocus={() => setFocusedInput('webhook-url')}
+                    onBlur={() => setFocusedInput(null)}
+                    placeholder="https://tu-crm.com/webhooks/inmuebia"
+                    style={inputStyleFor('webhook-url')}
+                  />
+                  <p className="text-xs mt-1.5" style={{ color: c.text3 }}>
+                    Debe empezar por https://
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                  <button type="submit" disabled={webhookGuardando}
+                    style={{ ...btnPrimary, opacity: webhookGuardando ? 0.6 : 1 }}>
+                    {webhookGuardando ? 'Guardando…' : 'Guardar webhook'}
+                  </button>
+                  <button type="button" onClick={cancelarWebhook} style={btnSecondary}>
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            </>
+          )}
         </div>
 
-        {/* ── Avisos por WhatsApp ── */}
-        <div style={card}>
-          <div className="flex items-center gap-2 mb-1">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="#25D366" aria-hidden="true">
+        {/* ── Avisos por WhatsApp — próximamente, sin nada que configurar aún: una fila compacta basta ── */}
+        <div style={{ ...card, padding: '16px 24px' }}>
+          <div className="flex items-center gap-2.5">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="#25D366" aria-hidden="true" style={{ flexShrink: 0 }}>
               <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2zm0 1.67c2.2 0 4.27.86 5.83 2.42a8.2 8.2 0 0 1 2.42 5.82c0 4.54-3.7 8.24-8.25 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.18 8.18 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24zm-2.9 4.43c-.18 0-.47.07-.72.34-.25.27-.95.93-.95 2.27s.97 2.63 1.11 2.81c.14.18 1.92 2.93 4.66 4.11.65.28 1.16.45 1.56.58.65.21 1.25.18 1.72.11.52-.08 1.62-.66 1.85-1.3.23-.64.23-1.18.16-1.3-.07-.11-.25-.18-.52-.32-.27-.14-1.62-.8-1.87-.89-.25-.09-.43-.14-.62.14-.18.27-.71.89-.87 1.07-.16.18-.32.2-.59.07-.27-.14-1.15-.42-2.19-1.35-.81-.72-1.36-1.62-1.52-1.89-.16-.27-.02-.42.12-.55.12-.12.27-.32.41-.48.14-.16.18-.27.27-.46.09-.18.05-.34-.02-.48-.07-.14-.62-1.49-.85-2.04-.22-.53-.45-.46-.62-.47l-.53-.01z"/>
             </svg>
-            <h2 className="text-base font-semibold" style={{ color: c.heading }}>
-              Avisos por WhatsApp
-            </h2>
+            <span className="text-sm font-medium" style={{ color: c.text1 }}>Avisos por WhatsApp</span>
+            <span className="text-xs" style={{ color: c.text3 }}>— aviso instantáneo de leads calientes</span>
             <span style={{
-              fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+              marginLeft: 'auto', fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
               color: '#9a7a3a', background: 'rgba(200,169,110,0.14)',
-              padding: '3px 9px', borderRadius: 99,
+              padding: '3px 9px', borderRadius: 99, flexShrink: 0,
             }}>
               Próximamente
             </span>
-          </div>
-          <p className="text-sm mb-5" style={{ color: c.text2 }}>
-            Recibe un WhatsApp al instante cuando entre un lead <strong style={{ color: c.text1 }}>caliente</strong>.
-            El primero en responder se lleva la operación.
-          </p>
-
-          <div className="rounded-xl px-5 py-5"
-            style={{ background: c.muted, border: `1px solid ${c.inputBorder}` }}>
-            <div className="flex items-start gap-3">
-              <div style={{
-                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                background: 'rgba(37,211,102,0.14)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#25D366"
-                  strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 8v4l3 3" /><circle cx="12" cy="12" r="9" />
-                </svg>
-              </div>
-              <div style={{ flex: 1 }}>
-                <p className="text-sm font-semibold" style={{ color: c.text1, marginBottom: 3 }}>
-                  Estamos terminando la integración
-                </p>
-                <p className="text-xs" style={{ color: c.text2, lineHeight: 1.55 }}>
-                  En cuanto esté lista podrás activar aquí el aviso instantáneo de leads calientes por WhatsApp.
-                </p>
-              </div>
-            </div>
           </div>
         </div>
 
         {/* ── Respuestas con IA ── */}
         <div style={card}>
-          <h2 className="text-base font-semibold mb-1" style={{ color: c.heading }}>
-            Respuestas con IA
-          </h2>
-          <p className="text-sm mb-5" style={{ color: c.text2 }}>
+          <div className="flex items-center justify-between gap-4 mb-1">
+            <h2 className="text-base font-semibold" style={{ color: c.heading }}>
+              Respuestas con IA
+            </h2>
+            {!editandoIa && (
+              <button onClick={cambiarIa} style={{ ...btnSecondary, padding: '7px 14px', fontSize: 13, flexShrink: 0 }}>
+                Cambiar
+              </button>
+            )}
+          </div>
+
+          {!editandoIa ? (
+            <p className="text-sm mt-3" style={{ color: c.text2 }}>
+              {aiForm.auto_send ? 'Envío automático' : 'Revisión manual antes de enviar'}
+              {aiForm.followup_enabled ? ' · seguimiento automático activado' : ''}
+              {aiForm.brand_voice.trim() ? ' · con voz de marca propia' : ''}
+            </p>
+          ) : (
+          <>
+          <p className="text-sm mb-5 mt-3" style={{ color: c.text2 }}>
             Controla cómo responde la IA a tus leads: envíalo todo en automático
             o revisa cada email antes de que salga con tu nombre.
           </p>
@@ -955,11 +1046,18 @@ export default function PerfilPage() {
               />
             </div>
 
-            <button type="submit" disabled={aiGuardando}
-              style={{ ...btnPrimary, opacity: aiGuardando ? 0.6 : 1 }}>
-              {aiGuardando ? 'Guardando…' : 'Guardar preferencias'}
-            </button>
+            <div className="flex gap-2">
+              <button type="submit" disabled={aiGuardando}
+                style={{ ...btnPrimary, opacity: aiGuardando ? 0.6 : 1 }}>
+                {aiGuardando ? 'Guardando…' : 'Guardar preferencias'}
+              </button>
+              <button type="button" onClick={cancelarIa} style={btnSecondary}>
+                Cancelar
+              </button>
+            </div>
           </form>
+          </>
+          )}
         </div>
 
         {/* ── Equipo ── */}
@@ -1064,18 +1162,26 @@ export default function PerfilPage() {
           </div>
         ) : (
           <div style={card}>
-            <h2 className="text-base font-semibold mb-1" style={{ color: c.heading }}>
-              Miembros del equipo
-            </h2>
-            <p className="text-sm mb-5" style={{ color: c.text2 }}>
-              Añade a tus agentes para que accedan al dashboard. Cada uno verá solo
-              <strong style={{ color: c.text1 }}> sus leads</strong>, y recibirá el aviso
-              directo cuando le toque uno caliente. Su ID de Clerk lo copian desde su
-              propio perfil → Cuenta → ID de usuario.
-            </p>
+            <div className="flex items-center justify-between gap-4 mb-1">
+              <h2 className="text-base font-semibold" style={{ color: c.heading }}>
+                Miembros del equipo
+              </h2>
+              {!mostrarFormMiembro && (
+                <button onClick={() => setMostrarFormMiembro(true)}
+                  style={{ ...btnSecondary, padding: '7px 14px', fontSize: 13, flexShrink: 0 }}>
+                  + Añadir miembro
+                </button>
+              )}
+            </div>
+
+            {equipo.length === 0 && !mostrarFormMiembro && (
+              <p className="text-sm mt-3" style={{ color: c.text3 }}>
+                Todavía no has añadido a nadie a tu equipo.
+              </p>
+            )}
 
             {equipo.length > 0 && (
-              <ul className="space-y-2 mb-4">
+              <ul className="space-y-2 mb-4 mt-3">
                 {equipo.map(m => (
                   <li key={m.member_id}
                     className="flex items-center justify-between px-4 py-2.5 rounded-xl"
@@ -1115,48 +1221,64 @@ export default function PerfilPage() {
               </ul>
             )}
 
-            <form onSubmit={agregarMiembro} className="space-y-2">
-              <input
-                type="text"
-                value={nuevoNombre}
-                onChange={e => setNuevoNombre(e.target.value)}
-                onFocus={() => setFocusedInput('member-name')} onBlur={() => setFocusedInput(null)}
-                placeholder="Nombre del agente (p. ej. Laura Pérez)"
-                style={{ ...inputStyleFor('member-name'), width: '100%' }}
-              />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {mostrarFormMiembro && (
+              <form onSubmit={agregarMiembro} className="space-y-2 mt-3" style={{
+                paddingTop: equipo.length > 0 ? 16 : 0,
+                borderTop: equipo.length > 0 ? `1px solid ${c.divider}` : 'none',
+              }}>
+                <p className="text-xs mb-2" style={{ color: c.text2 }}>
+                  Cada agente verá solo <strong style={{ color: c.text1 }}>sus leads</strong> y
+                  recibirá el aviso directo cuando le toque uno caliente. Su ID de Clerk lo
+                  copian desde su propio perfil → Cuenta → ID de usuario.
+                </p>
                 <input
-                  type="email"
-                  value={nuevoEmail}
-                  onChange={e => setNuevoEmail(e.target.value)}
-                  onFocus={() => setFocusedInput('member-email')} onBlur={() => setFocusedInput(null)}
-                  placeholder="Email del agente (avisos)"
-                  style={{ ...inputStyleFor('member-email'), fontSize: 13 }}
+                  type="text"
+                  value={nuevoNombre}
+                  onChange={e => setNuevoNombre(e.target.value)}
+                  onFocus={() => setFocusedInput('member-name')} onBlur={() => setFocusedInput(null)}
+                  placeholder="Nombre del agente (p. ej. Laura Pérez)"
+                  style={{ ...inputStyleFor('member-name'), width: '100%' }}
                 />
-                <input
-                  type="tel"
-                  value={nuevoWhatsapp}
-                  onChange={e => setNuevoWhatsapp(e.target.value)}
-                  onFocus={() => setFocusedInput('member-wa')} onBlur={() => setFocusedInput(null)}
-                  placeholder="WhatsApp (+34…)"
-                  style={{ ...inputStyleFor('member-wa'), fontSize: 13 }}
-                />
-              </div>
-              <div className="flex gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input
+                    type="email"
+                    value={nuevoEmail}
+                    onChange={e => setNuevoEmail(e.target.value)}
+                    onFocus={() => setFocusedInput('member-email')} onBlur={() => setFocusedInput(null)}
+                    placeholder="Email del agente (avisos)"
+                    style={{ ...inputStyleFor('member-email'), fontSize: 13 }}
+                  />
+                  <input
+                    type="tel"
+                    value={nuevoWhatsapp}
+                    onChange={e => setNuevoWhatsapp(e.target.value)}
+                    onFocus={() => setFocusedInput('member-wa')} onBlur={() => setFocusedInput(null)}
+                    placeholder="WhatsApp (+34…)"
+                    style={{ ...inputStyleFor('member-wa'), fontSize: 13 }}
+                  />
+                </div>
                 <input
                   type="text"
                   value={nuevoMiembro}
                   onChange={e => setNuevoMiembro(e.target.value)}
                   onFocus={() => setFocusedInput('member')} onBlur={() => setFocusedInput(null)}
                   placeholder="user_xxxxxxxxxxxxxxxxxxxxxxxx"
-                  style={{ ...inputStyleFor('member'), flex: 1, fontFamily: 'monospace', fontSize: 12 }}
+                  style={{ ...inputStyleFor('member'), width: '100%', fontFamily: 'monospace', fontSize: 12 }}
                 />
-                <button type="submit" disabled={agregandoMiembro || !nuevoMiembro.trim()}
-                  style={{ ...btnPrimary, opacity: (agregandoMiembro || !nuevoMiembro.trim()) ? 0.6 : 1, whiteSpace: 'nowrap' }}>
-                  {agregandoMiembro ? 'Añadiendo…' : 'Añadir'}
-                </button>
-              </div>
-            </form>
+                <div className="flex gap-2">
+                  <button type="submit" disabled={agregandoMiembro || !nuevoMiembro.trim()}
+                    style={{ ...btnPrimary, opacity: (agregandoMiembro || !nuevoMiembro.trim()) ? 0.6 : 1, whiteSpace: 'nowrap' }}>
+                    {agregandoMiembro ? 'Añadiendo…' : 'Añadir'}
+                  </button>
+                  <button type="button" onClick={() => {
+                    setMostrarFormMiembro(false);
+                    setNuevoMiembro(''); setNuevoNombre(''); setNuevoEmail(''); setNuevoWhatsapp('');
+                  }} style={btnSecondary}>
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         )}
 
