@@ -91,6 +91,17 @@ export default function DashboardHome() {
   const [setup, setSetup] = useState({ name: '', plan: 'free', imap: false });
   const [setupCargado, setSetupCargado] = useState(false);
 
+  // saludo()/fechaHoy() dependen de new Date() — el servidor (SSR en Vercel,
+  // reloj en UTC) y el cliente (reloj local del navegador) pueden calcular
+  // un texto distinto para la misma franja horaria real. Llamarlas directo
+  // en el JSX producía un desajuste entre el HTML del servidor y la primera
+  // pasada de hidratación del cliente → error de hidratación de React. Se
+  // calculan aparte, en un efecto que solo corre tras montar (cliente).
+  const [cabecera, setCabecera] = useState({ saludo: 'Hola', fecha: '' });
+  useEffect(() => {
+    setCabecera({ saludo: saludo(), fecha: fechaHoy() });
+  }, []);
+
   useEffect(() => {
     obtenerLeadsPagina(getToken)
       .then(d => { setLeads(d.leads); setTotalReal(d.total); setValorCerrado(d.counts.deal_value_total); })
@@ -185,8 +196,8 @@ export default function DashboardHome() {
 
       {/* ── Cabecera personalizada ── */}
       <PageHeader
-        eyebrow={fechaHoy()}
-        title={nombre ? `${saludo()}, ${nombre}` : saludo()}
+        eyebrow={cabecera.fecha}
+        title={nombre ? `${cabecera.saludo}, ${nombre}` : cabecera.saludo}
         description="Aquí tienes el resumen de tu actividad"
         action={
           <Link href="/nuevo-lead" data-tour="nuevo-lead" style={{
