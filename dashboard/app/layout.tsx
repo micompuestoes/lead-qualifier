@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import { ClerkProvider } from '@clerk/nextjs';
 import { auth } from '@clerk/nextjs/server';
 import { esES } from '@clerk/localizations';
+import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
 import AppShell from '@/components/AppShell';
@@ -48,6 +49,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <body>
           <ThemeProvider>
             <SentryInit />
+            <Analytics />
             <ToastProvider>
               {userId ? (
                 <div className="flex min-h-screen">

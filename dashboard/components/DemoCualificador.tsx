@@ -5,6 +5,7 @@
 // Llama a /demo/qualify (sin auth, sin persistencia, ver routers/demo.py).
 
 import { useState } from 'react';
+import { track } from '@vercel/analytics';
 import { cualificarDemo, type ResultadoDemo } from '@/lib/api';
 import LeadBadge from '@/components/LeadBadge';
 import ScoreBar from '@/components/ScoreBar';
@@ -41,6 +42,10 @@ export default function DemoCualificador() {
     try {
       const r = await cualificarDemo({ message: mensaje.trim(), website });
       setResultado(r);
+      // Único punto real de "esto funciona" en todo el embudo público — sin
+      // esto no había forma de saber si la demo convierte a alguien o si la
+      // landing recibe visitas que nunca la prueban.
+      track('demo_qualified', { classification: r.classification });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo procesar la demo. Inténtalo de nuevo.');
     } finally {

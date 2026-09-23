@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
+import { track } from '@vercel/analytics';
 import { useTheme } from '@/components/ThemeProvider';
 import { useToast } from '@/components/Toast';
 import { obtenerMiPerfil } from '@/lib/api';
@@ -44,6 +45,7 @@ export default function PricingPage() {
 
   async function contratar(planId: string) {
     if (planId === 'free') return;
+    track('checkout_started', { plan: planId });
     setCargando(planId);
     try {
       const token = await getToken();

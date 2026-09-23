@@ -4,6 +4,7 @@
 // Diseño autónomo (no depende del tema del dashboard).
 
 import Link from 'next/link';
+import { track } from '@vercel/analytics';
 import { PLANS } from '@/lib/plans';
 import DemoCualificador from '@/components/DemoCualificador';
 
@@ -110,7 +111,7 @@ export default function MarketingLanding() {
             <Link href="/sign-in" style={{ fontSize: 14, fontWeight: 600, color: '#5a544c', textDecoration: 'none', padding: '8px 12px' }}>
               Entrar
             </Link>
-            <Link href="/sign-up" style={{
+            <Link href="/sign-up" onClick={() => track('signup_click', { location: 'nav' })} style={{
               fontSize: 14, fontWeight: 600, color: INK, textDecoration: 'none',
               padding: '9px 18px', borderRadius: 11, background: GOLD,
               boxShadow: '0 2px 12px rgba(200,169,110,0.4)',
@@ -149,7 +150,7 @@ export default function MarketingLanding() {
             24/7 — también el domingo por la noche.
           </p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link href="/sign-up" style={{
+            <Link href="/sign-up" onClick={() => track('signup_click', { location: 'hero' })} style={{
               fontSize: 15, fontWeight: 600, color: INK, textDecoration: 'none',
               padding: '14px 28px', borderRadius: 13, background: GOLD,
               boxShadow: '0 4px 20px rgba(200,169,110,0.45)',
@@ -387,7 +388,7 @@ export default function MarketingLanding() {
                   </li>
                 ))}
               </ul>
-              <Link href="/sign-up" style={{
+              <Link href="/sign-up" onClick={() => track('signup_click', { location: 'pricing', plan: plan.id })} style={{
                 display: 'block', textAlign: 'center', fontSize: 14, fontWeight: 600, textDecoration: 'none',
                 padding: '12px', borderRadius: 12,
                 background: plan.destacado ? GOLD : 'transparent',
@@ -467,7 +468,7 @@ export default function MarketingLanding() {
             Configúralo en cinco minutos y deja que Inmuebia conteste por ti desde hoy.
             Gratis hasta 10 leads al mes.
           </p>
-          <Link href="/sign-up" style={{
+          <Link href="/sign-up" onClick={() => track('signup_click', { location: 'footer' })} style={{
             position: 'relative', display: 'inline-block', fontSize: 15, fontWeight: 600, color: INK, textDecoration: 'none',
             padding: '14px 30px', borderRadius: 13, background: GOLD, boxShadow: '0 4px 22px rgba(200,169,110,0.5)',
           }}>
