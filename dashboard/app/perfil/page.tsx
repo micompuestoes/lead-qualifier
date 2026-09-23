@@ -523,99 +523,136 @@ export default function PerfilPage() {
           </form>
         </div>
 
-        {/* ── Respuestas con IA ── */}
+        <SectionLabel>Captación de leads</SectionLabel>
+
+        {/* ── Formulario público / API Key ── */}
         <div style={card}>
           <h2 className="text-base font-semibold mb-1" style={{ color: c.heading }}>
-            Respuestas con IA
+            Formulario público de captación
           </h2>
           <p className="text-sm mb-5" style={{ color: c.text2 }}>
-            Controla cómo responde la IA a tus leads: envíalo todo en automático
-            o revisa cada email antes de que salga con tu nombre.
+            Comparte este enlace en tu web para recibir leads directamente en el dashboard.
           </p>
 
-          <form onSubmit={guardarAi} className="space-y-4">
-            {/* Modo de envío */}
-            <div className="space-y-2">
-              {[
-                { valor: true,  titulo: 'Enviar automáticamente',
-                  desc: 'El lead recibe la respuesta al instante. Máxima velocidad.' },
-                { valor: false, titulo: 'Revisar antes de enviar',
-                  desc: 'Cada email queda como borrador editable. Máximo control.' },
-              ].map(op => {
-                const activo = aiForm.auto_send === op.valor;
-                return (
-                  <label key={String(op.valor)} className="flex items-start gap-3 rounded-xl px-4 py-3 cursor-pointer transition-all"
-                    style={{
-                      border: activo ? '1.5px solid #c8a96e' : `1.5px solid ${c.inputBorder}`,
-                      background: activo ? 'rgba(200,169,110,0.07)' : 'transparent',
+          {perfil?.api_key ? (
+            <div className="space-y-4">
+              {/* Form URL */}
+              <div>
+                <label style={labelStyle}>Enlace del formulario</label>
+                <div className="flex gap-2">
+                  <input readOnly value={formUrl}
+                    style={{ ...inputStyleFor('formurl'), fontFamily: 'monospace', fontSize: 12, flex: 1 }} />
+                  <button
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(formUrl);
+                        setCopiadoFormUrl(true);
+                        setTimeout(() => setCopiadoFormUrl(false), 2000);
+                        addToast('Enlace copiado', 'success');
+                      } catch {
+                        addToast('No se pudo copiar al portapapeles', 'error');
+                      }
+                    }}
+                    style={{ ...btnSecondary, padding: '10px 14px', minWidth: 76, whiteSpace: 'nowrap' }}
+                  >
+                    {copiadoFormUrl ? '✓ Copiado' : 'Copiar'}
+                  </button>
+                  <a href={formUrl} target="_blank" rel="noopener noreferrer"
+                    style={{ ...btnSecondary, padding: '10px 14px', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                    Ver
+                  </a>
+                </div>
+              </div>
+              {/* API Key */}
+              <div>
+                <label style={labelStyle}>
+                  API Key
+                  <span style={{ color: c.text3, textTransform: 'none', fontWeight: 400, marginLeft: 6 }}>
+                    · para integraciones propias
+                  </span>
+                </label>
+                <div className="flex gap-2">
+                  <input readOnly value={perfil.api_key}
+                    style={{ ...inputStyleFor('apikey'), fontFamily: 'monospace', fontSize: 12, flex: 1 }} />
+                  <button
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(perfil!.api_key);
+                        setCopiadoApiKey(true);
+                        setTimeout(() => setCopiadoApiKey(false), 2000);
+                        addToast('API Key copiada', 'success');
+                      } catch {
+                        addToast('No se pudo copiar al portapapeles', 'error');
+                      }
+                    }}
+                    style={{ ...btnSecondary, padding: '10px 14px', minWidth: 76, whiteSpace: 'nowrap' }}
+                  >
+                    {copiadoApiKey ? '✓ Copiado' : 'Copiar'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Plugin de WordPress (Pro y Agencia) — misma clave de arriba, sin tocar código */}
+              {perfil?.plan === 'pro' || perfil?.plan === 'agencia' ? (
+                <div style={{
+                  marginTop: 4, padding: 16, borderRadius: 12,
+                  background: c.muted, border: c.cardBorder,
+                }}>
+                  <p className="text-sm font-semibold mb-1" style={{ color: c.text1 }}>
+                    ¿Tu web es de WordPress?
+                  </p>
+                  <p className="text-sm mb-3" style={{ color: c.text2 }}>
+                    Instala nuestro plugin gratuito, pega la API Key de arriba en sus ajustes
+                    y añade <code>[inmuebia_formulario]</code> en cualquier página — el
+                    formulario aparece con los colores de tu marca, sin salir de tu web.
+                  </p>
+                  <a href="/inmuebia-wordpress-plugin.zip" download
+                    style={{ ...btnSecondary, display: 'inline-flex', textDecoration: 'none', padding: '10px 16px' }}>
+                    Descargar plugin (.zip)
+                  </a>
+                </div>
+              ) : (
+                <div style={{
+                  marginTop: 4, padding: 16, borderRadius: 12,
+                  background: c.muted, border: c.cardBorder,
+                }}>
+                  <div className="flex items-start gap-3">
+                    <div style={{
+                      width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                      background: 'rgba(200,169,110,0.14)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                    <input
-                      type="radio"
-                      name="modo-envio"
-                      checked={activo}
-                      onChange={() => setAiForm(p => ({ ...p, auto_send: op.valor }))}
-                      style={{ marginTop: 3, accentColor: '#c8a96e' }}
-                    />
-                    <span>
-                      <span className="text-sm font-semibold block" style={{ color: c.text1 }}>{op.titulo}</span>
-                      <span className="text-xs" style={{ color: c.text2 }}>{op.desc}</span>
-                    </span>
-                  </label>
-                );
-              })}
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#c8a96e"
+                        strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
+                      </svg>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <p className="text-sm font-semibold" style={{ color: c.text1, marginBottom: 3 }}>
+                        Plugin de WordPress — disponible en el plan Pro y Agencia
+                      </p>
+                      <p className="text-xs" style={{ color: c.text2, lineHeight: 1.55, marginBottom: 14 }}>
+                        Inserta el formulario directamente en tu web de WordPress, con los
+                        colores de tu marca y sin salir de tu dominio.
+                      </p>
+                      <button onClick={() => router.push('/pricing')}
+                        style={{ ...btnPrimary, padding: '9px 18px', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1a1814" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                        </svg>
+                        Mejorar mi plan
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-
-            {/* Seguimiento automático */}
-            <label className="flex items-start gap-3 rounded-xl px-4 py-3 cursor-pointer transition-all"
-              style={{
-                border: aiForm.followup_enabled ? '1.5px solid #c8a96e' : `1.5px solid ${c.inputBorder}`,
-                background: aiForm.followup_enabled ? 'rgba(200,169,110,0.07)' : 'transparent',
-              }}>
-              <input
-                type="checkbox"
-                checked={aiForm.followup_enabled}
-                onChange={e => setAiForm(p => ({ ...p, followup_enabled: e.target.checked }))}
-                style={{ marginTop: 3, width: 15, height: 15, accentColor: '#c8a96e', cursor: 'pointer', flexShrink: 0 }}
-              />
-              <span>
-                <span className="text-sm font-semibold block" style={{ color: c.text1 }}>
-                  Seguimiento automático
-                </span>
-                <span className="text-xs" style={{ color: c.text2, lineHeight: 1.5 }}>
-                  Si un lead interesante sigue pendiente a los 3 días, le enviamos un único
-                  recordatorio amable en tu nombre. El 80% de los cierres vienen del seguimiento.
-                </span>
-              </span>
-            </label>
-
-            {/* Voz de marca */}
-            <div>
-              <label style={labelStyle}>
-                Voz de marca
-                <span style={{ color: c.text3, textTransform: 'none', fontWeight: 400, marginLeft: 6 }}>
-                  · opcional, la IA la respeta al redactar
-                </span>
-              </label>
-              <textarea
-                value={aiForm.brand_voice}
-                onChange={e => setAiForm(p => ({ ...p, brand_voice: e.target.value }))}
-                onFocus={() => setFocusedInput('brand-voice')}
-                onBlur={() => setFocusedInput(null)}
-                rows={3}
-                maxLength={500}
-                placeholder="P. ej.: tono cercano pero profesional, tutea al cliente, menciona que llevamos 20 años en el barrio…"
-                style={{ ...inputStyleFor('brand-voice'), resize: 'vertical', lineHeight: 1.55, fontFamily: 'inherit' }}
-              />
-            </div>
-
-            <button type="submit" disabled={aiGuardando}
-              style={{ ...btnPrimary, opacity: aiGuardando ? 0.6 : 1 }}>
-              {aiGuardando ? 'Guardando…' : 'Guardar preferencias'}
-            </button>
-          </form>
+          ) : (
+            <p className="text-sm" style={{ color: c.text3 }}>
+              El formulario se activa tras la primera conexión con el servidor.
+            </p>
+          )}
         </div>
-
-        <SectionLabel>Captación de leads</SectionLabel>
 
         {/* ── Bandeja de entrada (IMAP) ── */}
         <div style={card}>
@@ -752,6 +789,40 @@ export default function PerfilPage() {
           )}
         </div>
 
+        {/* ── Webhook a tu CRM ── */}
+        <div style={card}>
+          <h2 className="text-base font-semibold mb-1" style={{ color: c.heading }}>
+            Webhook a tu CRM
+          </h2>
+          <p className="text-sm mb-5" style={{ color: c.text2 }}>
+            Cada lead cualificado (formulario, email o API) se reenvía también por POST a esta
+            URL, además de guardarse en Inmuebia. Déjalo vacío para desactivarlo.
+          </p>
+
+          <form onSubmit={guardarWebhook} className="space-y-4">
+            <div>
+              <label style={labelStyle}>URL del webhook</label>
+              <input
+                type="url"
+                value={webhookUrl}
+                onChange={e => setWebhookUrl(e.target.value)}
+                onFocus={() => setFocusedInput('webhook-url')}
+                onBlur={() => setFocusedInput(null)}
+                placeholder="https://tu-crm.com/webhooks/inmuebia"
+                style={inputStyleFor('webhook-url')}
+              />
+              <p className="text-xs mt-1.5" style={{ color: c.text3 }}>
+                Debe empezar por https://
+              </p>
+            </div>
+
+            <button type="submit" disabled={webhookGuardando}
+              style={{ ...btnPrimary, opacity: webhookGuardando ? 0.6 : 1 }}>
+              {webhookGuardando ? 'Guardando…' : 'Guardar webhook'}
+            </button>
+          </form>
+        </div>
+
         {/* ── Avisos por WhatsApp ── */}
         <div style={card}>
           <div className="flex items-center gap-2 mb-1">
@@ -799,167 +870,96 @@ export default function PerfilPage() {
           </div>
         </div>
 
-        {/* ── Webhook a tu CRM ── */}
+        {/* ── Respuestas con IA ── */}
         <div style={card}>
           <h2 className="text-base font-semibold mb-1" style={{ color: c.heading }}>
-            Webhook a tu CRM
+            Respuestas con IA
           </h2>
           <p className="text-sm mb-5" style={{ color: c.text2 }}>
-            Cada lead cualificado (formulario, email o API) se reenvía también por POST a esta
-            URL, además de guardarse en Inmuebia. Déjalo vacío para desactivarlo.
+            Controla cómo responde la IA a tus leads: envíalo todo en automático
+            o revisa cada email antes de que salga con tu nombre.
           </p>
 
-          <form onSubmit={guardarWebhook} className="space-y-4">
-            <div>
-              <label style={labelStyle}>URL del webhook</label>
-              <input
-                type="url"
-                value={webhookUrl}
-                onChange={e => setWebhookUrl(e.target.value)}
-                onFocus={() => setFocusedInput('webhook-url')}
-                onBlur={() => setFocusedInput(null)}
-                placeholder="https://tu-crm.com/webhooks/inmuebia"
-                style={inputStyleFor('webhook-url')}
-              />
-              <p className="text-xs mt-1.5" style={{ color: c.text3 }}>
-                Debe empezar por https://
-              </p>
+          <form onSubmit={guardarAi} className="space-y-4">
+            {/* Modo de envío */}
+            <div className="space-y-2">
+              {[
+                { valor: true,  titulo: 'Enviar automáticamente',
+                  desc: 'El lead recibe la respuesta al instante. Máxima velocidad.' },
+                { valor: false, titulo: 'Revisar antes de enviar',
+                  desc: 'Cada email queda como borrador editable. Máximo control.' },
+              ].map(op => {
+                const activo = aiForm.auto_send === op.valor;
+                return (
+                  <label key={String(op.valor)} className="flex items-start gap-3 rounded-xl px-4 py-3 cursor-pointer transition-all"
+                    style={{
+                      border: activo ? '1.5px solid #c8a96e' : `1.5px solid ${c.inputBorder}`,
+                      background: activo ? 'rgba(200,169,110,0.07)' : 'transparent',
+                    }}>
+                    <input
+                      type="radio"
+                      name="modo-envio"
+                      checked={activo}
+                      onChange={() => setAiForm(p => ({ ...p, auto_send: op.valor }))}
+                      style={{ marginTop: 3, accentColor: '#c8a96e' }}
+                    />
+                    <span>
+                      <span className="text-sm font-semibold block" style={{ color: c.text1 }}>{op.titulo}</span>
+                      <span className="text-xs" style={{ color: c.text2 }}>{op.desc}</span>
+                    </span>
+                  </label>
+                );
+              })}
             </div>
 
-            <button type="submit" disabled={webhookGuardando}
-              style={{ ...btnPrimary, opacity: webhookGuardando ? 0.6 : 1 }}>
-              {webhookGuardando ? 'Guardando…' : 'Guardar webhook'}
+            {/* Seguimiento automático */}
+            <label className="flex items-start gap-3 rounded-xl px-4 py-3 cursor-pointer transition-all"
+              style={{
+                border: aiForm.followup_enabled ? '1.5px solid #c8a96e' : `1.5px solid ${c.inputBorder}`,
+                background: aiForm.followup_enabled ? 'rgba(200,169,110,0.07)' : 'transparent',
+              }}>
+              <input
+                type="checkbox"
+                checked={aiForm.followup_enabled}
+                onChange={e => setAiForm(p => ({ ...p, followup_enabled: e.target.checked }))}
+                style={{ marginTop: 3, width: 15, height: 15, accentColor: '#c8a96e', cursor: 'pointer', flexShrink: 0 }}
+              />
+              <span>
+                <span className="text-sm font-semibold block" style={{ color: c.text1 }}>
+                  Seguimiento automático
+                </span>
+                <span className="text-xs" style={{ color: c.text2, lineHeight: 1.5 }}>
+                  Si un lead interesante sigue pendiente a los 3 días, le enviamos un único
+                  recordatorio amable en tu nombre. El 80% de los cierres vienen del seguimiento.
+                </span>
+              </span>
+            </label>
+
+            {/* Voz de marca */}
+            <div>
+              <label style={labelStyle}>
+                Voz de marca
+                <span style={{ color: c.text3, textTransform: 'none', fontWeight: 400, marginLeft: 6 }}>
+                  · opcional, la IA la respeta al redactar
+                </span>
+              </label>
+              <textarea
+                value={aiForm.brand_voice}
+                onChange={e => setAiForm(p => ({ ...p, brand_voice: e.target.value }))}
+                onFocus={() => setFocusedInput('brand-voice')}
+                onBlur={() => setFocusedInput(null)}
+                rows={3}
+                maxLength={500}
+                placeholder="P. ej.: tono cercano pero profesional, tutea al cliente, menciona que llevamos 20 años en el barrio…"
+                style={{ ...inputStyleFor('brand-voice'), resize: 'vertical', lineHeight: 1.55, fontFamily: 'inherit' }}
+              />
+            </div>
+
+            <button type="submit" disabled={aiGuardando}
+              style={{ ...btnPrimary, opacity: aiGuardando ? 0.6 : 1 }}>
+              {aiGuardando ? 'Guardando…' : 'Guardar preferencias'}
             </button>
           </form>
-        </div>
-
-        {/* ── Formulario público / API Key ── */}
-        <div style={card}>
-          <h2 className="text-base font-semibold mb-1" style={{ color: c.heading }}>
-            Formulario público de captación
-          </h2>
-          <p className="text-sm mb-5" style={{ color: c.text2 }}>
-            Comparte este enlace en tu web para recibir leads directamente en el dashboard.
-          </p>
-
-          {perfil?.api_key ? (
-            <div className="space-y-4">
-              {/* Form URL */}
-              <div>
-                <label style={labelStyle}>Enlace del formulario</label>
-                <div className="flex gap-2">
-                  <input readOnly value={formUrl}
-                    style={{ ...inputStyleFor('formurl'), fontFamily: 'monospace', fontSize: 12, flex: 1 }} />
-                  <button
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(formUrl);
-                        setCopiadoFormUrl(true);
-                        setTimeout(() => setCopiadoFormUrl(false), 2000);
-                        addToast('Enlace copiado', 'success');
-                      } catch {
-                        addToast('No se pudo copiar al portapapeles', 'error');
-                      }
-                    }}
-                    style={{ ...btnSecondary, padding: '10px 14px', minWidth: 76, whiteSpace: 'nowrap' }}
-                  >
-                    {copiadoFormUrl ? '✓ Copiado' : 'Copiar'}
-                  </button>
-                  <a href={formUrl} target="_blank" rel="noopener noreferrer"
-                    style={{ ...btnSecondary, padding: '10px 14px', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                    Ver
-                  </a>
-                </div>
-              </div>
-              {/* API Key */}
-              <div>
-                <label style={labelStyle}>
-                  API Key
-                  <span style={{ color: c.text3, textTransform: 'none', fontWeight: 400, marginLeft: 6 }}>
-                    · para integraciones propias
-                  </span>
-                </label>
-                <div className="flex gap-2">
-                  <input readOnly value={perfil.api_key}
-                    style={{ ...inputStyleFor('apikey'), fontFamily: 'monospace', fontSize: 12, flex: 1 }} />
-                  <button
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(perfil!.api_key);
-                        setCopiadoApiKey(true);
-                        setTimeout(() => setCopiadoApiKey(false), 2000);
-                        addToast('API Key copiada', 'success');
-                      } catch {
-                        addToast('No se pudo copiar al portapapeles', 'error');
-                      }
-                    }}
-                    style={{ ...btnSecondary, padding: '10px 14px', minWidth: 76, whiteSpace: 'nowrap' }}
-                  >
-                    {copiadoApiKey ? '✓ Copiado' : 'Copiar'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Plugin de WordPress (Pro y Agencia) — misma clave de arriba, sin tocar código */}
-              {perfil?.plan === 'pro' || perfil?.plan === 'agencia' ? (
-                <div style={{
-                  marginTop: 4, padding: 16, borderRadius: 12,
-                  background: c.muted, border: c.cardBorder,
-                }}>
-                  <p className="text-sm font-semibold mb-1" style={{ color: c.text1 }}>
-                    ¿Tu web es de WordPress?
-                  </p>
-                  <p className="text-sm mb-3" style={{ color: c.text2 }}>
-                    Instala nuestro plugin gratuito, pega la API Key de arriba en sus ajustes
-                    y añade <code>[inmuebia_formulario]</code> en cualquier página — el
-                    formulario aparece con los colores de tu marca, sin salir de tu web.
-                  </p>
-                  <a href="/inmuebia-wordpress-plugin.zip" download
-                    style={{ ...btnSecondary, display: 'inline-flex', textDecoration: 'none', padding: '10px 16px' }}>
-                    Descargar plugin (.zip)
-                  </a>
-                </div>
-              ) : (
-                <div style={{
-                  marginTop: 4, padding: 16, borderRadius: 12,
-                  background: c.muted, border: c.cardBorder,
-                }}>
-                  <div className="flex items-start gap-3">
-                    <div style={{
-                      width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                      background: 'rgba(200,169,110,0.14)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#c8a96e"
-                        strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
-                      </svg>
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <p className="text-sm font-semibold" style={{ color: c.text1, marginBottom: 3 }}>
-                        Plugin de WordPress — disponible en el plan Pro y Agencia
-                      </p>
-                      <p className="text-xs" style={{ color: c.text2, lineHeight: 1.55, marginBottom: 14 }}>
-                        Inserta el formulario directamente en tu web de WordPress, con los
-                        colores de tu marca y sin salir de tu dominio.
-                      </p>
-                      <button onClick={() => router.push('/pricing')}
-                        style={{ ...btnPrimary, padding: '9px 18px', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1a1814" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                        </svg>
-                        Mejorar mi plan
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <p className="text-sm" style={{ color: c.text3 }}>
-              El formulario se activa tras la primera conexión con el servidor.
-            </p>
-          )}
         </div>
 
         {/* ── Equipo ── */}
