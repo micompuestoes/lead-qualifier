@@ -103,10 +103,10 @@ export default function MarketingLanding() {
         borderBottom: '1px solid rgba(200,169,110,0.2)',
       }}>
         <div style={{ ...sectionPad, display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 11, textDecoration: 'none', color: 'inherit' }}>
             <Logo size={34} />
             <span style={{ fontSize: 17, fontWeight: 600 }}>Inmueb<span style={{ color: '#9a7a3a' }}>ia</span></span>
-          </div>
+          </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Link href="/sign-in" style={{ fontSize: 14, fontWeight: 600, color: '#5a544c', textDecoration: 'none', padding: '8px 12px' }}>
               Entrar

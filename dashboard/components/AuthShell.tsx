@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { SignIn, SignUp, ClerkLoading, ClerkLoaded } from '@clerk/nextjs';
 import { useTheme } from './ThemeProvider';
 
@@ -93,12 +94,12 @@ function BrandPanel({ mode }: { mode: 'sign-in' | 'sign-up' }) {
       }} />
 
       {/* Top: logo */}
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12 }}>
+      <Link href="/" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none', color: 'inherit' }}>
         <Logo size={42} />
         <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em' }}>
           Inmueb<span style={{ color: '#c8a96e' }}>ia</span>
         </span>
-      </div>
+      </Link>
 
       {/* Centro: titular + ventajas */}
       <div style={{ position: 'relative', maxWidth: 440 }}>
@@ -240,12 +241,13 @@ export default function AuthShell({ mode }: { mode: 'sign-in' | 'sign-up' }) {
         <div className="auth-fade-in" style={{ width: '100%', maxWidth: 380 }}>
 
           {/* Marca compacta (visible cuando se oculta el panel) */}
-          <div className="auth-brand-compact" style={{
+          <Link href="/" className="auth-brand-compact" style={{
             display: 'none', alignItems: 'center', gap: 10, marginBottom: 28, justifyContent: 'center',
+            textDecoration: 'none', color: 'inherit',
           }}>
             <Logo size={36} />
             <span style={{ fontSize: 16, fontWeight: 600, color: c.text1 }}>Inmueb<span style={{ color: '#9a7a3a' }}>ia</span></span>
-          </div>
+          </Link>
 
           {/* Encabezado propio */}
           <div style={{ marginBottom: 24 }}>
