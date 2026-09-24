@@ -3,8 +3,8 @@
 import type { Metadata } from 'next';
 import { ClerkProvider } from '@clerk/nextjs';
 import { auth } from '@clerk/nextjs/server';
-import { esES } from '@clerk/localizations';
 import { Analytics } from '@vercel/analytics/next';
+import { clerkLocalizationES } from '@/lib/clerkLocalization';
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
 import AppShell from '@/components/AppShell';
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const { userId } = await auth();
   return (
-    <ClerkProvider localization={esES} signInUrl="/sign-in" signUpUrl="/sign-up">
+    <ClerkProvider localization={clerkLocalizationES} signInUrl="/sign-in" signUpUrl="/sign-up">
       <html lang="es" suppressHydrationWarning>
         {/* Anti-FOUC: aplica el tema antes de que React hidrate.
             Siempre claro por defecto — NO sigue prefers-color-scheme del
