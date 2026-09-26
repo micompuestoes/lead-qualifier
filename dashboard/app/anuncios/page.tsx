@@ -234,9 +234,9 @@ export default function AnunciosPage() {
     <div className="r-pad" style={{ padding: 32, maxWidth: 800, margin: '0 auto' }}>
 
       <PageHeader
-        eyebrow="Herramientas IA"
+        eyebrow="Herramientas"
         title="Generador de anuncios"
-        description="Describe el inmueble y la IA redactará textos listos para publicar en cada canal."
+        description="Describe el inmueble y redactaremos textos listos para publicar en cada canal."
       />
 
       {cargandoPlan ? null : sinAcceso ? (
@@ -261,7 +261,7 @@ export default function AnunciosPage() {
               </p>
               <p className="text-xs" style={{ color: c.text2, lineHeight: 1.55, marginBottom: 14 }}>
                 Con tu plan actual (Free) no puedes generar anuncios. Mejora tu plan para
-                redactar textos listos para Idealista, redes sociales y email con IA.
+                redactar textos listos para Idealista, redes sociales y email.
               </p>
               <button onClick={() => router.push('/pricing')}
                 style={{
@@ -436,7 +436,7 @@ export default function AnunciosPage() {
           ) : (
             <>
               <IconBolt />
-              Generar anuncios con IA
+              Generar anuncios
             </>
           )}
         </button>

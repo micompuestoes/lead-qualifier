@@ -134,7 +134,7 @@ const principalLinks: NavLink[] = [
 // /me/form-branding no exige plan, /generate-ad exige "pro", solo Estadísticas exige "agencia".
 const herramientasLinks: NavLink[] = [
   { href: '/formulario',   label: 'Mi formulario', icon: <IconForm />,  requiredPlan: 'free'    },
-  { href: '/anuncios',     label: 'Anuncios IA',   icon: <IconAd />,    requiredPlan: 'pro'     },
+  { href: '/anuncios',     label: 'Anuncios',      icon: <IconAd />,    requiredPlan: 'pro'     },
   { href: '/estadisticas', label: 'Estadísticas',  icon: <IconStats />, requiredPlan: 'agencia' },
 ];
 const cuentaLinks: NavLink[] = [
@@ -381,7 +381,7 @@ export default function Sidebar() {
             </p>
             <p style={{ fontSize: 11, marginTop: 2, transition: 'color 0.2s' }} className="truncate">
               <span style={{ color: '#9a7a3a', fontWeight: 700 }}>Inmuebia</span>
-              <span style={{ color: c.text3 }}> · IA inmobiliaria</span>
+              <span style={{ color: c.text3 }}> · Leads inmobiliarios</span>
             </p>
           </div>
         </div>
@@ -465,7 +465,7 @@ export default function Sidebar() {
             </div>
             <p style={{ fontSize: 11, color: 'rgba(154,122,58,0.65)', lineHeight: 1.45 }}>
               {perfil.plan === 'free'
-                ? 'Más leads, IA avanzada y sin límites'
+                ? 'Más leads y funciones avanzadas, sin límites'
                 : 'Reparto de leads y estadísticas avanzadas'}
             </p>
           </Link>

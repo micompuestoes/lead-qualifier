@@ -195,6 +195,7 @@ def _extraer_y_redactar(
     email: str,
     message: str,
     brand_voice: Optional[str] = None,
+    channel: str = "mensaje",
 ) -> Optional[dict]:
     """
     Única llamada a Claude: extrae las señales del mensaje (financiación,
@@ -204,18 +205,36 @@ def _extraer_y_redactar(
     Devuelve None si la llamada falla o la respuesta no es válida — el
     llamante debe entonces usar analyze_intent (regex) + email plantilla,
     así el lead nunca se queda sin cualificar por una caída de la API.
+
+    channel: 'mensaje' (por defecto) o 'llamada'. Si es 'llamada', `message`
+    es un resumen que ha escrito el agente tras hablar por teléfono, no una
+    cita literal del cliente — el email generado no debe agradecer "tu
+    mensaje" ni citar el texto como si el cliente lo hubiera escrito.
     """
     estilo = ""
     if brand_voice and brand_voice.strip():
         estilo = f"\nSigue estas preferencias de estilo de la agencia al redactar el email: {brand_voice.strip()}"
 
+    if channel == "llamada":
+        origen = (
+            '\nOrigen del lead: llamada telefónica. El texto de "Resumen de la llamada" '
+            "no son las palabras del cliente, sino notas que ha escrito el agente "
+            "inmobiliario después de hablar con él por teléfono. Redacta el email como "
+            "seguimiento de esa llamada (agradece la llamada o la conversación, nunca "
+            '"tu mensaje") y no lo cites entre comillas como si fuera texto suyo.'
+        )
+        etiqueta_mensaje = "Resumen de la llamada"
+    else:
+        origen = ""
+        etiqueta_mensaje = "Mensaje recibido"
+
     user_prompt = f"""Analiza este lead inmobiliario llamando a la herramienta cualificar_lead.
 
 Lead: {name} <{email}>
-Mensaje recibido: "{message}"
+{etiqueta_mensaje}: "{message}"
 
 Primer nombre para el saludo del email: {primer_nombre}
-Firma para cerrar el email: {firma}{estilo}"""
+Firma para cerrar el email: {firma}{estilo}{origen}"""
 
     try:
         # Timeout explícito: esta llamada es bloqueante y corre en el
@@ -303,6 +322,7 @@ def qualify_lead(
     brand_voice: Optional[str] = None,
     auto_send: bool = True,
     source: Optional[str] = None,
+    channel: str = "mensaje",
 ) -> dict:
     """
     Cualifica un lead inmobiliario completo y lo guarda en la base de datos.
@@ -320,6 +340,7 @@ def qualify_lead(
                  agente lo revise/edite antes de enviarlo desde el dashboard.
     source:      canal de entrada ('formulario' | 'api' | 'email'), para poder
                  comparar qué canal convierte mejor.
+    channel:     'mensaje' (por defecto) o 'llamada' — ver _extraer_y_redactar.
     """
     lead_id       = str(uuid.uuid4())
     firma         = (agency_name or "").strip() or "el equipo"
@@ -336,7 +357,7 @@ def qualify_lead(
     # ── 1: extracción de señales + email (única llamada a la IA) ──
     resultado_ia = _extraer_y_redactar(
         anthropic_client, name, primer_nombre, firma, email, message,
-        brand_voice=brand_voice,
+        brand_voice=brand_voice, channel=channel,
     )
     if resultado_ia is not None:
         intent = resultado_ia["intent"]

@@ -28,7 +28,7 @@ const STEPS: Step[] = [
   {
     selector: '[data-tour="nuevo-lead"]',
     title: 'Cualifica un lead',
-    body: 'Pega el mensaje de un contacto y la IA lo puntúa y le redacta una respuesta al instante.',
+    body: 'Pega el mensaje de un contacto y lo puntuamos y le redactamos una respuesta al instante.',
   },
   {
     selector: '[data-tour="onboarding"]',

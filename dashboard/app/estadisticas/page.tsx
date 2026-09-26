@@ -572,7 +572,7 @@ export default function EstadisticasPage() {
       {/* ── Precisión de la IA (feedback 👍/👎 de los agentes) ── */}
       <div style={{ ...cardStyle, marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-          <p style={sectionLabel}>Precisión de la IA</p>
+          <p style={sectionLabel}>Precisión de la clasificación</p>
           <div style={{
             width: 32, height: 32, borderRadius: 9, flexShrink: 0,
             background: 'rgba(200,169,110,0.1)',
@@ -585,7 +585,7 @@ export default function EstadisticasPage() {
         {stats.feedback.total_valorados === 0 ? (
           <p style={{ fontSize: 13, color: c.text2, lineHeight: 1.6 }}>
             Todavía no hay leads valorados. Marca 👍 o 👎 en la ficha de un lead
-            para indicar si la IA acertó con su clasificación — con suficientes
+            para indicar si acertamos con la clasificación — con suficientes
             valoraciones verás aquí si se equivoca sistemáticamente en algún
             segmento.
           </p>

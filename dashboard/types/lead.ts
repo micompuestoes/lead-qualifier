@@ -38,6 +38,7 @@ export interface Lead {
   score_feedback?: number | null;        // 1 = acierto, -1 = fallo, null = sin valorar
   followup_sent_at?: string | null;      // fecha del recordatorio automático (si se envió)
   deal_value?: number | null;            // importe (€) de la operación, si se cerró
+  source?: string | null;                // canal de entrada: 'formulario' | 'api' | 'email' | 'llamada'
   created_at: string;
   processed_at: string | null;
 }
@@ -66,6 +67,9 @@ export interface NuevoLeadPayload {
   email: string;
   phone?: string;
   message: string;
+  // 'llamada' → el mensaje es un resumen escrito por el agente tras una
+  // llamada, no una cita literal del cliente; cambia el tono del email generado.
+  channel?: 'mensaje' | 'llamada';
 }
 
 // Payload para actualizar el estado

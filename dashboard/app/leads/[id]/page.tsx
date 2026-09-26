@@ -258,7 +258,7 @@ export default function LeadDetallePage() {
     try {
       const upd = await feedbackLead(id, nuevo, getToken);
       setLead(upd);
-      if (nuevo) addToast('Gracias — tu valoración nos ayuda a afinar la IA', 'success');
+      if (nuevo) addToast('Gracias — tu valoración nos ayuda a afinar la clasificación', 'success');
     } catch {
       addToast('No se pudo guardar la valoración', 'error');
     } finally {
@@ -377,7 +377,7 @@ export default function LeadDetallePage() {
         <div style={{ marginBottom: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: c.text2, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              Puntuación IA
+              Puntuación
               <Link href="/ayuda#cualificacion" title="¿Cómo funciona la puntuación?"
                 style={{ display: 'inline-flex', color: c.text3 }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -474,9 +474,9 @@ export default function LeadDetallePage() {
         {/* ── Columna izquierda ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-          {/* Mensaje original */}
+          {/* Mensaje original (o resumen de la llamada, si el lead vino por teléfono) */}
           <div style={{ ...card, padding: 22 }} className="animate-reveal-in" data-delay="80">
-            <SectionLabel>Mensaje original</SectionLabel>
+            <SectionLabel>{lead.source === 'llamada' ? 'Resumen de la llamada' : 'Mensaje original'}</SectionLabel>
             <p style={{ fontSize: 14, lineHeight: 1.75, color: c.text1, whiteSpace: 'pre-wrap' }}>
               {lead.message}
             </p>

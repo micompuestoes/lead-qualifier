@@ -103,6 +103,7 @@ export default function NuevoLeadPage() {
   const [scoreVisible, setScoreVisible] = useState(0);
   const [mostrarConfeti, setMostrarConfeti] = useState(false);
   const [operacion, setOperacion]           = useState('');
+  const [channel, setChannel]               = useState<'mensaje' | 'llamada'>('mensaje');
   const [presupuesto, setPresupuesto]       = useState('');
   const [esDemo, setEsDemo]                 = useState(false);
   const yaPrefillado = useRef(false);
@@ -123,9 +124,10 @@ export default function NuevoLeadPage() {
     });
     setOperacion('Comprar');
     setPresupuesto('');
+    setChannel('mensaje');
     setResultado(null);
     setEsDemo(true);
-    addToast('Lead de ejemplo listo — pulsa «Cualificar con IA»', 'info');
+    addToast('Lead de ejemplo listo — pulsa «Cualificar»', 'info');
   }
 
   // Entrada directa en modo demo: /nuevo-lead?demo=1 (botones de onboarding y vacíos)
@@ -208,6 +210,7 @@ export default function NuevoLeadPage() {
       const res = await cualificarLead({
         name: form.name.trim(), email: form.email.trim(),
         phone: form.phone.trim() || undefined, message: mensajeCompuesto,
+        channel,
       }, getToken);
       setResultado(res);
       addToast(`Lead cualificado — score ${res.score}/10`, res.score >= 7 ? 'info' : 'success');
@@ -223,7 +226,7 @@ export default function NuevoLeadPage() {
     } finally { setProcesando(false); }
   }
 
-  function resetear() { setForm(FORM_VACIO); setResultado(null); setError(null); setUpgradeUrl(null); setScoreVisible(0); setOperacion(''); setPresupuesto(''); setEsDemo(false); }
+  function resetear() { setForm(FORM_VACIO); setResultado(null); setError(null); setUpgradeUrl(null); setScoreVisible(0); setOperacion(''); setPresupuesto(''); setChannel('mensaje'); setEsDemo(false); }
 
   // Estilos derivados del tema
   const inputStyle: React.CSSProperties = {
@@ -363,7 +366,7 @@ export default function NuevoLeadPage() {
       <PageHeader
         eyebrow="Captación"
         title="Cualificar nuevo lead"
-        description="El agente de IA analizará el mensaje, puntuará el lead y generará un email de respuesta."
+        description="El agente analizará el mensaje, puntuará el lead y generará un email de respuesta."
       />
 
       {/* Atajo demo: rellena un ejemplo realista en un clic */}
@@ -457,6 +460,34 @@ export default function NuevoLeadPage() {
           <PhoneInput onChange={val => setForm(p => ({ ...p, phone: val }))} />
         </div>
 
+        {/* Origen — si viene de una llamada, el mensaje es un resumen del
+            agente, no una cita literal, y el email generado lo tiene en cuenta. */}
+        <div>
+          <label className="block text-sm font-semibold mb-1.5" style={{ color: c.text1 }}>
+            ¿Cómo ha llegado? <span className="font-normal" style={{ color: c.text2 }}>(opcional)</span>
+          </label>
+          <div className="flex gap-2">
+            {([['mensaje', 'Mensaje escrito'], ['llamada', 'Llamada telefónica']] as const).map(([val, etiqueta]) => {
+              const sel = channel === val;
+              return (
+                <button key={val} type="button" disabled={procesando}
+                  onClick={() => setChannel(val)}
+                  className="flex-1 py-2.5 rounded-xl text-sm transition-all"
+                  style={{
+                    fontWeight: sel ? 600 : 500,
+                    background: sel ? '#c8a96e' : 'transparent',
+                    color: sel ? '#1a1814' : c.text2,
+                    border: sel ? '1.5px solid #c8a96e' : `1.5px solid ${c.inputBorder}`,
+                    cursor: procesando ? 'not-allowed' : 'pointer',
+                    opacity: procesando ? 0.6 : 1,
+                  }}>
+                  {etiqueta}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Operación — guía la cualificación, igual que en el formulario público */}
         <div>
           <label className="block text-sm font-semibold mb-1.5" style={{ color: c.text1 }}>
@@ -503,12 +534,16 @@ export default function NuevoLeadPage() {
 
         <div>
           <label htmlFor="message" className="block text-sm font-semibold mb-1.5" style={{ color: c.text1 }}>
-            {operacion === 'Vender' ? '¿Qué inmueble quiere vender?' : 'Mensaje del lead'} <span style={{ color: '#c8a96e' }}>*</span>
+            {channel === 'llamada'
+              ? 'Resumen de la llamada'
+              : operacion === 'Vender' ? '¿Qué inmueble quiere vender?' : 'Mensaje del lead'} <span style={{ color: '#c8a96e' }}>*</span>
           </label>
           <Textarea id="message" name="message" value={form.message} onChange={handleChange}
-            placeholder={operacion === 'Vender'
-              ? 'Detalles del inmueble: zona, tipo (piso, casa…), m², nº de habitaciones, estado…'
-              : 'Cuéntanos qué busca: zona, nº de habitaciones, tipo de inmueble, plazo…'}
+            placeholder={channel === 'llamada'
+              ? 'Qué te ha contado por teléfono: operación, zona, presupuesto, plazo, financiación…'
+              : operacion === 'Vender'
+                ? 'Detalles del inmueble: zona, tipo (piso, casa…), m², nº de habitaciones, estado…'
+                : 'Cuéntanos qué busca: zona, nº de habitaciones, tipo de inmueble, plazo…'}
             disabled={procesando} maxLength={1900} inputStyle={inputStyle} focusStyle={focusStyle} />
         </div>
 
@@ -540,7 +575,7 @@ export default function NuevoLeadPage() {
                 <path strokeLinecap="round" strokeLinejoin="round"
                   d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
               </svg>
-              Cualificar con IA
+              Cualificar
             </>
           )}
         </button>

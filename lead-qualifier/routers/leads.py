@@ -139,7 +139,8 @@ def qualify_lead_endpoint(
             agency_name=tenant.get("name") if tenant else None,
             brand_voice=brand_voice,
             auto_send=auto_send,
-            source="api",
+            source="llamada" if lead.channel == "llamada" else "api",
+            channel=lead.channel,
         )
 
         # Webhook a CRM (si el tenant lo tiene configurado) — best-effort.

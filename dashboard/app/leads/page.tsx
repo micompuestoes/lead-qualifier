@@ -574,7 +574,7 @@ function EmptyState({ sinLeads, onLimpiarFiltros, c }: {
       </h2>
       <p style={{ fontSize: 13, color: c.text2, marginBottom: 28, maxWidth: 340, lineHeight: 1.65 }}>
         {sinLeads
-          ? 'Cualifica tu primer lead y aparecerá aquí con su clasificación y email generado por la IA.'
+          ? 'Cualifica tu primer lead y aparecerá aquí con su clasificación y email generado.'
           : 'Prueba a cambiar o limpiar los filtros activos para ver más resultados.'}
       </p>
       {sinLeads ? (

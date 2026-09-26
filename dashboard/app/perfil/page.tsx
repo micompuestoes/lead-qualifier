@@ -744,7 +744,7 @@ export default function PerfilPage() {
           </h2>
           <p className="text-sm mb-5" style={{ color: c.text2 }}>
             Conecta tu email y los mensajes de potenciales clientes se convertirán
-            automáticamente en leads cualificados por la IA.
+            automáticamente en leads cualificados.
           </p>
 
           {!canImap ? (
@@ -768,7 +768,7 @@ export default function PerfilPage() {
                   </p>
                   <p className="text-xs" style={{ color: c.text2, lineHeight: 1.55, marginBottom: 14 }}>
                     Conecta tu bandeja y convierte automáticamente cada email de un potencial
-                    cliente en un lead cualificado por la IA, sin copiar y pegar nada.
+                    cliente en un lead cualificado, sin copiar y pegar nada.
                   </p>
                   <button onClick={() => router.push('/pricing')}
                     style={{ ...btnPrimary, padding: '9px 18px', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
@@ -945,11 +945,11 @@ export default function PerfilPage() {
           </div>
         </div>
 
-        {/* ── Respuestas con IA ── */}
+        {/* ── Respuestas automáticas ── */}
         <div style={card}>
           <div className="flex items-center justify-between gap-4 mb-1">
             <h2 className="text-base font-semibold" style={{ color: c.heading }}>
-              Respuestas con IA
+              Respuestas automáticas
             </h2>
             {!editandoIa && (
               <button onClick={cambiarIa} style={{ ...btnSecondary, padding: '7px 14px', fontSize: 13, flexShrink: 0 }}>
@@ -967,7 +967,7 @@ export default function PerfilPage() {
           ) : (
           <>
           <p className="text-sm mb-5 mt-3" style={{ color: c.text2 }}>
-            Controla cómo responde la IA a tus leads: envíalo todo en automático
+            Controla cómo se responde a tus leads: envíalo todo en automático
             o revisa cada email antes de que salga con tu nombre.
           </p>
 
@@ -1031,7 +1031,7 @@ export default function PerfilPage() {
               <label style={labelStyle}>
                 Voz de marca
                 <span style={{ color: c.text3, textTransform: 'none', fontWeight: 400, marginLeft: 6 }}>
-                  · opcional, la IA la respeta al redactar
+                  · opcional, se respeta al redactar
                 </span>
               </label>
               <textarea
@@ -1426,7 +1426,7 @@ export default function PerfilPage() {
                         Si cancelas perderás lo que hace que no se te escape ningún cliente:
                       </p>
                       <ul className="mb-4" style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                        {['Leads ilimitados cualificados con IA', 'Avisos de leads calientes y sin contactar', 'Respuestas automáticas a tus clientes'].map(t => (
+                        {['Leads ilimitados cualificados automáticamente', 'Avisos de leads calientes y sin contactar', 'Respuestas automáticas a tus clientes'].map(t => (
                           <li key={t} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: c.text2 }}>
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#c8a96e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="20 6 9 17 4 12" />

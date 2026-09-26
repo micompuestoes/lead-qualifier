@@ -35,7 +35,7 @@ const ACCIONES = [
   {
     href:  '/nuevo-lead',
     label: 'Cualificar lead',
-    desc:  'Analiza y puntúa un nuevo contacto con IA',
+    desc:  'Analiza y puntúa un nuevo contacto',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
         strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -378,7 +378,7 @@ export default function DashboardHome() {
             </div>
             <p style={{ fontSize: 14, fontWeight: 600, color: c.text1 }}>Todavía no hay leads</p>
             <p style={{ fontSize: 12, color: c.text2, maxWidth: 280, lineHeight: 1.6 }}>
-              Cualifica tu primer contacto y aparecerá aquí con su análisis de IA.
+              Cualifica tu primer contacto y aparecerá aquí con su análisis.
             </p>
             <div style={{ marginTop: 4, display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
               <Link href="/nuevo-lead?demo=1" style={{

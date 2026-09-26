@@ -3,7 +3,7 @@ Modelos Pydantic para validación de datos de entrada y salida de la API.
 """
 
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, List
+from typing import Literal, Optional, List
 from datetime import datetime
 from enum import Enum
 
@@ -20,6 +20,9 @@ class LeadInput(BaseModel):
     email: EmailStr = Field(..., description="Email de contacto")
     phone: Optional[str] = Field(None, max_length=20, description="Teléfono de contacto")
     message: str = Field(..., min_length=5, max_length=2000, description="Mensaje del lead")
+    # 'llamada' → `message` es un resumen escrito por el agente tras una llamada,
+    # no una cita literal del cliente; el agente de IA ajusta el tono del email.
+    channel: Literal["mensaje", "llamada"] = "mensaje"
 
 
 class LeadOutput(BaseModel):
