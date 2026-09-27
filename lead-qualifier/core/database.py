@@ -32,6 +32,12 @@ def _crear_engine():
     if database_url:
         if database_url.startswith("postgres://"):
             database_url = database_url.replace("postgres://", "postgresql://", 1)
+        # Fuerza el driver psycopg2 (el que instala requirements.txt) en vez de
+        # dejar que SQLAlchemy elija uno por defecto — sin esto, en algunos
+        # entornos (Python muy reciente, driver psycopg v3 detectado pero no
+        # instalado) el arranque falla con "ModuleNotFoundError: psycopg".
+        if database_url.startswith("postgresql://"):
+            database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
         # Render/Heroku exigen SSL en la URL externa; si no viene, lo forzamos.
         connect_args = {"connect_timeout": 10}
         if "sslmode" not in database_url:
