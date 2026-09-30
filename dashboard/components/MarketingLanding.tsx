@@ -4,6 +4,7 @@
 // Diseño autónomo (no depende del tema del dashboard).
 
 import Link from 'next/link';
+import { useRef, useState } from 'react';
 import { track } from '@vercel/analytics';
 import { PLANS } from '@/lib/plans';
 import DemoCualificador from '@/components/DemoCualificador';
@@ -72,6 +73,8 @@ const PASOS = [
 
 export default function MarketingLanding() {
   const sectionPad: React.CSSProperties = { maxWidth: 1080, margin: '0 auto', padding: '0 24px' };
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoProgreso, setVideoProgreso] = useState(0);
 
   return (
     <div style={{ background: CREAM, color: INK, minHeight: '100vh', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
@@ -149,20 +152,29 @@ export default function MarketingLanding() {
           <p style={{ fontSize: 13, color: '#8a8278', marginTop: 18 }}>Sin tarjeta · Sin permanencia · En español</p>
 
           {/* ── Vista del producto: animación de cómo funciona ── */}
-          <div style={{ maxWidth: 780, margin: '56px auto 0' }}>
+          <div style={{ maxWidth: 960, margin: '56px auto 0' }}>
             <div style={{
-              borderRadius: 18, overflow: 'hidden', lineHeight: 0,
+              position: 'relative', borderRadius: 18, overflow: 'hidden', lineHeight: 0,
               border: '1.5px solid rgba(200,169,110,0.28)',
               boxShadow: '0 24px 70px rgba(26,24,20,0.13), 0 6px 20px rgba(200,169,110,0.12)',
             }}>
               <video
+                ref={videoRef}
                 src="/videos/animacion-lead-qualifier.mp4"
                 autoPlay
                 muted
                 loop
                 playsInline
+                onTimeUpdate={e => {
+                  const v = e.currentTarget;
+                  setVideoProgreso(v.duration ? (v.currentTime / v.duration) * 100 : 0);
+                }}
                 style={{ width: '100%', height: 'auto', display: 'block' }}
               />
+              {/* Barra de progreso discreta — apenas se nota, solo de inicio a fin del vídeo */}
+              <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: 'rgba(26,24,20,0.06)' }}>
+                <div style={{ width: `${videoProgreso}%`, height: '100%', background: 'rgba(200,169,110,0.45)' }} />
+              </div>
             </div>
             <p style={{ fontSize: 12.5, color: '#8a8278', marginTop: 14 }}>
               Así llega cada consulta: puntuada, clasificada y con la respuesta ya redactada.
