@@ -281,7 +281,7 @@ export default function AyudaPage() {
             <p style={{ fontSize: 13.5, color: c.text2, marginBottom: 16 }}>
               Escríbenos y te ayudamos personalmente.
             </p>
-            <a href="mailto:contacto@inmuebia.es" style={{
+            <a href="mailto:dani@inmuebia.es" style={{
               display: 'inline-flex', alignItems: 'center', gap: 8,
               padding: '10px 20px', borderRadius: 12, fontSize: 14, fontWeight: 600,
               background: c.card, color: c.text1, border: `1.5px solid ${c.inputBorder}`, textDecoration: 'none',
@@ -290,7 +290,7 @@ export default function AyudaPage() {
                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
                 <polyline points="22,6 12,13 2,6"/>
               </svg>
-              contacto@inmuebia.es
+              dani@inmuebia.es
             </a>
           </div>
         </div>

@@ -11,7 +11,7 @@ const SECCIONES: LegalSection[] = [
         'Denominación social: Inmuebia',
         'NIF / CIF: pendiente de publicación',
         'Domicilio fiscal: pendiente de publicación',
-        'Email de contacto: contacto@inmuebia.es',
+        'Email de contacto: dani@inmuebia.es',
       ],
     ],
   },

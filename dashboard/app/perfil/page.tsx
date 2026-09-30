@@ -1438,7 +1438,7 @@ export default function PerfilPage() {
                       <div className="rounded-lg px-3 py-2.5 mb-4" style={{ background: 'rgba(200,169,110,0.1)', border: '1px solid rgba(200,169,110,0.22)' }}>
                         <p className="text-xs" style={{ color: '#9a7a3a', lineHeight: 1.5 }}>
                           ¿Es por el precio o te falta algo? Escríbenos a{' '}
-                          <a href="mailto:contacto@inmuebia.es" style={{ color: '#9a7a3a', fontWeight: 600 }}>contacto@inmuebia.es</a>
+                          <a href="mailto:dani@inmuebia.es" style={{ color: '#9a7a3a', fontWeight: 600 }}>dani@inmuebia.es</a>
                           {' '}y buscamos una solución antes de que te vayas.
                         </p>
                       </div>

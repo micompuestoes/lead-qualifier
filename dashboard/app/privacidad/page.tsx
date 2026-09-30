@@ -11,9 +11,9 @@ const SECCIONES: LegalSection[] = [
         'Denominación social: Inmuebia',
         'NIF / CIF: pendiente de publicación',
         'Domicilio: pendiente de publicación',
-        'Email de contacto: contacto@inmuebia.es',
+        'Email de contacto: dani@inmuebia.es',
       ],
-      'Para cualquier consulta sobre privacidad puedes escribir a contacto@inmuebia.es.',
+      'Para cualquier consulta sobre privacidad puedes escribir a dani@inmuebia.es.',
     ],
   },
   {
@@ -62,7 +62,7 @@ const SECCIONES: LegalSection[] = [
   {
     heading: 'Tus derechos',
     body: [
-      'Puedes ejercer tus derechos de acceso, rectificación, supresión, oposición, limitación y portabilidad escribiendo a contacto@inmuebia.es.',
+      'Puedes ejercer tus derechos de acceso, rectificación, supresión, oposición, limitación y portabilidad escribiendo a dani@inmuebia.es.',
       'También tienes derecho a presentar una reclamación ante la Agencia Española de Protección de Datos (AEPD).',
     ],
   },

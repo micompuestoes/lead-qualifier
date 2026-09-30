@@ -488,7 +488,7 @@ export default function MarketingLanding() {
           <div style={{ display: 'flex', gap: 18, fontSize: 13 }}>
             <Link href="/terminos" style={{ color: '#5a544c', textDecoration: 'none' }}>Términos</Link>
             <Link href="/privacidad" style={{ color: '#5a544c', textDecoration: 'none' }}>Privacidad</Link>
-            <a href="mailto:contacto@inmuebia.es" style={{ color: '#5a544c', textDecoration: 'none' }}>Contacto</a>
+            <a href="mailto:dani@inmuebia.es" style={{ color: '#5a544c', textDecoration: 'none' }}>Contacto</a>
           </div>
         </div>
       </footer>
