@@ -12,6 +12,9 @@ const isPublicRoute = createRouteMatcher([
   '/form/(.*)',   // formularios públicos de captación de leads
   '/terminos(.*)',
   '/privacidad(.*)',
+  '/sitemap.xml',
+  '/robots.txt',
+  '/opengraph-image(.*)', // imagen generada para las previews al compartir el enlace (WhatsApp, X, LinkedIn...)
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
