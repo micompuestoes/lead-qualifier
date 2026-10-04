@@ -24,12 +24,9 @@ function Logo() {
       boxShadow: '0 4px 12px rgba(200,169,110,0.3)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
-      {/* Marca Inmuebia: casa (inmueble) con destello (IA) dentro */}
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" strokeWidth={2}
-        stroke="#1a1814" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 11.25L12 3.75l9 7.5" />
-        <path d="M5.25 9.75v9.75c0 .414.336.75.75.75h12c.414 0 .75-.336.75-.75V9.75" />
-        <path d="M12 10.5l.95 2.05 2.05.95-2.05.95-.95 2.05-.95-2.05-2.05-.95 2.05-.95z" fill="#1a1814" stroke="none" />
+      {/* Marca Inmuebia: "i" con tejado de casa como punto */}
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="#1a1814">
+        <path d="M12 4.9 L15.6 8.1 H8.4 Z M9.6 8.1 H14.4 V9.8 H9.6 Z M10.1 10.9 H13.85 V21 H10.1 Z" />
       </svg>
     </div>
   );

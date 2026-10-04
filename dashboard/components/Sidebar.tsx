@@ -326,8 +326,8 @@ export default function Sidebar() {
             boxShadow: '0 3px 10px rgba(200,169,110,0.4)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" strokeWidth={2.2} stroke="#1a1814" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="#1a1814">
+              <path d="M12 4.9 L15.6 8.1 H8.4 Z M9.6 8.1 H14.4 V9.8 H9.6 Z M10.1 10.9 H13.85 V21 H10.1 Z" />
             </svg>
           </div>
           <span style={{
@@ -369,9 +369,8 @@ export default function Sidebar() {
             boxShadow: '0 4px 12px rgba(200,169,110,0.3)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" strokeWidth={2.2} stroke="white">
-              <path strokeLinecap="round" strokeLinejoin="round"
-                d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="#1a1814">
+              <path d="M12 4.9 L15.6 8.1 H8.4 Z M9.6 8.1 H14.4 V9.8 H9.6 Z M10.1 10.9 H13.85 V21 H10.1 Z" />
             </svg>
           </div>
           <div className="min-w-0 flex-1">
